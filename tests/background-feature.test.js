@@ -58,3 +58,19 @@ test('BackgroundFeature targets the Blobgame wrapper background image', () => {
 
   feature.destroy();
 });
+
+test('BackgroundFeature adds a faint green frame glow around the page background', () => {
+  const document = createFakeDocument();
+  const feature = new BackgroundFeature({
+    document,
+    backgroundUrl: 'data:image/png;base64,test-image',
+  });
+
+  feature.start();
+
+  const style = document.getElementById('blobio-background-style');
+  assert.match(style.textContent, /border: 1px solid rgba\(142, 255, 174, 0\.42\)/);
+  assert.match(style.textContent, /box-shadow: inset 0 0 22px rgba\(76, 255, 128, 0\.34\)/);
+
+  feature.destroy();
+});

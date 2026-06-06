@@ -94,6 +94,17 @@ body.${this.className} .wrapper {
   background-repeat: no-repeat !important;
   background-size: cover !important;
 }
+
+html.${this.className} body::before {
+  content: "";
+  position: fixed;
+  inset: 10px;
+  z-index: 2147483000;
+  pointer-events: none;
+  border: 1px solid rgba(142, 255, 174, 0.42);
+  border-radius: 10px;
+  box-shadow: inset 0 0 22px rgba(76, 255, 128, 0.34), 0 0 18px rgba(76, 255, 128, 0.2);
+}
 `.trim();
   }
 

@@ -1,5 +1,13 @@
 import backgroundUrl from '../background.png';
+import discordIconUrl from '../discord_icon.png';
+import facebookIconUrl from '../facebook_icon.png';
+import instagramIconUrl from '../instagram_icon.png';
+import socialsButtonUrl from '../socal_icon_n.png';
+import updatesButtonUrl from '../update_notes_n_.png';
+import youtubeIconUrl from '../youtube_icon.png';
+import recommendedButtonUrl from '../yt_recommended_n.png';
 import { BackgroundFeature } from './features/BackgroundFeature.js';
+import { MenuFeature } from './features/MenuFeature.js';
 
 const INSTANCE_KEY = '__blobioExtension';
 
@@ -26,6 +34,19 @@ class BlobioExtension {
         document,
         backgroundUrl,
         logger: this.window.console || console,
+      }),
+      new MenuFeature({
+        document,
+        logger: this.window.console || console,
+        assets: {
+          recommendedButton: recommendedButtonUrl,
+          updatesButton: updatesButtonUrl,
+          socialsButton: socialsButtonUrl,
+          youtubeIcon: youtubeIconUrl,
+          discordIcon: discordIconUrl,
+          facebookIcon: facebookIconUrl,
+          instagramIcon: instagramIconUrl,
+        },
       }),
     ];
 
