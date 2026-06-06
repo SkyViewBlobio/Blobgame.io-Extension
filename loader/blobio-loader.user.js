@@ -8,6 +8,7 @@
 // @run-at       document-start
 // @grant        GM_xmlhttpRequest
 // @connect      cdn.jsdelivr.net
+// @connect      raw.githubusercontent.com
 // @downloadURL  https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Web-Script/main/loader/blobio-loader.user.js
 // @updateURL    https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Web-Script/main/loader/blobio-loader.user.js
 // ==/UserScript==
@@ -16,7 +17,10 @@
   'use strict';
 
   const LOG_PREFIX = '[Blobio]';
-  const BUNDLE_URL = 'https://cdn.jsdelivr.net/gh/SkyViewBlobio/Blobgame.io-Web-Script@main/dist/blobio-extension.bundle.js';
+  const BUNDLE_URLS = [
+    'https://cdn.jsdelivr.net/gh/SkyViewBlobio/Blobgame.io-Web-Script@main/dist/blobio-extension.bundle.js',
+    'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Web-Script/main/dist/blobio-extension.bundle.js',
+  ];
 
   function logError(message, detail) {
     if (detail) {
@@ -36,19 +40,25 @@
     }
   }
 
-  function fetchBundle() {
+  function fetchBundle(index = 0, failures = []) {
     if (typeof GM_xmlhttpRequest !== 'function') {
       logError('GM_xmlhttpRequest is unavailable. Check the userscript grants.');
       return;
     }
 
+    const url = BUNDLE_URLS[index];
+    if (!url) {
+      logError('Failed to fetch extension bundle from all configured URLs.', failures);
+      return;
+    }
+
     GM_xmlhttpRequest({
       method: 'GET',
-      url: BUNDLE_URL,
+      url,
       timeout: 15000,
       onload(response) {
         if (response.status < 200 || response.status >= 300) {
-          logError(`Failed to fetch extension bundle. HTTP ${response.status}.`);
+          fetchBundle(index + 1, failures.concat(`HTTP ${response.status} from ${url}`));
           return;
         }
 
@@ -60,10 +70,10 @@
         runBundle(response.responseText);
       },
       onerror(error) {
-        logError('Network error while fetching extension bundle.', error);
+        fetchBundle(index + 1, failures.concat(error || `Network error from ${url}`));
       },
       ontimeout() {
-        logError('Timed out while fetching extension bundle.');
+        fetchBundle(index + 1, failures.concat(`Timed out while fetching ${url}`));
       },
     });
   }
