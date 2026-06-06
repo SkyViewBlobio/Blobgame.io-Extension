@@ -143,6 +143,43 @@ function addConsentManagerPolicyLinks(document) {
   document.body.appendChild(consent);
 }
 
+function addPartnerLinks(document) {
+  const wrapper = document.createElement('div');
+  const links = [
+    ['https://iogames.space', 'io-games.space | '],
+    ['https://iogames.live', 'io-games.live | '],
+    ['http://io-games.zone/', 'io-games.zone | '],
+    ['https://www.silvergames.com/en/iogames', 'silvergames.com | '],
+    ['https://www.crazygames.com/c/io/', 'crazygames.com'],
+  ];
+
+  for (const [href, label] of links) {
+    const link = document.createElement('a');
+    link.setAttribute('href', href);
+    link.textContent = label;
+    wrapper.appendChild(link);
+  }
+
+  document.body.appendChild(wrapper);
+  return wrapper;
+}
+
+function addFailedViralFrame(document) {
+  const wrapper = document.createElement('div');
+  wrapper.classList.add('hide-on-small-screen');
+
+  const frame = document.createElement('iframe');
+  frame.id = 'blob-io';
+  frame.setAttribute('src', 'https://viral.iogames.space/');
+  frame.setAttribute('width', '220');
+  frame.setAttribute('height', '140');
+
+  wrapper.appendChild(frame);
+  document.body.appendChild(wrapper);
+
+  return { wrapper, frame };
+}
+
 test('MenuFeature injects toolbar buttons next to the Replay button and hides original socials', () => {
   const document = createFakeDocument();
   const { controls, replayButton } = addReplayButton(document);
@@ -168,6 +205,12 @@ test('MenuFeature injects toolbar buttons next to the Replay button and hides or
   assert.equal(buttons[0].style.backgroundSize, 'cover');
   assert.equal(buttons[0].style.backgroundRepeat, 'repeat');
   assert.equal(buttons[0].style.backgroundPosition, '0% 0%');
+  assert.equal(buttons[0].style.display, 'inline-block');
+  assert.equal(buttons[0].style.padding, '1px 6px');
+  assert.equal(buttons[0].style.border, '0px none');
+  assert.equal(buttons[0].style.backgroundColor, 'transparent');
+  assert.match(style.textContent, /\.blobio-menu-buttons\s*{[\s\S]*display: inline-block;/);
+  assert.match(style.textContent, /\.blobio-menu-button\s*{[\s\S]*display: inline-block !important;/);
   assert.match(toolbar.textContent, /Featured/);
   assert.match(toolbar.textContent, /Updates/);
   assert.match(toolbar.textContent, /Socials/);
@@ -188,6 +231,7 @@ test('MenuFeature hides original featured video, update history, and cued overla
   addOriginalFeaturedVideo(document);
   addOriginalUpdateNotes(document);
   addCuedOverlay(document);
+  const { wrapper: viralFrameWrapper, frame: viralFrame } = addFailedViralFrame(document);
 
   const feature = new MenuFeature({ document, assets });
   feature.start();
@@ -198,10 +242,14 @@ test('MenuFeature hides original featured video, update history, and cued overla
   assert.equal(document.querySelector('.aside.aside-2 h3').classList.contains('blobio-original-hidden'), true);
   assert.equal(document.querySelector('cued-overlay.ytmCuedOverlayHost').classList.contains('blobio-original-hidden'), true);
   assert.equal(document.querySelector('.ytmCuedOverlayGradient').classList.contains('blobio-original-hidden'), true);
+  assert.equal(viralFrame.classList.contains('blobio-original-hidden'), true);
+  assert.equal(viralFrameWrapper.classList.contains('blobio-original-hidden'), true);
 
   feature.destroy();
 
   assert.equal(document.getElementById('youtube-title').classList.contains('blobio-original-hidden'), false);
+  assert.equal(viralFrame.classList.contains('blobio-original-hidden'), false);
+  assert.equal(viralFrameWrapper.classList.contains('blobio-original-hidden'), false);
 });
 
 test('MenuFeature hides the live Updates notes wrapper from aside-1', () => {
@@ -319,28 +367,37 @@ test('MenuFeature folds original policy links into a bottom policy menu', () => 
   const document = createFakeDocument();
   addReplayButton(document);
   addOriginalPolicyLinks(document);
+  const partnerLinks = addPartnerLinks(document);
 
   const feature = new MenuFeature({ document, assets });
   feature.start();
 
+  const style = document.getElementById('blobio-menu-style');
   const originalLinks = document.querySelectorAll('.policy a[href]');
   const policyDock = document.querySelector('.blobio-policy-dock');
   const policyPanel = document.getElementById('blobio-panel-policy');
 
   assert.equal(originalLinks.length, 2);
   assert.equal(originalLinks[0].classList.contains('blobio-original-hidden'), true);
+  assert.equal(partnerLinks.classList.contains('blobio-original-hidden'), true);
   assert.notEqual(policyDock, null);
   assert.equal(policyPanel.classList.contains('is-open'), false);
   assert.equal(policyPanel.querySelectorAll('a[href]').length, 0);
+  assert.match(style.textContent, /\.blobio-policy-dock\s*{[\s\S]*left: 50%;/);
+  assert.match(style.textContent, /\.blobio-policy-dock\s*{[\s\S]*bottom: 26px;/);
+  assert.match(style.textContent, /\.blobio-policy-dock\s*{[\s\S]*transform: translateX\(-50%\);/);
 
   policyDock.querySelector('button').click();
 
   const foldedLinks = policyPanel.querySelectorAll('a[href]');
   assert.equal(policyPanel.classList.contains('is-open'), true);
-  assert.equal(foldedLinks.length, 2);
+  assert.equal(foldedLinks.length, 7);
   assert.equal(foldedLinks[0].getAttribute('href'), originalLinks[0].getAttribute('href'));
+  assert.equal(foldedLinks[2].getAttribute('href'), 'https://iogames.space');
   assert.match(policyPanel.textContent, /Privacy Policy/);
   assert.match(policyPanel.textContent, /Terms and Conditions/);
+  assert.match(policyPanel.textContent, /io-games\.space/);
+  assert.match(policyPanel.textContent, /crazygames\.com/);
 
   document.dispatchEvent({ type: 'keydown', key: 'Escape' });
   assert.equal(policyPanel.classList.contains('is-open'), false);
@@ -349,6 +406,7 @@ test('MenuFeature folds original policy links into a bottom policy menu', () => 
 
   assert.equal(document.querySelector('.blobio-policy-dock'), null);
   assert.equal(originalLinks[0].classList.contains('blobio-original-hidden'), false);
+  assert.equal(partnerLinks.classList.contains('blobio-original-hidden'), false);
 });
 
 test('MenuFeature ignores consent-manager vendor policy links', () => {
