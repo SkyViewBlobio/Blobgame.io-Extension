@@ -6,6 +6,8 @@ The installed userscript is only a small loader. It fetches the built extension 
 
 ## Install
 
+This install URL only works for normal Tampermonkey users after the repository is public. While the repository is private, GitHub raw files and jsDelivr bundle URLs return `404` to unauthenticated requests.
+
 Install this loader in Tampermonkey:
 
 ```text
