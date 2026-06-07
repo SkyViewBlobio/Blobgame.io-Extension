@@ -500,9 +500,17 @@ html.${className} app-settings.blobio-extension-settings-active .blobio-extensio
 }
 
 html.${className} app-settings .blobio-extension-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(142, 255, 174, 0.34);
+  border-radius: 8px;
+  background: rgba(2, 18, 12, 0.72);
   color: #dfffe6;
   font-weight: 700;
   text-shadow: 0 0 6px rgba(118, 255, 154, 0.62);
+  box-shadow: 0 0 14px rgba(79, 255, 130, 0.18), inset 0 0 10px rgba(79, 255, 130, 0.1);
 }
 
 html.${className} app-settings .blobio-extension-setting-row label[for="config-switch-watermark"] {
@@ -510,15 +518,25 @@ html.${className} app-settings .blobio-extension-setting-row label[for="config-s
   text-shadow: 0 0 6px rgba(118, 255, 154, 0.62);
 }
 
+html.${className} .blobio-watermark-host {
+  position: relative;
+}
+
 html.${className} .blobio-watermark {
-  margin: 0 0 6px;
+  position: absolute;
+  left: var(--blobio-watermark-left, 0px);
+  top: var(--blobio-watermark-top, -6px);
+  width: var(--blobio-watermark-width, 100%);
+  margin: 0;
   text-align: center;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 800;
   line-height: 1.15;
   letter-spacing: 0;
   pointer-events: none;
   white-space: nowrap;
+  z-index: 3;
+  transform: translateY(-100%);
 }
 
 html.${className} .blobio-watermark-prefix {
@@ -535,7 +553,8 @@ html.${className} .blobio-watermark-extension {
   position: relative;
   display: inline-block;
   color: transparent;
-  background: linear-gradient(90deg, #dfffe6, #ffffff, #64ff8b);
+  background: linear-gradient(100deg, #baffc8 0%, #ffffff 38%, #dfffe6 58%, #64ff8b 100%);
+  background-size: 160% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   text-shadow: 0 0 8px rgba(118, 255, 154, 0.34);

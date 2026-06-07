@@ -64,6 +64,26 @@ function addNameInput(document) {
   return input;
 }
 
+function setWatermarkRects(input) {
+  input.parentNode.getBoundingClientRect = () => ({ left: 20, top: 100, width: 300, height: 80 });
+  input.getBoundingClientRect = () => ({ left: 50, top: 118, width: 150, height: 36 });
+}
+
+function toHtmlCollectionLike(children) {
+  const collection = {};
+  children.forEach((child, index) => {
+    collection[index] = child;
+  });
+  collection.length = children.length;
+  collection.item = (index) => collection[index] || null;
+  collection[Symbol.iterator] = function* iterate() {
+    for (let index = 0; index < children.length; index += 1) {
+      yield children[index];
+    }
+  };
+  return collection;
+}
+
 function addSettingsModal(document) {
   const settings = document.createElement('app-settings');
 
@@ -712,9 +732,10 @@ test('MenuFeature adds an Extension settings category with a WaterMark toggle', 
   addReplayButton(document);
   const settings = addSettingsModal(document);
   const nameInput = addNameInput(document);
+  setWatermarkRects(nameInput);
   const storage = createMemoryStorage({ 'blobio.watermark.enabled': '1' });
 
-  const feature = new MenuFeature({ document, assets, storage, version: '0.1.15' });
+  const feature = new MenuFeature({ document, assets, storage, version: '0.1.16' });
   feature.start();
 
   const style = document.getElementById('blobio-menu-style').textContent;
@@ -729,11 +750,21 @@ test('MenuFeature adds an Extension settings category with a WaterMark toggle', 
   assert.notEqual(checkbox, null);
   assert.equal(checkbox.checked, true);
   assert.equal(panel.classList.contains('blobio-extension-settings-panel'), true);
-  assert.equal(watermark.textContent, 'Blob-Extension v0.1.15');
-  assert.equal(watermark.parentNode.children.indexOf(watermark), watermark.parentNode.children.indexOf(nameInput) - 1);
+  assert.equal(watermark.textContent, 'Blob-Extension v0.1.16');
+  assert.equal(watermark.parentNode, nameInput.parentNode);
+  assert.equal(watermark.parentNode.children.indexOf(watermark) > watermark.parentNode.children.indexOf(nameInput), true);
+  assert.equal(watermark.parentNode.classList.contains('blobio-watermark-host'), true);
+  assert.equal(watermark.style['--blobio-watermark-left'], '-18px');
+  assert.equal(watermark.style['--blobio-watermark-top'], '12px');
+  assert.equal(watermark.style['--blobio-watermark-width'], '246px');
   assert.match(style, /\.blobio-extension-settings-tab\s*{[\s\S]*color: #dfffe6;/);
+  assert.match(style, /\.blobio-extension-setting-row\s*{[\s\S]*background: rgba\(2, 18, 12, 0\.72\);/);
+  assert.match(style, /\.blobio-extension-setting-row\s*{[\s\S]*border: 1px solid rgba\(142, 255, 174, 0\.34\);/);
+  assert.match(style, /\.blobio-watermark\s*{[\s\S]*position: absolute;/);
+  assert.match(style, /\.blobio-watermark\s*{[\s\S]*font-size: 18px;/);
   assert.match(style, /\.blobio-watermark-prefix\s*{[\s\S]*text-shadow:/);
-  assert.match(style, /\.blobio-watermark-extension\s*{[\s\S]*linear-gradient\(90deg, #dfffe6, #ffffff, #64ff8b\)/);
+  assert.match(style, /\.blobio-watermark-extension\s*{[\s\S]*linear-gradient\(100deg, #baffc8 0%, #ffffff 38%, #dfffe6 58%, #64ff8b 100%\)/);
+  assert.match(style, /\.blobio-watermark-extension\s*{[\s\S]*background-size: 160% 100%;/);
   assert.match(style, /\.blobio-watermark-extension::after\s*{[\s\S]*animation: blobio-watermark-underline 5000ms ease-in-out infinite;/);
 
   tab.click();
@@ -758,10 +789,11 @@ test('MenuFeature persists the WaterMark toggle and removes the badge when disab
   const document = createFakeDocument();
   addReplayButton(document);
   addSettingsModal(document);
-  addNameInput(document);
+  const nameInput = addNameInput(document);
+  setWatermarkRects(nameInput);
   const storage = createMemoryStorage();
 
-  const feature = new MenuFeature({ document, assets, storage, version: '0.1.15' });
+  const feature = new MenuFeature({ document, assets, storage, version: '0.1.16' });
   feature.start();
 
   const checkbox = document.getElementById('config-switch-watermark');
@@ -772,13 +804,47 @@ test('MenuFeature persists the WaterMark toggle and removes the badge when disab
   checkbox.dispatchEvent({ type: 'change', target: checkbox });
 
   assert.equal(storage.getItem('blobio.watermark.enabled'), '1');
-  assert.equal(document.querySelector('.blobio-watermark').textContent, 'Blob-Extension v0.1.15');
+  assert.equal(document.querySelector('.blobio-watermark').textContent, 'Blob-Extension v0.1.16');
+
+  feature.syncWatermark();
+  feature.syncWatermark();
+
+  assert.equal(document.querySelectorAll('.blobio-watermark').length, 1);
+
+  const children = Array.from(nameInput.parentNode.children);
+  nameInput.parentNode.children = toHtmlCollectionLike(children);
+
+  assert.doesNotThrow(() => feature.syncWatermark());
+  nameInput.parentNode.children = children;
 
   checkbox.checked = false;
   checkbox.dispatchEvent({ type: 'change', target: checkbox });
 
   assert.equal(storage.getItem('blobio.watermark.enabled'), '0');
   assert.equal(document.querySelector('.blobio-watermark'), null);
+
+  feature.destroy();
+});
+
+test('MenuFeature ignores mutations from extension-owned watermark and settings nodes', () => {
+  const document = createFakeDocument();
+  addReplayButton(document);
+  const settings = addSettingsModal(document);
+  const nameInput = addNameInput(document);
+  setWatermarkRects(nameInput);
+  const storage = createMemoryStorage({ 'blobio.watermark.enabled': '1' });
+
+  const feature = new MenuFeature({ document, assets, storage, version: '0.1.16' });
+  feature.start();
+
+  const watermark = document.querySelector('.blobio-watermark');
+  const tab = settings.querySelector('.blobio-extension-settings-tab');
+  const panel = settings.querySelector('.blobio-extension-settings-panel');
+  const unrelated = document.createElement('div');
+
+  assert.equal(feature.isOwnMutation({ target: nameInput.parentNode, addedNodes: [watermark], removedNodes: [] }), true);
+  assert.equal(feature.isOwnMutation({ target: settings, addedNodes: [tab, panel], removedNodes: [] }), true);
+  assert.equal(feature.isOwnMutation({ target: document.body, addedNodes: [unrelated], removedNodes: [] }), false);
 
   feature.destroy();
 });

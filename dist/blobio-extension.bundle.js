@@ -654,9 +654,17 @@ html.${className} app-settings.blobio-extension-settings-active .blobio-extensio
 }
 
 html.${className} app-settings .blobio-extension-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(142, 255, 174, 0.34);
+  border-radius: 8px;
+  background: rgba(2, 18, 12, 0.72);
   color: #dfffe6;
   font-weight: 700;
   text-shadow: 0 0 6px rgba(118, 255, 154, 0.62);
+  box-shadow: 0 0 14px rgba(79, 255, 130, 0.18), inset 0 0 10px rgba(79, 255, 130, 0.1);
 }
 
 html.${className} app-settings .blobio-extension-setting-row label[for="config-switch-watermark"] {
@@ -664,15 +672,25 @@ html.${className} app-settings .blobio-extension-setting-row label[for="config-s
   text-shadow: 0 0 6px rgba(118, 255, 154, 0.62);
 }
 
+html.${className} .blobio-watermark-host {
+  position: relative;
+}
+
 html.${className} .blobio-watermark {
-  margin: 0 0 6px;
+  position: absolute;
+  left: var(--blobio-watermark-left, 0px);
+  top: var(--blobio-watermark-top, -6px);
+  width: var(--blobio-watermark-width, 100%);
+  margin: 0;
   text-align: center;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 800;
   line-height: 1.15;
   letter-spacing: 0;
   pointer-events: none;
   white-space: nowrap;
+  z-index: 3;
+  transform: translateY(-100%);
 }
 
 html.${className} .blobio-watermark-prefix {
@@ -689,7 +707,8 @@ html.${className} .blobio-watermark-extension {
   position: relative;
   display: inline-block;
   color: transparent;
-  background: linear-gradient(90deg, #dfffe6, #ffffff, #64ff8b);
+  background: linear-gradient(100deg, #baffc8 0%, #ffffff 38%, #dfffe6 58%, #64ff8b 100%);
+  background-size: 160% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   text-shadow: 0 0 8px rgba(118, 255, 154, 0.34);
@@ -782,12 +801,14 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.15";
+  var DEFAULT_EXTENSION_VERSION = "0.1.16";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
   var OTHER_GAME_NAMES = ["Viper", "Hexa"];
   var WATERMARK_STORAGE_KEY = "blobio.watermark.enabled";
+  var WATERMARK_EXTRA_WIDTH = 96;
+  var WATERMARK_INPUT_GAP = 6;
   var DEFAULT_VIDEO = {
     title: "Featured Blob.io Video",
     url: "https://www.youtube.com/watch?v=GOlXDLWeGMo"
@@ -987,7 +1008,7 @@ html.${className} .blobio-watermark-extension::after {
         return;
       }
       this.observer = new MutationObserver((mutations = []) => {
-        if (mutations.length > 0 && mutations.every((mutation) => this.isInsideOwnUi(mutation.target))) {
+        if (mutations.length > 0 && mutations.every((mutation) => this.isOwnMutation(mutation))) {
           return;
         }
         this.scheduleRefresh();
@@ -1458,9 +1479,35 @@ html.${className} .blobio-watermark-extension::after {
       if (!watermark) {
         watermark = this.createWatermark();
       }
-      if (watermark.parentNode !== nameInput.parentNode || watermark.parentNode.children.indexOf(watermark) !== watermark.parentNode.children.indexOf(nameInput) - 1) {
-        nameInput.parentNode.insertBefore(watermark, nameInput);
+      const host = nameInput.parentNode;
+      host.classList?.add("blobio-watermark-host");
+      if (watermark.parentNode !== host) {
+        host.appendChild(watermark);
       }
+      this.positionWatermark(watermark, nameInput, host);
+    }
+    positionWatermark(watermark, nameInput, host) {
+      const inputRect = this.getElementRect(nameInput);
+      const hostRect = this.getElementRect(host);
+      if (!inputRect || !hostRect) {
+        this.setStyleProperty(watermark, "--blobio-watermark-left", "0px");
+        this.setStyleProperty(watermark, "--blobio-watermark-top", "-6px");
+        this.setStyleProperty(watermark, "--blobio-watermark-width", "100%");
+        return;
+      }
+      const left = Math.round(inputRect.left - hostRect.left - WATERMARK_EXTRA_WIDTH / 2);
+      const top = Math.round(inputRect.top - hostRect.top - WATERMARK_INPUT_GAP);
+      const width = Math.round(inputRect.width + WATERMARK_EXTRA_WIDTH);
+      this.setStyleProperty(watermark, "--blobio-watermark-left", `${left}px`);
+      this.setStyleProperty(watermark, "--blobio-watermark-top", `${top}px`);
+      this.setStyleProperty(watermark, "--blobio-watermark-width", `${width}px`);
+    }
+    getElementRect(node) {
+      const rect = node?.getBoundingClientRect?.();
+      if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.top) || !Number.isFinite(rect.width)) {
+        return null;
+      }
+      return rect;
     }
     createWatermark() {
       const watermark = this.document.createElement("div");
@@ -1480,6 +1527,9 @@ html.${className} .blobio-watermark-extension::after {
     removeWatermarks() {
       for (const watermark of this.document.querySelectorAll?.(".blobio-watermark") || []) {
         watermark.remove();
+      }
+      for (const host of this.document.querySelectorAll?.(".blobio-watermark-host") || []) {
+        host.classList?.remove("blobio-watermark-host");
       }
     }
     findNameInput() {
@@ -1812,7 +1862,30 @@ html.${className} .blobio-watermark-extension::after {
       }
     }
     isInsideOwnUi(node) {
-      return Boolean(node && (this.toolbar?.contains(node) || this.policyDock?.contains(node) || this.footerModalHost?.contains(node)));
+      return Boolean(
+        node && (this.toolbar?.contains(node) || this.policyDock?.contains(node) || this.footerModalHost?.contains(node) || this.isExtensionOwnedNode(node))
+      );
+    }
+    isOwnMutation(mutation) {
+      if (this.isInsideOwnUi(mutation.target)) {
+        return true;
+      }
+      const touchedNodes = [
+        ...Array.from(mutation.addedNodes || []),
+        ...Array.from(mutation.removedNodes || [])
+      ];
+      return touchedNodes.length > 0 && touchedNodes.every((node) => this.isInsideOwnUi(node));
+    }
+    isExtensionOwnedNode(node) {
+      let current = node?.classList ? node : node?.parentElement;
+      while (current) {
+        const classList = current.classList;
+        if (classList?.contains(DEFAULT_TOOLBAR_CLASS) || classList?.contains("blobio-menu-panel") || classList?.contains("blobio-footer-dock") || classList?.contains("blobio-footer-modal-host") || classList?.contains("blobio-watermark") || classList?.contains("blobio-extension-settings-tab") || classList?.contains("blobio-extension-settings-panel")) {
+          return true;
+        }
+        current = current.parentElement;
+      }
+      return false;
     }
     isInsideOriginalFooter(node) {
       let current = node;
