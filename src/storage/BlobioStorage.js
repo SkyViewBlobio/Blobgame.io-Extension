@@ -34,8 +34,12 @@ export function createBlobioStorage(document = globalThis.document) {
       if (isSharedKey(key) && typeof gmApi.getValue === 'function') {
         const value = gmApi.getValue(key, undefined);
         if (value !== undefined && value !== null) {
-          localStorage?.setItem?.(key, String(value));
-          return String(value);
+          const nextValue = String(value);
+          if (localStorage?.getItem?.(key) !== nextValue) {
+            localStorage?.setItem?.(key, nextValue);
+          }
+
+          return nextValue;
         }
       }
 

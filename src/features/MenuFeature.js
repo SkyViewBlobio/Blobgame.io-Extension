@@ -4,7 +4,7 @@ import { createBlobioStorage } from '../storage/BlobioStorage.js';
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
 const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
-const DEFAULT_EXTENSION_VERSION = '0.1.18';
+const DEFAULT_EXTENSION_VERSION = '0.1.19';
 const HIDDEN_CLASS = 'blobio-original-hidden';
 const PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
 const FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -141,6 +141,7 @@ export class MenuFeature {
       return false;
     }
 
+    this.syncCustomSkinRuntimeConfig();
     this.installCustomSkinRuntimeHook();
     if (!this.frontPageUi) {
       this.started = true;
@@ -433,8 +434,7 @@ export class MenuFeature {
       this.document.body?.appendChild(this.footerModalHost);
     }
 
-    this.ensureDockPanel('policy', links.length > 0);
-    this.ensureDockPanel('games', games.length > 0);
+    this.ensureDockPanel('policy-games', links.length > 0 || games.length > 0);
   }
 
   createPolicyDock() {
@@ -444,12 +444,8 @@ export class MenuFeature {
     const buttons = this.document.createElement('div');
     buttons.classList.add('blobio-dock-buttons');
 
-    if (this.getPolicyPanelLinks().length > 0) {
-      buttons.appendChild(this.createDockButton('Policy', 'policy', 'blobio-policy-button'));
-    }
-
-    if (this.getOtherProjectLinks().length > 0) {
-      buttons.appendChild(this.createDockButton('Other Games', 'games', 'blobio-games-button'));
+    if (this.getPolicyPanelLinks().length > 0 || this.getOtherProjectLinks().length > 0) {
+      buttons.appendChild(this.createDockButton('Policy/Other Games', 'policy-games', 'blobio-policy-games-button'));
     }
 
     dock.appendChild(buttons);
@@ -615,6 +611,54 @@ export class MenuFeature {
     body.appendChild(links);
   }
 
+  renderPolicyGamesPanel() {
+    const body = this.panelBodies.get('policy-games');
+    if (!body) {
+      return;
+    }
+
+    this.clearElement(body);
+
+    const policyLinks = this.getPolicyPanelLinks();
+    if (policyLinks.length > 0) {
+      const section = this.createPanelSection('Policy');
+      const links = this.document.createElement('div');
+      links.classList.add('blobio-policy-links');
+
+      for (const original of policyLinks) {
+        const link = this.document.createElement('a');
+        link.classList.add('blobio-policy-link');
+        link.setAttribute('href', original.getAttribute('href'));
+        link.setAttribute('target', '_blank');
+        link.setAttribute('rel', 'noopener noreferrer');
+        link.textContent = original.textContent.trim() || original.getAttribute('href');
+        links.appendChild(link);
+      }
+
+      section.appendChild(links);
+      body.appendChild(section);
+    }
+
+    const gameLinks = this.getOtherProjectLinks();
+    if (gameLinks.length > 0) {
+      const section = this.createPanelSection('Other Games');
+      section.appendChild(this.createGameLinks(gameLinks));
+      body.appendChild(section);
+    }
+  }
+
+  createPanelSection(titleText) {
+    const section = this.document.createElement('section');
+    section.classList.add('blobio-panel-section');
+
+    const title = this.document.createElement('div');
+    title.classList.add('blobio-panel-section-title');
+    title.textContent = titleText;
+
+    section.appendChild(title);
+    return section;
+  }
+
   renderGamesPanel() {
     const body = this.panelBodies.get('games');
     if (!body) {
@@ -622,11 +666,14 @@ export class MenuFeature {
     }
 
     this.clearElement(body);
+    body.appendChild(this.createGameLinks(this.getOtherProjectLinks()));
+  }
 
+  createGameLinks(projectLinks) {
     const links = this.document.createElement('div');
     links.classList.add('blobio-game-links');
 
-    for (const [index, original] of this.getOtherProjectLinks().entries()) {
+    for (const [index, original] of projectLinks.entries()) {
       const labelText = OTHER_GAME_NAMES[index] || original.getAttribute('aria-label') || original.getAttribute('title') || 'Other game';
       const href = original.getAttribute('href');
       const card = this.document.createElement('div');
@@ -657,7 +704,7 @@ export class MenuFeature {
       links.appendChild(card);
     }
 
-    body.appendChild(links);
+    return links;
   }
 
   installExtensionSettings() {
@@ -960,6 +1007,15 @@ export class MenuFeature {
     }
   }
 
+  getStoredCustomSkinLocalName() {
+    try {
+      const existing = this.storage?.getItem?.(CUSTOM_SKIN_LOCAL_NAME_KEY) || '';
+      return /^BlobioCustomSkin_[a-z0-9]{8,}$/i.test(existing) ? existing : '';
+    } catch {
+      return '';
+    }
+  }
+
   getCustomSkinLocalName() {
     try {
       const existing = this.storage?.getItem?.(CUSTOM_SKIN_LOCAL_NAME_KEY) || '';
@@ -974,6 +1030,37 @@ export class MenuFeature {
     } catch (error) {
       this.logger.warn('[Blobio] Could not create local Custom Imgur Skin name.', error);
       return `${CUSTOM_SKIN_NAME}_localonly`;
+    }
+  }
+
+  syncCustomSkinRuntimeConfig() {
+    const host = this.document.defaultView?.location?.host || '';
+    if (host !== 'custom.client.blobgame.io') {
+      return;
+    }
+
+    try {
+      const activeUrl = this.getActiveCustomSkinUrl();
+      const localSkinName = activeUrl && this.isCustomSkinEnabled() ? this.getCustomSkinLocalName() : this.getStoredCustomSkinLocalName();
+
+      if (activeUrl && localSkinName && this.isCustomSkinEnabled()) {
+        this.storage?.setItem?.('config-skin', localSkinName);
+        this.storage?.setItem?.('config-skin-type', CUSTOM_SKIN_TYPE);
+        return;
+      }
+
+      if (localSkinName && this.storage?.getItem?.('config-skin') === localSkinName) {
+        const previous = this.getPreviousSkinConfig();
+        if (previous?.name) {
+          this.storage?.setItem?.('config-skin', previous.name);
+          this.storage?.setItem?.('config-skin-type', previous.type || CUSTOM_SKIN_TYPE);
+        } else {
+          this.storage?.removeItem?.('config-skin');
+          this.storage?.removeItem?.('config-skin-type');
+        }
+      }
+    } catch (error) {
+      this.logger.warn('[Blobio] Could not sync Custom Imgur Skin for the game client.', error);
     }
   }
 
@@ -1396,6 +1483,9 @@ export class MenuFeature {
     }
 
     win.__blobioCustomSkinResolve = (url) => this.resolveCustomSkinImageUrl(url);
+    win.__blobioCustomSkinIsManifestUrl = (url) => this.isCustomSkinAssetManifestUrl(url);
+    win.__blobioCustomSkinPatchManifest = (text) => this.patchCustomSkinAssetManifest(text);
+    win.__blobioCustomSkinPatchManifestResponse = (xhr) => this.installCustomSkinManifestResponsePatch(xhr);
     if (win.__blobioCustomSkinHookInstalled) {
       return;
     }
@@ -1428,6 +1518,10 @@ export class MenuFeature {
       if (typeof originalOpen === 'function') {
         xhrPrototype.open = function openCustomSkinRequest(method, url, ...rest) {
           const resolve = win.__blobioCustomSkinResolve;
+          if (this && typeof win.__blobioCustomSkinPatchManifestResponse === 'function' && win.__blobioCustomSkinIsManifestUrl?.(url)) {
+            win.__blobioCustomSkinPatchManifestResponse(this);
+          }
+
           const nextUrl = typeof resolve === 'function' ? resolve(url) : url;
           return originalOpen.call(this, method, nextUrl, ...rest);
         };
@@ -1435,7 +1529,70 @@ export class MenuFeature {
       }
     }
 
+    if (typeof win.fetch === 'function' && !win.__blobioCustomSkinFetchHookInstalled) {
+      const originalFetch = win.fetch;
+      win.fetch = function fetchCustomSkin(input, init) {
+        const originalUrl = typeof input === 'string' || input instanceof String ? String(input) : input?.url;
+        const resolve = win.__blobioCustomSkinResolve;
+        const nextUrl = originalUrl && typeof resolve === 'function' ? resolve(originalUrl) : originalUrl;
+        const nextInput = nextUrl && nextUrl !== originalUrl ? nextUrl : input;
+        const responsePromise = originalFetch.call(this, nextInput, init);
+
+        if (!originalUrl || !win.__blobioCustomSkinIsManifestUrl?.(originalUrl) || typeof win.Response !== 'function') {
+          return responsePromise;
+        }
+
+        return responsePromise.then((response) => response.clone().text().then((text) => {
+          const patchManifest = win.__blobioCustomSkinPatchManifest;
+          const patchedText = typeof patchManifest === 'function' ? patchManifest(text) : text;
+          if (patchedText === text) {
+            return response;
+          }
+
+          return new win.Response(patchedText, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+          });
+        }));
+      };
+      win.__blobioCustomSkinFetchHookInstalled = true;
+    }
+
     win.__blobioCustomSkinHookInstalled = true;
+  }
+
+  installCustomSkinManifestResponsePatch(xhr) {
+    const textDescriptor = Object.getOwnPropertyDescriptor(xhr, 'responseText') || this.findPropertyDescriptor(Object.getPrototypeOf(xhr), 'responseText');
+    const responseDescriptor = Object.getOwnPropertyDescriptor(xhr, 'response') || this.findPropertyDescriptor(Object.getPrototypeOf(xhr), 'response');
+
+    if (textDescriptor) {
+      try {
+        Object.defineProperty(xhr, 'responseText', {
+          configurable: true,
+          get: () => {
+            const raw = typeof textDescriptor.get === 'function' ? textDescriptor.get.call(xhr) : textDescriptor.value;
+            return this.patchCustomSkinAssetManifest(raw);
+          },
+        });
+      } catch {
+        // Browser XHR implementations can reject per-instance response overrides.
+      }
+    }
+
+    if (responseDescriptor) {
+      try {
+        Object.defineProperty(xhr, 'response', {
+          configurable: true,
+          get: () => {
+            const raw = typeof responseDescriptor.get === 'function' ? responseDescriptor.get.call(xhr) : responseDescriptor.value;
+            return typeof raw === 'string' ? this.patchCustomSkinAssetManifest(raw) : raw;
+          },
+        });
+      } catch {
+        // Browser XHR implementations can reject per-instance response overrides.
+      }
+    }
   }
 
   findPropertyDescriptor(prototype, propertyName) {
@@ -1473,6 +1630,31 @@ export class MenuFeature {
     }
 
     return originalUrl;
+  }
+
+  patchCustomSkinAssetManifest(text) {
+    const manifest = String(text || '');
+    if (!this.isCustomSkinEnabled()) {
+      return manifest;
+    }
+
+    const activeUrl = this.getActiveCustomSkinUrl();
+    if (!activeUrl) {
+      return manifest;
+    }
+
+    const localSkinName = this.getCustomSkinLocalName();
+    const skinPath = `skins/${CUSTOM_SKIN_TYPE}/${localSkinName}.png`;
+    if (manifest.includes(skinPath)) {
+      return manifest;
+    }
+
+    const separator = manifest.endsWith('\n') || manifest.length === 0 ? '' : '\n';
+    return `${manifest}${separator}i:${skinPath}:0:image/png\n`;
+  }
+
+  isCustomSkinAssetManifestUrl(url) {
+    return /(?:^|\/)assets\/assets\.txt$/i.test(this.getUrlPath(url));
   }
 
   getUrlPath(url) {
@@ -1614,6 +1796,8 @@ export class MenuFeature {
       this.renderPolicyPanel();
     } else if (panelName === 'games') {
       this.renderGamesPanel();
+    } else if (panelName === 'policy-games') {
+      this.renderPolicyGamesPanel();
     }
 
     const willOpen = !panel.classList.contains('is-open');

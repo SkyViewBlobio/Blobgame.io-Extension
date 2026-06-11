@@ -201,7 +201,7 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   z-index: 2147482500;
   top: calc(100% + 8px);
   left: 0;
-  width: min(360px, calc(100vw - 32px));
+  width: min(380px, calc(100vw - 32px));
   max-height: 0;
   overflow: hidden;
   opacity: 0;
@@ -211,9 +211,10 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   transition: max-height 190ms ease, opacity 160ms ease, transform 190ms ease;
   border: 1px solid rgba(134, 255, 171, 0.5);
   border-radius: 10px;
-  background: rgba(2, 18, 12, 0.94);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), 0 0 20px rgba(77, 255, 127, 0.28);
+  background: linear-gradient(145deg, rgba(3, 31, 19, 0.96), rgba(1, 10, 7, 0.96));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.48), 0 0 22px rgba(77, 255, 127, 0.3), inset 0 0 22px rgba(84, 255, 134, 0.08);
   color: #eaffee;
+  backdrop-filter: blur(5px);
 }
 
 .blobio-menu-panel.is-open {
@@ -224,7 +225,9 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
 }
 
 .blobio-panel-inner {
-  padding: 10px;
+  padding: 12px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(95, 255, 132, 0.08), rgba(0, 0, 0, 0));
 }
 
 .blobio-panel-header {
@@ -239,6 +242,8 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   margin: 0;
   font-size: 15px;
   line-height: 1.1;
+  color: #dfffe6;
+  text-shadow: 0 0 8px rgba(118, 255, 154, 0.68);
 }
 
 .blobio-panel-close {
@@ -258,6 +263,29 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   text-shadow: 0 0 6px rgba(60, 0, 0, 0.95), 0 0 10px rgba(255, 42, 42, 0.55);
   box-shadow: 0 0 12px rgba(255, 49, 49, 0.26), inset 0 0 8px rgba(255, 89, 89, 0.18);
   cursor: pointer;
+}
+
+.blobio-panel-body {
+  display: grid;
+  gap: 10px;
+}
+
+.blobio-panel-section {
+  padding: 10px;
+  border: 1px solid rgba(142, 255, 174, 0.3);
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(4, 45, 25, 0.52), rgba(0, 10, 7, 0.5));
+  box-shadow: inset 0 0 14px rgba(79, 255, 130, 0.1);
+}
+
+.blobio-panel-section-title {
+  margin: 0 0 9px;
+  color: #dfffe6;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+  text-shadow: 0 0 7px rgba(118, 255, 154, 0.66);
 }
 
 .blobio-video-link {
@@ -398,7 +426,7 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   right: auto;
   bottom: auto;
   left: 50%;
-  width: min(430px, calc(100vw - 32px));
+  width: min(520px, calc(100vw - 32px));
   max-height: 0;
   overflow: hidden;
   transform: translate(-50%, -48%) scale(0.96);
@@ -596,7 +624,7 @@ html.${className} .blobio-custom-skin {
 
 html.${className} .blobio-custom-skin.is-selected {
   box-shadow: 0 0 18px rgba(99, 255, 142, 0.5), inset 0 0 10px rgba(99, 255, 142, 0.2);
-  transform: translateY(-1px);
+  transform: translateY(-2px) scale(1.04);
 }
 
 html.${className} .blobio-custom-skin-actions {

@@ -355,7 +355,7 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   z-index: 2147482500;
   top: calc(100% + 8px);
   left: 0;
-  width: min(360px, calc(100vw - 32px));
+  width: min(380px, calc(100vw - 32px));
   max-height: 0;
   overflow: hidden;
   opacity: 0;
@@ -365,9 +365,10 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   transition: max-height 190ms ease, opacity 160ms ease, transform 190ms ease;
   border: 1px solid rgba(134, 255, 171, 0.5);
   border-radius: 10px;
-  background: rgba(2, 18, 12, 0.94);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), 0 0 20px rgba(77, 255, 127, 0.28);
+  background: linear-gradient(145deg, rgba(3, 31, 19, 0.96), rgba(1, 10, 7, 0.96));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.48), 0 0 22px rgba(77, 255, 127, 0.3), inset 0 0 22px rgba(84, 255, 134, 0.08);
   color: #eaffee;
+  backdrop-filter: blur(5px);
 }
 
 .blobio-menu-panel.is-open {
@@ -378,7 +379,9 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
 }
 
 .blobio-panel-inner {
-  padding: 10px;
+  padding: 12px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(95, 255, 132, 0.08), rgba(0, 0, 0, 0));
 }
 
 .blobio-panel-header {
@@ -393,6 +396,8 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   margin: 0;
   font-size: 15px;
   line-height: 1.1;
+  color: #dfffe6;
+  text-shadow: 0 0 8px rgba(118, 255, 154, 0.68);
 }
 
 .blobio-panel-close {
@@ -412,6 +417,29 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   text-shadow: 0 0 6px rgba(60, 0, 0, 0.95), 0 0 10px rgba(255, 42, 42, 0.55);
   box-shadow: 0 0 12px rgba(255, 49, 49, 0.26), inset 0 0 8px rgba(255, 89, 89, 0.18);
   cursor: pointer;
+}
+
+.blobio-panel-body {
+  display: grid;
+  gap: 10px;
+}
+
+.blobio-panel-section {
+  padding: 10px;
+  border: 1px solid rgba(142, 255, 174, 0.3);
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(4, 45, 25, 0.52), rgba(0, 10, 7, 0.5));
+  box-shadow: inset 0 0 14px rgba(79, 255, 130, 0.1);
+}
+
+.blobio-panel-section-title {
+  margin: 0 0 9px;
+  color: #dfffe6;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+  text-shadow: 0 0 7px rgba(118, 255, 154, 0.66);
 }
 
 .blobio-video-link {
@@ -552,7 +580,7 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   right: auto;
   bottom: auto;
   left: 50%;
-  width: min(430px, calc(100vw - 32px));
+  width: min(520px, calc(100vw - 32px));
   max-height: 0;
   overflow: hidden;
   transform: translate(-50%, -48%) scale(0.96);
@@ -750,7 +778,7 @@ html.${className} .blobio-custom-skin {
 
 html.${className} .blobio-custom-skin.is-selected {
   box-shadow: 0 0 18px rgba(99, 255, 142, 0.5), inset 0 0 10px rgba(99, 255, 142, 0.2);
-  transform: translateY(-1px);
+  transform: translateY(-2px) scale(1.04);
 }
 
 html.${className} .blobio-custom-skin-actions {
@@ -979,8 +1007,11 @@ html.${className} .blobio-watermark-extension::after {
         if (isSharedKey(key) && typeof gmApi.getValue === "function") {
           const value = gmApi.getValue(key, void 0);
           if (value !== void 0 && value !== null) {
-            localStorage?.setItem?.(key, String(value));
-            return String(value);
+            const nextValue = String(value);
+            if (localStorage?.getItem?.(key) !== nextValue) {
+              localStorage?.setItem?.(key, nextValue);
+            }
+            return nextValue;
           }
         }
         return localStorage?.getItem?.(key) ?? null;
@@ -1005,7 +1036,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.18";
+  var DEFAULT_EXTENSION_VERSION = "0.1.19";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -1135,6 +1166,7 @@ html.${className} .blobio-watermark-extension::after {
         this.logger.warn("[Blobio] Menu feature could not start: document is not ready.");
         return false;
       }
+      this.syncCustomSkinRuntimeConfig();
       this.installCustomSkinRuntimeHook();
       if (!this.frontPageUi) {
         this.started = true;
@@ -1373,19 +1405,15 @@ html.${className} .blobio-watermark-extension::after {
         this.footerModalHost = this.createFooterModalHost();
         this.document.body?.appendChild(this.footerModalHost);
       }
-      this.ensureDockPanel("policy", links.length > 0);
-      this.ensureDockPanel("games", games.length > 0);
+      this.ensureDockPanel("policy-games", links.length > 0 || games.length > 0);
     }
     createPolicyDock() {
       const dock = this.document.createElement("div");
       dock.classList.add("blobio-footer-dock", "blobio-policy-dock");
       const buttons = this.document.createElement("div");
       buttons.classList.add("blobio-dock-buttons");
-      if (this.getPolicyPanelLinks().length > 0) {
-        buttons.appendChild(this.createDockButton("Policy", "policy", "blobio-policy-button"));
-      }
-      if (this.getOtherProjectLinks().length > 0) {
-        buttons.appendChild(this.createDockButton("Other Games", "games", "blobio-games-button"));
+      if (this.getPolicyPanelLinks().length > 0 || this.getOtherProjectLinks().length > 0) {
+        buttons.appendChild(this.createDockButton("Policy/Other Games", "policy-games", "blobio-policy-games-button"));
       }
       dock.appendChild(buttons);
       return dock;
@@ -1516,15 +1544,57 @@ html.${className} .blobio-watermark-extension::after {
       }
       body.appendChild(links);
     }
+    renderPolicyGamesPanel() {
+      const body = this.panelBodies.get("policy-games");
+      if (!body) {
+        return;
+      }
+      this.clearElement(body);
+      const policyLinks = this.getPolicyPanelLinks();
+      if (policyLinks.length > 0) {
+        const section = this.createPanelSection("Policy");
+        const links = this.document.createElement("div");
+        links.classList.add("blobio-policy-links");
+        for (const original of policyLinks) {
+          const link = this.document.createElement("a");
+          link.classList.add("blobio-policy-link");
+          link.setAttribute("href", original.getAttribute("href"));
+          link.setAttribute("target", "_blank");
+          link.setAttribute("rel", "noopener noreferrer");
+          link.textContent = original.textContent.trim() || original.getAttribute("href");
+          links.appendChild(link);
+        }
+        section.appendChild(links);
+        body.appendChild(section);
+      }
+      const gameLinks = this.getOtherProjectLinks();
+      if (gameLinks.length > 0) {
+        const section = this.createPanelSection("Other Games");
+        section.appendChild(this.createGameLinks(gameLinks));
+        body.appendChild(section);
+      }
+    }
+    createPanelSection(titleText) {
+      const section = this.document.createElement("section");
+      section.classList.add("blobio-panel-section");
+      const title = this.document.createElement("div");
+      title.classList.add("blobio-panel-section-title");
+      title.textContent = titleText;
+      section.appendChild(title);
+      return section;
+    }
     renderGamesPanel() {
       const body = this.panelBodies.get("games");
       if (!body) {
         return;
       }
       this.clearElement(body);
+      body.appendChild(this.createGameLinks(this.getOtherProjectLinks()));
+    }
+    createGameLinks(projectLinks) {
       const links = this.document.createElement("div");
       links.classList.add("blobio-game-links");
-      for (const [index, original] of this.getOtherProjectLinks().entries()) {
+      for (const [index, original] of projectLinks.entries()) {
         const labelText = OTHER_GAME_NAMES[index] || original.getAttribute("aria-label") || original.getAttribute("title") || "Other game";
         const href = original.getAttribute("href");
         const card = this.document.createElement("div");
@@ -1550,7 +1620,7 @@ html.${className} .blobio-watermark-extension::after {
         card.append(label, gameLink);
         links.appendChild(card);
       }
-      body.appendChild(links);
+      return links;
     }
     installExtensionSettings() {
       const settingsPanels = Array.from(this.document.querySelectorAll?.("app-settings") || []);
@@ -1799,6 +1869,14 @@ html.${className} .blobio-watermark-extension::after {
         return "";
       }
     }
+    getStoredCustomSkinLocalName() {
+      try {
+        const existing = this.storage?.getItem?.(CUSTOM_SKIN_LOCAL_NAME_KEY) || "";
+        return /^BlobioCustomSkin_[a-z0-9]{8,}$/i.test(existing) ? existing : "";
+      } catch {
+        return "";
+      }
+    }
     getCustomSkinLocalName() {
       try {
         const existing = this.storage?.getItem?.(CUSTOM_SKIN_LOCAL_NAME_KEY) || "";
@@ -1812,6 +1890,33 @@ html.${className} .blobio-watermark-extension::after {
       } catch (error) {
         this.logger.warn("[Blobio] Could not create local Custom Imgur Skin name.", error);
         return `${CUSTOM_SKIN_NAME}_localonly`;
+      }
+    }
+    syncCustomSkinRuntimeConfig() {
+      const host = this.document.defaultView?.location?.host || "";
+      if (host !== "custom.client.blobgame.io") {
+        return;
+      }
+      try {
+        const activeUrl = this.getActiveCustomSkinUrl();
+        const localSkinName = activeUrl && this.isCustomSkinEnabled() ? this.getCustomSkinLocalName() : this.getStoredCustomSkinLocalName();
+        if (activeUrl && localSkinName && this.isCustomSkinEnabled()) {
+          this.storage?.setItem?.("config-skin", localSkinName);
+          this.storage?.setItem?.("config-skin-type", CUSTOM_SKIN_TYPE);
+          return;
+        }
+        if (localSkinName && this.storage?.getItem?.("config-skin") === localSkinName) {
+          const previous = this.getPreviousSkinConfig();
+          if (previous?.name) {
+            this.storage?.setItem?.("config-skin", previous.name);
+            this.storage?.setItem?.("config-skin-type", previous.type || CUSTOM_SKIN_TYPE);
+          } else {
+            this.storage?.removeItem?.("config-skin");
+            this.storage?.removeItem?.("config-skin-type");
+          }
+        }
+      } catch (error) {
+        this.logger.warn("[Blobio] Could not sync Custom Imgur Skin for the game client.", error);
       }
     }
     useCustomSkinUrl(url) {
@@ -2152,6 +2257,9 @@ html.${className} .blobio-watermark-extension::after {
         return;
       }
       win.__blobioCustomSkinResolve = (url) => this.resolveCustomSkinImageUrl(url);
+      win.__blobioCustomSkinIsManifestUrl = (url) => this.isCustomSkinAssetManifestUrl(url);
+      win.__blobioCustomSkinPatchManifest = (text) => this.patchCustomSkinAssetManifest(text);
+      win.__blobioCustomSkinPatchManifestResponse = (xhr) => this.installCustomSkinManifestResponsePatch(xhr);
       if (win.__blobioCustomSkinHookInstalled) {
         return;
       }
@@ -2181,13 +2289,70 @@ html.${className} .blobio-watermark-extension::after {
         if (typeof originalOpen === "function") {
           xhrPrototype.open = function openCustomSkinRequest(method, url, ...rest) {
             const resolve = win.__blobioCustomSkinResolve;
+            if (this && typeof win.__blobioCustomSkinPatchManifestResponse === "function" && win.__blobioCustomSkinIsManifestUrl?.(url)) {
+              win.__blobioCustomSkinPatchManifestResponse(this);
+            }
             const nextUrl = typeof resolve === "function" ? resolve(url) : url;
             return originalOpen.call(this, method, nextUrl, ...rest);
           };
           win.__blobioCustomSkinXhrHookInstalled = true;
         }
       }
+      if (typeof win.fetch === "function" && !win.__blobioCustomSkinFetchHookInstalled) {
+        const originalFetch = win.fetch;
+        win.fetch = function fetchCustomSkin(input, init) {
+          const originalUrl = typeof input === "string" || input instanceof String ? String(input) : input?.url;
+          const resolve = win.__blobioCustomSkinResolve;
+          const nextUrl = originalUrl && typeof resolve === "function" ? resolve(originalUrl) : originalUrl;
+          const nextInput = nextUrl && nextUrl !== originalUrl ? nextUrl : input;
+          const responsePromise = originalFetch.call(this, nextInput, init);
+          if (!originalUrl || !win.__blobioCustomSkinIsManifestUrl?.(originalUrl) || typeof win.Response !== "function") {
+            return responsePromise;
+          }
+          return responsePromise.then((response) => response.clone().text().then((text) => {
+            const patchManifest = win.__blobioCustomSkinPatchManifest;
+            const patchedText = typeof patchManifest === "function" ? patchManifest(text) : text;
+            if (patchedText === text) {
+              return response;
+            }
+            return new win.Response(patchedText, {
+              status: response.status,
+              statusText: response.statusText,
+              headers: response.headers
+            });
+          }));
+        };
+        win.__blobioCustomSkinFetchHookInstalled = true;
+      }
       win.__blobioCustomSkinHookInstalled = true;
+    }
+    installCustomSkinManifestResponsePatch(xhr) {
+      const textDescriptor = Object.getOwnPropertyDescriptor(xhr, "responseText") || this.findPropertyDescriptor(Object.getPrototypeOf(xhr), "responseText");
+      const responseDescriptor = Object.getOwnPropertyDescriptor(xhr, "response") || this.findPropertyDescriptor(Object.getPrototypeOf(xhr), "response");
+      if (textDescriptor) {
+        try {
+          Object.defineProperty(xhr, "responseText", {
+            configurable: true,
+            get: () => {
+              const raw = typeof textDescriptor.get === "function" ? textDescriptor.get.call(xhr) : textDescriptor.value;
+              return this.patchCustomSkinAssetManifest(raw);
+            }
+          });
+        } catch {
+        }
+      }
+      if (responseDescriptor) {
+        try {
+          Object.defineProperty(xhr, "response", {
+            configurable: true,
+            get: () => {
+              const raw = typeof responseDescriptor.get === "function" ? responseDescriptor.get.call(xhr) : responseDescriptor.value;
+              return typeof raw === "string" ? this.patchCustomSkinAssetManifest(raw) : raw;
+            }
+          });
+        } catch {
+        }
+      }
     }
     findPropertyDescriptor(prototype, propertyName) {
       let current = prototype;
@@ -2216,6 +2381,27 @@ html.${className} .blobio-watermark-extension::after {
         return activeUrl;
       }
       return originalUrl;
+    }
+    patchCustomSkinAssetManifest(text) {
+      const manifest = String(text || "");
+      if (!this.isCustomSkinEnabled()) {
+        return manifest;
+      }
+      const activeUrl = this.getActiveCustomSkinUrl();
+      if (!activeUrl) {
+        return manifest;
+      }
+      const localSkinName = this.getCustomSkinLocalName();
+      const skinPath = `skins/${CUSTOM_SKIN_TYPE}/${localSkinName}.png`;
+      if (manifest.includes(skinPath)) {
+        return manifest;
+      }
+      const separator = manifest.endsWith("\n") || manifest.length === 0 ? "" : "\n";
+      return `${manifest}${separator}i:${skinPath}:0:image/png
+`;
+    }
+    isCustomSkinAssetManifestUrl(url) {
+      return /(?:^|\/)assets\/assets\.txt$/i.test(this.getUrlPath(url));
     }
     getUrlPath(url) {
       try {
@@ -2329,6 +2515,8 @@ html.${className} .blobio-watermark-extension::after {
         this.renderPolicyPanel();
       } else if (panelName === "games") {
         this.renderGamesPanel();
+      } else if (panelName === "policy-games") {
+        this.renderPolicyGamesPanel();
       }
       const willOpen = !panel.classList.contains("is-open");
       this.closePanels();
