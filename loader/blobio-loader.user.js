@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Blobio Web Script Loader
 // @namespace    https://github.com/SkyViewBlobio/Blobgame.io-Web-Script
-// @version      0.1.24
+// @version      0.1.25
 // @description  Loads the Blobio modular extension bundle from GitHub.
 // @match        *://blobgame.io/*
 // @match        *://custom.client.blobgame.io/*
@@ -25,6 +25,8 @@
   const CUSTOM_SKIN_PREVIOUS_KEY = 'blobio.customSkin.previousSkin';
   const CUSTOM_SKIN_LOCAL_NAME_KEY = 'blobio.customSkin.localName';
   const CUSTOM_SKIN_BASE_KEY = 'blobio.customSkin.baseSkin';
+  const CUSTOM_SKIN_COOKIE_KEY = 'blobioCustomSkinUrl';
+  const CUSTOM_SKIN_ENABLED_COOKIE_KEY = 'blobioCustomSkinEnabled';
   const STORAGE_BRIDGE_SOURCE = 'BlobioExtensionStorageBridge';
   const CUSTOM_SKIN_TYPE = 'free';
   const CUSTOM_SKIN_TYPES = ['free', 'premium'];
@@ -32,8 +34,8 @@
   const DIRECT_IMGUR_IMAGE_MATCH = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i;
   const CUSTOM_CLIENT_HOST = 'custom.client.blobgame.io';
   const BUNDLE_URLS = [
-    'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Web-Script/main/dist/blobio-extension.bundle.js?v=0.1.24',
-    'https://cdn.jsdelivr.net/gh/SkyViewBlobio/Blobgame.io-Web-Script@main/dist/blobio-extension.bundle.js?v=0.1.24',
+    'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Web-Script/main/dist/blobio-extension.bundle.js?v=0.1.25',
+    'https://cdn.jsdelivr.net/gh/SkyViewBlobio/Blobgame.io-Web-Script@main/dist/blobio-extension.bundle.js?v=0.1.25',
   ];
 
   function logError(message, detail) {
@@ -80,6 +82,24 @@
     } catch {
       // localStorage can be blocked in some browser modes.
     }
+  }
+
+  function readCookieValue(name) {
+    try {
+      const prefix = `${name}=`;
+      const row = String(document.cookie || '')
+        .split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(prefix));
+      return row ? decodeURIComponent(row.slice(prefix.length)) : '';
+    } catch {
+      return '';
+    }
+  }
+
+  function getCookieCustomSkinUrl() {
+    const url = readCookieValue(CUSTOM_SKIN_COOKIE_KEY);
+    return isValidImgurSkinUrl(url) ? url : '';
   }
 
   function getSharedValue(key) {
@@ -150,7 +170,7 @@
         }
       },
       snapshotCustomSkin() {
-        const activeUrl = getSharedValue(CUSTOM_SKIN_ACTIVE_KEY) || '';
+        const activeUrl = getSharedValue(CUSTOM_SKIN_ACTIVE_KEY) || getSharedValue('blobio.customSkin.selectedUrl') || getCookieCustomSkinUrl() || '';
         return {
           enabled: getSharedValue(CUSTOM_SKIN_ENABLED_KEY) === '1' && isValidImgurSkinUrl(activeUrl),
           activeUrl: isValidImgurSkinUrl(activeUrl) ? activeUrl : '',
@@ -224,7 +244,7 @@
       return null;
     }
 
-    const activeUrl = getSharedValue(CUSTOM_SKIN_ACTIVE_KEY) || '';
+    const activeUrl = getSharedValue(CUSTOM_SKIN_ACTIVE_KEY) || getSharedValue('blobio.customSkin.selectedUrl') || getCookieCustomSkinUrl() || '';
     if (!isValidImgurSkinUrl(activeUrl)) {
       return null;
     }
@@ -1091,7 +1111,7 @@
     }
 
     try {
-      const activeUrl = getSharedValue(CUSTOM_SKIN_ACTIVE_KEY) || getSharedValue('blobio.customSkin.selectedUrl') || '';
+      const activeUrl = getSharedValue(CUSTOM_SKIN_ACTIVE_KEY) || getSharedValue('blobio.customSkin.selectedUrl') || getCookieCustomSkinUrl() || '';
       globalThis.__blobioCustomSkinBridgeState = {
         enabled: isValidImgurSkinUrl(activeUrl) && getSharedValue(CUSTOM_SKIN_ENABLED_KEY) !== '0',
         activeUrl: isValidImgurSkinUrl(activeUrl) ? activeUrl : '',

@@ -4,7 +4,7 @@ import { createBlobioStorage } from '../storage/BlobioStorage.js';
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
 const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
-const DEFAULT_EXTENSION_VERSION = '0.1.23';
+const DEFAULT_EXTENSION_VERSION = '0.1.24';
 const HIDDEN_CLASS = 'blobio-original-hidden';
 const PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
 const FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -24,6 +24,8 @@ const CUSTOM_SKIN_RUNTIME_ACTIVE_KEY = 'blobio.customSkin.runtimeActiveUrl';
 const CUSTOM_SKIN_PENDING_ACTIVE_KEY = 'blobio.customSkin.pendingActiveUrl';
 const CUSTOM_SKIN_UI_SELECTED_KEY = 'blobio.customSkin.uiSelectedUrl';
 const CUSTOM_SKIN_UI_APPLIED_KEY = 'blobio.customSkin.uiAppliedUrl';
+const CUSTOM_SKIN_COOKIE_KEY = 'blobioCustomSkinUrl';
+const CUSTOM_SKIN_ENABLED_COOKIE_KEY = 'blobioCustomSkinEnabled';
 const CUSTOM_SKIN_URL_KEYS = [
   CUSTOM_SKIN_ACTIVE_KEY,
   CUSTOM_SKIN_SELECTED_KEY,
@@ -1163,6 +1165,55 @@ export class MenuFeature {
     return DIRECT_IMGUR_IMAGE_MATCH.test(String(url || '').trim());
   }
 
+  encodeCookieValue(value) {
+    try {
+      return encodeURIComponent(String(value || ''));
+    } catch {
+      return '';
+    }
+  }
+
+  decodeCookieValue(value) {
+    try {
+      return decodeURIComponent(String(value || ''));
+    } catch {
+      return String(value || '');
+    }
+  }
+
+  getCookieValue(name) {
+    try {
+      const prefix = `${name}=`;
+      const row = String(this.document?.cookie || '')
+        .split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(prefix));
+      return row ? this.decodeCookieValue(row.slice(prefix.length)) : '';
+    } catch {
+      return '';
+    }
+  }
+
+  writeCrossSubdomainCustomSkinCookie(url, enabled = true) {
+    const cleanUrl = this.isValidImgurSkinUrl(url) ? String(url).trim() : '';
+    const shouldEnable = enabled && Boolean(cleanUrl);
+    const maxAge = shouldEnable ? 60 * 60 * 24 * 30 : 0;
+    const value = shouldEnable ? this.encodeCookieValue(cleanUrl) : '';
+    const enabledValue = shouldEnable ? '1' : '0';
+    const cookieParts = [
+      `${CUSTOM_SKIN_COOKIE_KEY}=${value}; Max-Age=${maxAge}; Path=/; Domain=blobgame.io; SameSite=Lax`,
+      `${CUSTOM_SKIN_ENABLED_COOKIE_KEY}=${enabledValue}; Max-Age=${maxAge}; Path=/; Domain=blobgame.io; SameSite=Lax`,
+      `${CUSTOM_SKIN_COOKIE_KEY}=${value}; Max-Age=${maxAge}; Path=/; SameSite=Lax`,
+      `${CUSTOM_SKIN_ENABLED_COOKIE_KEY}=${enabledValue}; Max-Age=${maxAge}; Path=/; SameSite=Lax`,
+    ];
+
+    for (const cookie of cookieParts) {
+      try {
+        this.document.cookie = cookie;
+      } catch {}
+    }
+  }
+
   getActiveCustomSkinUrl() {
     try {
       const url = this.storage?.getItem?.(CUSTOM_SKIN_ACTIVE_KEY) || '';
@@ -1260,6 +1311,7 @@ export class MenuFeature {
       }
     } catch {}
 
+    this.writeCrossSubdomainCustomSkinCookie(cleanUrl, enabled);
     this.injectCustomSkinLaunchPagePatch(enabled && cleanUrl ? cleanUrl : '');
   }
 
@@ -1820,6 +1872,8 @@ export class MenuFeature {
       localStorageSelectedUrl: '',
       locationQueryUrl: '',
       locationHashUrl: '',
+      cookieUrl: '',
+      cookieEnabled: '',
     };
 
     const getStored = (key) => {
@@ -1837,6 +1891,8 @@ export class MenuFeature {
     diagnostics.pendingActiveUrl = getStored(CUSTOM_SKIN_PENDING_ACTIVE_KEY);
     diagnostics.localStorageActiveUrl = getLocal(CUSTOM_SKIN_ACTIVE_KEY);
     diagnostics.localStorageSelectedUrl = getLocal(CUSTOM_SKIN_SELECTED_KEY);
+    diagnostics.cookieUrl = this.getCookieValue(CUSTOM_SKIN_COOKIE_KEY);
+    diagnostics.cookieEnabled = this.getCookieValue(CUSTOM_SKIN_ENABLED_COOKIE_KEY);
 
     try { diagnostics.datasetUrl = this.document.documentElement?.dataset?.blobioCustomSkinUrl || ''; } catch {}
     try {
@@ -1898,18 +1954,32 @@ export class MenuFeature {
           return /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i.test(String(value || '').trim());
         }
 
+        function readCookie(name) {
+          try {
+            const prefix = `${name}=`;
+            const row = String(document.cookie || '')
+              .split(';')
+              .map((part) => part.trim())
+              .find((part) => part.startsWith(prefix));
+            return row ? decodeURIComponent(row.slice(prefix.length)) : '';
+          } catch {
+            return '';
+          }
+        }
+
         function currentUrl() {
           const direct = window.__blobioCustomSkinLaunchUrl || '';
           if (isValidSkinUrl(direct)) return direct;
           try {
-            return localStorage.getItem('blobio.customSkin.activeUrl')
+            const local = localStorage.getItem('blobio.customSkin.activeUrl')
               || localStorage.getItem('blobio.customSkin.uiAppliedUrl')
               || localStorage.getItem('blobio.customSkin.selectedUrl')
               || localStorage.getItem('blobio.customSkin.uiSelectedUrl')
               || '';
-          } catch {
-            return '';
-          }
+            if (isValidSkinUrl(local)) return local;
+          } catch {}
+          const cookieUrl = readCookie('blobioCustomSkinUrl');
+          return isValidSkinUrl(cookieUrl) ? cookieUrl : '';
         }
 
         function patchUrl(raw) {
@@ -1985,7 +2055,8 @@ export class MenuFeature {
   }
 
   buildCustomClientUrlWithSkin(rawUrl) {
-    const activeUrl = this.getActiveCustomSkinUrl() || this.customSkinSelectedUrl || this.getCustomSkinUrlDiagnostics().uiAppliedUrl || this.getCustomSkinUrlDiagnostics().uiSelectedUrl;
+    const diagnostics = this.getCustomSkinUrlDiagnostics();
+    const activeUrl = this.getActiveCustomSkinUrl() || this.customSkinSelectedUrl || diagnostics.uiAppliedUrl || diagnostics.uiSelectedUrl || diagnostics.cookieUrl;
     if (!this.isValidImgurSkinUrl(activeUrl)) {
       return rawUrl;
     }
@@ -2009,7 +2080,8 @@ export class MenuFeature {
 
     const win = this.document.defaultView || globalThis;
     this.customSkinLaunchPatchInstalled = true;
-    this.injectCustomSkinLaunchPagePatch(this.getActiveCustomSkinUrl() || this.getCustomSkinUrlDiagnostics().uiAppliedUrl || this.getCustomSkinUrlDiagnostics().uiSelectedUrl);
+    const launchDiagnostics = this.getCustomSkinUrlDiagnostics();
+    this.injectCustomSkinLaunchPagePatch(this.getActiveCustomSkinUrl() || launchDiagnostics.uiAppliedUrl || launchDiagnostics.uiSelectedUrl || launchDiagnostics.cookieUrl);
 
     const patchAnchors = () => {
       for (const anchor of this.document.querySelectorAll?.('a[href*="custom.client.blobgame.io"]') || []) {

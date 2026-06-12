@@ -1302,7 +1302,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.23";
+  var DEFAULT_EXTENSION_VERSION = "0.1.24";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -1322,6 +1322,8 @@ html.${className} .blobio-watermark-extension::after {
   var CUSTOM_SKIN_PENDING_ACTIVE_KEY = "blobio.customSkin.pendingActiveUrl";
   var CUSTOM_SKIN_UI_SELECTED_KEY = "blobio.customSkin.uiSelectedUrl";
   var CUSTOM_SKIN_UI_APPLIED_KEY = "blobio.customSkin.uiAppliedUrl";
+  var CUSTOM_SKIN_COOKIE_KEY = "blobioCustomSkinUrl";
+  var CUSTOM_SKIN_ENABLED_COOKIE_KEY = "blobioCustomSkinEnabled";
   var CUSTOM_SKIN_DEFAULT_URL = "https://i.imgur.com/OZz80VZ.jpeg";
   var CUSTOM_SKIN_NAME = "BlobioCustomSkin";
   var CUSTOM_SKIN_TYPE = "free";
@@ -2256,6 +2258,48 @@ html.${className} .blobio-watermark-extension::after {
     isValidImgurSkinUrl(url) {
       return DIRECT_IMGUR_IMAGE_MATCH.test(String(url || "").trim());
     }
+    encodeCookieValue(value) {
+      try {
+        return encodeURIComponent(String(value || ""));
+      } catch {
+        return "";
+      }
+    }
+    decodeCookieValue(value) {
+      try {
+        return decodeURIComponent(String(value || ""));
+      } catch {
+        return String(value || "");
+      }
+    }
+    getCookieValue(name) {
+      try {
+        const prefix = `${name}=`;
+        const row = String(this.document?.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith(prefix));
+        return row ? this.decodeCookieValue(row.slice(prefix.length)) : "";
+      } catch {
+        return "";
+      }
+    }
+    writeCrossSubdomainCustomSkinCookie(url, enabled = true) {
+      const cleanUrl = this.isValidImgurSkinUrl(url) ? String(url).trim() : "";
+      const shouldEnable = enabled && Boolean(cleanUrl);
+      const maxAge = shouldEnable ? 60 * 60 * 24 * 30 : 0;
+      const value = shouldEnable ? this.encodeCookieValue(cleanUrl) : "";
+      const enabledValue = shouldEnable ? "1" : "0";
+      const cookieParts = [
+        `${CUSTOM_SKIN_COOKIE_KEY}=${value}; Max-Age=${maxAge}; Path=/; Domain=blobgame.io; SameSite=Lax`,
+        `${CUSTOM_SKIN_ENABLED_COOKIE_KEY}=${enabledValue}; Max-Age=${maxAge}; Path=/; Domain=blobgame.io; SameSite=Lax`,
+        `${CUSTOM_SKIN_COOKIE_KEY}=${value}; Max-Age=${maxAge}; Path=/; SameSite=Lax`,
+        `${CUSTOM_SKIN_ENABLED_COOKIE_KEY}=${enabledValue}; Max-Age=${maxAge}; Path=/; SameSite=Lax`
+      ];
+      for (const cookie of cookieParts) {
+        try {
+          this.document.cookie = cookie;
+        } catch {
+        }
+      }
+    }
     getActiveCustomSkinUrl() {
       try {
         const url = this.storage?.getItem?.(CUSTOM_SKIN_ACTIVE_KEY) || "";
@@ -2349,6 +2393,7 @@ html.${className} .blobio-watermark-extension::after {
         }
       } catch {
       }
+      this.writeCrossSubdomainCustomSkinCookie(cleanUrl, enabled);
       this.injectCustomSkinLaunchPagePatch(enabled && cleanUrl ? cleanUrl : "");
     }
     getCustomSkinBaseConfig() {
@@ -2809,7 +2854,9 @@ html.${className} .blobio-watermark-extension::after {
         localStorageActiveUrl: "",
         localStorageSelectedUrl: "",
         locationQueryUrl: "",
-        locationHashUrl: ""
+        locationHashUrl: "",
+        cookieUrl: "",
+        cookieEnabled: ""
       };
       const getStored = (key) => {
         try {
@@ -2833,6 +2880,8 @@ html.${className} .blobio-watermark-extension::after {
       diagnostics.pendingActiveUrl = getStored(CUSTOM_SKIN_PENDING_ACTIVE_KEY);
       diagnostics.localStorageActiveUrl = getLocal(CUSTOM_SKIN_ACTIVE_KEY);
       diagnostics.localStorageSelectedUrl = getLocal(CUSTOM_SKIN_SELECTED_KEY);
+      diagnostics.cookieUrl = this.getCookieValue(CUSTOM_SKIN_COOKIE_KEY);
+      diagnostics.cookieEnabled = this.getCookieValue(CUSTOM_SKIN_ENABLED_COOKIE_KEY);
       try {
         diagnostics.datasetUrl = this.document.documentElement?.dataset?.blobioCustomSkinUrl || "";
       } catch {
@@ -2892,14 +2941,25 @@ html.${className} .blobio-watermark-extension::after {
           function isValidSkinUrl(value) {
             return /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i.test(String(value || "").trim());
           }
+          function readCookie(name) {
+            try {
+              const prefix = `${name}=`;
+              const row = String(document.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith(prefix));
+              return row ? decodeURIComponent(row.slice(prefix.length)) : "";
+            } catch {
+              return "";
+            }
+          }
           function currentUrl() {
             const direct = window.__blobioCustomSkinLaunchUrl || "";
             if (isValidSkinUrl(direct)) return direct;
             try {
-              return localStorage.getItem("blobio.customSkin.activeUrl") || localStorage.getItem("blobio.customSkin.uiAppliedUrl") || localStorage.getItem("blobio.customSkin.selectedUrl") || localStorage.getItem("blobio.customSkin.uiSelectedUrl") || "";
+              const local = localStorage.getItem("blobio.customSkin.activeUrl") || localStorage.getItem("blobio.customSkin.uiAppliedUrl") || localStorage.getItem("blobio.customSkin.selectedUrl") || localStorage.getItem("blobio.customSkin.uiSelectedUrl") || "";
+              if (isValidSkinUrl(local)) return local;
             } catch {
-              return "";
             }
+            const cookieUrl = readCookie("blobioCustomSkinUrl");
+            return isValidSkinUrl(cookieUrl) ? cookieUrl : "";
           }
           function patchUrl(raw) {
             const skin = currentUrl();
@@ -2970,7 +3030,8 @@ html.${className} .blobio-watermark-extension::after {
       }
     }
     buildCustomClientUrlWithSkin(rawUrl) {
-      const activeUrl = this.getActiveCustomSkinUrl() || this.customSkinSelectedUrl || this.getCustomSkinUrlDiagnostics().uiAppliedUrl || this.getCustomSkinUrlDiagnostics().uiSelectedUrl;
+      const diagnostics = this.getCustomSkinUrlDiagnostics();
+      const activeUrl = this.getActiveCustomSkinUrl() || this.customSkinSelectedUrl || diagnostics.uiAppliedUrl || diagnostics.uiSelectedUrl || diagnostics.cookieUrl;
       if (!this.isValidImgurSkinUrl(activeUrl)) {
         return rawUrl;
       }
@@ -2991,7 +3052,8 @@ html.${className} .blobio-watermark-extension::after {
       }
       const win = this.document.defaultView || globalThis;
       this.customSkinLaunchPatchInstalled = true;
-      this.injectCustomSkinLaunchPagePatch(this.getActiveCustomSkinUrl() || this.getCustomSkinUrlDiagnostics().uiAppliedUrl || this.getCustomSkinUrlDiagnostics().uiSelectedUrl);
+      const launchDiagnostics = this.getCustomSkinUrlDiagnostics();
+      this.injectCustomSkinLaunchPagePatch(this.getActiveCustomSkinUrl() || launchDiagnostics.uiAppliedUrl || launchDiagnostics.uiSelectedUrl || launchDiagnostics.cookieUrl);
       const patchAnchors = () => {
         for (const anchor of this.document.querySelectorAll?.('a[href*="custom.client.blobgame.io"]') || []) {
           const href = anchor.getAttribute?.("href") || "";
@@ -3878,6 +3940,8 @@ html.${className} .blobio-watermark-extension::after {
   var CUSTOM_SKIN_PENDING_ACTIVE_KEY2 = "blobio.customSkin.pendingActiveUrl";
   var CUSTOM_SKIN_UI_SELECTED_KEY2 = "blobio.customSkin.uiSelectedUrl";
   var CUSTOM_SKIN_UI_APPLIED_KEY2 = "blobio.customSkin.uiAppliedUrl";
+  var CUSTOM_SKIN_COOKIE_KEY2 = "blobioCustomSkinUrl";
+  var CUSTOM_SKIN_ENABLED_COOKIE_KEY2 = "blobioCustomSkinEnabled";
   var CUSTOM_SKIN_URL_KEYS = [
     CUSTOM_SKIN_ACTIVE_KEY2,
     CUSTOM_SKIN_SELECTED_KEY2,
@@ -3944,7 +4008,7 @@ html.${className} .blobio-watermark-extension::after {
       script.dataset.blobioCustomSkinOverlayRefresh = "true";
       script.textContent = `;(() => {
   const state = ${JSON.stringify(nextState)};
-  window.__blobioCustomSkinOverlayV6?.refresh?.(state);
+  window.__blobioCustomSkinOverlayV7?.refresh?.(state);
 })();`;
       (this.document.documentElement || this.document.head || this.document.body)?.appendChild?.(script);
       script.remove();
@@ -3987,6 +4051,22 @@ html.${className} .blobio-watermark-extension::after {
         chosenUrlSource: active.source || ""
       });
     }
+    decodeCookieValue(value) {
+      try {
+        return decodeURIComponent(String(value || ""));
+      } catch {
+        return String(value || "");
+      }
+    }
+    getCookieValue(name) {
+      try {
+        const prefix = `${name}=`;
+        const row = String(this.document?.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith(prefix));
+        return row ? this.decodeCookieValue(row.slice(prefix.length)) : "";
+      } catch {
+        return "";
+      }
+    }
     collectSyncUrlSources() {
       const win = this.document?.defaultView || globalThis;
       const sources = {};
@@ -4015,6 +4095,11 @@ html.${className} .blobio-watermark-extension::after {
         for (const key of CUSTOM_SKIN_URL_KEYS) {
           put(`localStorage:${key}`, win.localStorage?.getItem?.(key));
         }
+      } catch {
+      }
+      try {
+        put("cookie:blobioCustomSkinUrl", this.getCookieValue(CUSTOM_SKIN_COOKIE_KEY2));
+        put("cookie:blobioCustomSkinEnabled", this.getCookieValue(CUSTOM_SKIN_ENABLED_COOKIE_KEY2));
       } catch {
       }
       try {
@@ -4078,6 +4163,8 @@ html.${className} .blobio-watermark-extension::after {
     const CUSTOM_SKIN_PENDING_ACTIVE_KEY3 = "blobio.customSkin.pendingActiveUrl";
     const CUSTOM_SKIN_UI_SELECTED_KEY3 = "blobio.customSkin.uiSelectedUrl";
     const CUSTOM_SKIN_UI_APPLIED_KEY3 = "blobio.customSkin.uiAppliedUrl";
+    const CUSTOM_SKIN_COOKIE_KEY3 = "blobioCustomSkinUrl";
+    const CUSTOM_SKIN_ENABLED_COOKIE_KEY3 = "blobioCustomSkinEnabled";
     const CUSTOM_SKIN_URL_KEYS2 = [
       CUSTOM_SKIN_ACTIVE_KEY3,
       CUSTOM_SKIN_SELECTED_KEY3,
@@ -4090,8 +4177,8 @@ html.${className} .blobio-watermark-extension::after {
     const OWN_ID_LIMIT = 128;
     const NODE_LIMIT = 5e3;
     const DEBUG_LIMIT = 700;
-    if (window.__blobioCustomSkinOverlayV6) {
-      window.__blobioCustomSkinOverlayV6.refresh?.(initialState);
+    if (window.__blobioCustomSkinOverlayV7) {
+      window.__blobioCustomSkinOverlayV7.refresh?.(initialState);
       return;
     }
     const state = {
@@ -4165,6 +4252,22 @@ html.${className} .blobio-watermark-extension::after {
         return false;
       }
     }
+    function decodeCookieValue(value) {
+      try {
+        return decodeURIComponent(String(value || ""));
+      } catch {
+        return String(value || "");
+      }
+    }
+    function getCookieValue(name) {
+      try {
+        const prefix = `${name}=`;
+        const row = String(document.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith(prefix));
+        return row ? decodeCookieValue(row.slice(prefix.length)) : "";
+      } catch {
+        return "";
+      }
+    }
     function collectUrlSources(nextState) {
       const sources = {};
       const put = (name, value) => {
@@ -4194,6 +4297,11 @@ html.${className} .blobio-watermark-extension::after {
         for (const key of CUSTOM_SKIN_URL_KEYS2) {
           put(`localStorage:${key}`, localStorage.getItem(key));
         }
+      } catch {
+      }
+      try {
+        put("cookie:blobioCustomSkinUrl", getCookieValue(CUSTOM_SKIN_COOKIE_KEY3));
+        put("cookie:blobioCustomSkinEnabled", getCookieValue(CUSTOM_SKIN_ENABLED_COOKIE_KEY3));
       } catch {
       }
       try {
@@ -5000,7 +5108,7 @@ html.${className} .blobio-watermark-extension::after {
     function downloadDebugDump() {
       const dump = {
         meta: {
-          version: "packet-overlay-v6",
+          version: "packet-overlay-v7",
           createdAt: (/* @__PURE__ */ new Date()).toISOString(),
           href: location.href
         },
@@ -5047,7 +5155,7 @@ html.${className} .blobio-watermark-extension::after {
         a.remove();
       }, 1e3);
     }
-    window.__blobioCustomSkinOverlayV6 = {
+    window.__blobioCustomSkinOverlayV7 = {
       state,
       refresh,
       dump: () => ({
