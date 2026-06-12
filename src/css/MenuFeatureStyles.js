@@ -88,7 +88,7 @@ html.${className} #game-wrapper .custom-select {
 }
 
 html.${className} #game-wrapper .blobio-menu-layered-select {
-  z-index: 1 !important;
+  z-index: 6 !important;
 }
 
 html.${className} #game-wrapper .custom-select-option {
@@ -114,7 +114,7 @@ html.${className} #game-wrapper .custom-select-options {
 }
 
 html.${className} #game-wrapper .blobio-menu-layered-select .custom-select-options {
-  z-index: 2 !important;
+  z-index: 7 !important;
 }
 
 html.${className} #game-wrapper .custom-select-option.selected,
@@ -124,7 +124,7 @@ html.${className} #game-wrapper .custom-select-option:hover {
 
 html.${className} #ip-container {
   position: relative !important;
-  z-index: 1 !important;
+  z-index: 5 !important;
 }
 
 html.${className} app-settings,
@@ -659,13 +659,13 @@ html.${className} app-skins .blobio-custom-skin-tab.active {
 
 html.${className} app-skins .blobio-custom-skin-panel {
   display: none !important;
-  padding: 12px !important;
-  margin-top: -8px !important;
-  border: 1px solid rgba(142, 255, 174, 0.34) !important;
+  padding: 10px 12px 12px !important;
+  margin-top: -16px !important;
+  border: 1px solid rgba(142, 255, 174, 0.42) !important;
   border-radius: 10px !important;
-  background: rgba(2, 32, 18, 0.86) !important;
+  background: linear-gradient(145deg, rgba(3, 31, 19, 0.94), rgba(1, 10, 7, 0.94)) !important;
   color: #dfffe6 !important;
-  box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.12), 0 0 18px rgba(79, 255, 130, 0.16) !important;
+  box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.14), 0 0 18px rgba(79, 255, 130, 0.18) !important;
 }
 
 html.${className} app-skins.blobio-custom-skin-active .skins-container:not(.blobio-custom-skin-panel) {
@@ -676,10 +676,18 @@ html.${className} app-skins.blobio-custom-skin-active .blobio-custom-skin-panel 
   display: block !important;
 }
 
+html.${className} app-skins.blobio-custom-skin-active .right > .inner-container,
+html.${className} app-skins.blobio-custom-skin-active .inner-container.zero-top-left-border {
+  border: 1px solid rgba(142, 255, 174, 0.36) !important;
+  border-radius: 10px !important;
+  background: linear-gradient(145deg, rgba(3, 31, 19, 0.92), rgba(1, 10, 7, 0.92)) !important;
+  box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.12), 0 0 18px rgba(79, 255, 130, 0.14) !important;
+}
+
 html.${className} .blobio-custom-skin-controls {
   display: grid;
-  gap: 6px;
-  margin: -2px 0 10px;
+  gap: 5px;
+  margin: -8px 0 8px;
 }
 
 html.${className} .blobio-custom-skin-input {
@@ -729,6 +737,17 @@ html.${className} .blobio-custom-skin {
 html.${className} .blobio-custom-skin.is-selected {
   box-shadow: 0 0 18px rgba(99, 255, 142, 0.5), inset 0 0 10px rgba(99, 255, 142, 0.2);
   transform: translateY(-2px) scale(1.04);
+}
+
+html.${className} .blobio-custom-skin .title {
+  color: #f2fff5 !important;
+  font-weight: 800 !important;
+  text-shadow: 0 0 7px rgba(118, 255, 154, 0.76), 0 0 16px rgba(79, 255, 130, 0.32) !important;
+}
+
+html.${className} .blobio-custom-skin.is-selected .title {
+  color: #ffffff !important;
+  text-shadow: 0 0 10px rgba(190, 255, 204, 0.96), 0 0 22px rgba(99, 255, 142, 0.52) !important;
 }
 
 html.${className} .blobio-custom-skin-actions {

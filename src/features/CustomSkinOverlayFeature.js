@@ -99,8 +99,8 @@ function pageOverlayMain(initialState) {
   const NODE_LIMIT = 5000;
   const DEBUG_LIMIT = 700;
 
-  if (window.__blobioCustomSkinOverlayV3) {
-    window.__blobioCustomSkinOverlayV3.refresh?.(initialState);
+  if (window.__blobioCustomSkinOverlayV4) {
+    window.__blobioCustomSkinOverlayV4.refresh?.(initialState);
     return;
   }
 
@@ -123,6 +123,8 @@ function pageOverlayMain(initialState) {
     sockets: 0,
     wsMessages: 0,
     addNodePackets: 0,
+    ownListPackets: 0,
+    shortOwnFallbackUpdates: 0,
     updatePackets: 0,
     updateParseErrors: 0,
     opCounts: {},
@@ -647,6 +649,11 @@ function pageOverlayMain(initialState) {
       return;
     }
 
+    if (opcode === 0x31) {
+      parseOwnNodeList(packet, meta);
+      return;
+    }
+
     if (opcode === 0x10) {
       parseUpdateNodes(packet, meta);
       return;
@@ -685,12 +692,46 @@ function pageOverlayMain(initialState) {
     const id = view.getUint32(1, true) >>> 0;
     if (!id) return;
 
-    state.ownIds.add(id);
+    addOwnId(id, 'add-node', meta);
+    state.addNodePackets += 1;
+  }
+
+  function parseOwnNodeList(packet, meta) {
+    // Blobgame short-packet mode uses opcode 0x31 to tell the client which cell IDs are local.
+    // The uploaded debug log showed 49,1,0,0,0,227,5,... which is count=1 and local id=0x05e3.
+    if (packet.length < 7) return;
+
+    const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
+    const count = view.getUint32(1, true);
+    if (!Number.isFinite(count) || count <= 0 || count > OWN_ID_LIMIT) return;
+
+    let offset = 5;
+    let added = 0;
+
+    for (let index = 0; index < count && offset + 2 <= packet.length; index += 1) {
+      const id = view.getUint16(offset, true) >>> 0;
+      offset += 2;
+      if (id) {
+        addOwnId(id, 'own-list-short', meta);
+        added += 1;
+      }
+    }
+
+    if (added > 0) {
+      state.ownListPackets += 1;
+      log('own node list parsed', { added, ownIds: Array.from(state.ownIds), meta }, 'packet');
+    }
+  }
+
+  function addOwnId(id, source, meta) {
+    if (!id) return;
+
+    state.ownIds.add(id >>> 0);
     while (state.ownIds.size > OWN_ID_LIMIT) {
       state.ownIds.delete(state.ownIds.values().next().value);
     }
-    state.addNodePackets += 1;
-    log('own node added', { id, ownIds: state.ownIds.size, meta }, 'packet');
+
+    log('own node added', { id, source, ownIds: state.ownIds.size, meta }, 'packet');
   }
 
   function parseUpdatePosition(packet) {
@@ -705,7 +746,7 @@ function pageOverlayMain(initialState) {
   }
 
   function parseUpdateNodes(packet, meta) {
-    const parsed = [parseUpdateNodesProtocol6(packet), parseUpdateNodesProtocol5(packet), parseUpdateNodesProtocol4(packet)]
+    const parsed = [parseUpdateNodesShort(packet), parseUpdateNodesProtocol6(packet), parseUpdateNodesProtocol5(packet), parseUpdateNodesProtocol4(packet)]
       .filter((item) => item && item.ok)
       .sort((a, b) => scoreParse(b) - scoreParse(a))[0];
 
@@ -716,12 +757,14 @@ function pageOverlayMain(initialState) {
     }
 
     applyUpdateParse(parsed);
+    const shortOwnUpdates = applyShortOwnRecordFallback(packet, meta);
     state.updatePackets += 1;
     state.lastPacketSummary = {
       protocol: parsed.protocol,
       records: parsed.records.length,
       removed: parsed.removed.length,
       ownRecords: parsed.records.filter((record) => state.ownIds.has(record.id)).length,
+      shortOwnUpdates,
       length: packet.length,
     };
   }
@@ -732,6 +775,7 @@ function pageOverlayMain(initialState) {
       if (state.ownIds.has(record.id)) score += 100;
       if (Math.abs(record.x) < 100000 && Math.abs(record.y) < 100000 && record.size > 0 && record.size < 10000) score += 1;
     }
+    if (parsed.protocol === 'short') score += 6;
     if (parsed.offset === parsed.length) score += 4;
     return score;
   }
@@ -758,6 +802,117 @@ function pageOverlayMain(initialState) {
     while (state.nodes.size > NODE_LIMIT) {
       state.nodes.delete(state.nodes.keys().next().value);
     }
+  }
+
+  function parseUpdateNodesShort(packet) {
+    const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
+    let offset = 1;
+    if (packet.length < 12) return null;
+
+    const eatCount = view.getUint16(offset, true);
+    offset += 2 + eatCount * 4;
+    if (offset >= packet.length) return null;
+
+    const records = [];
+    let guard = 0;
+
+    while (offset + 9 <= packet.length && guard < 4096) {
+      guard += 1;
+      const id = view.getUint16(offset, true) >>> 0;
+      offset += 2;
+      if (id === 0) break;
+
+      const x = view.getInt16(offset, true); offset += 2;
+      const y = view.getInt16(offset, true); offset += 2;
+      const size = view.getUint16(offset, true); offset += 2;
+      const flags = view.getUint8(offset); offset += 1;
+      let color = null;
+
+      if (flags & 0x02) {
+        if (offset + 3 > packet.length) return null;
+        color = { r: packet[offset], g: packet[offset + 1], b: packet[offset + 2] };
+        offset += 3;
+      }
+
+      if (flags & 0x04) offset = skipUtf8Zero(packet, offset);
+      if (flags & 0x08) offset = skipUtf8Zero(packet, offset);
+      if (offset < 0) return null;
+
+      records.push({ id, x, y, size, flags, color });
+    }
+
+    const removed = readRemoveRecordsShort(packet, offset);
+    if (!removed) return null;
+
+    return { ok: true, protocol: 'short', records, removed: removed.ids, offset: removed.offset, length: packet.length };
+  }
+
+  function readRemoveRecordsShort(packet, offset) {
+    if (offset < 0 || offset >= packet.length) return { ids: [], offset };
+    if (offset + 2 > packet.length) return { ids: [], offset };
+
+    const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
+    const count = view.getUint16(offset, true);
+    offset += 2;
+    if (count > 10000 || offset + count * 2 > packet.length) return null;
+
+    const ids = [];
+    for (let index = 0; index < count; index += 1) {
+      ids.push(view.getUint16(offset, true) >>> 0);
+      offset += 2;
+    }
+
+    return { ids, offset };
+  }
+
+  function applyShortOwnRecordFallback(packet, meta) {
+    if (!state.ownIds.size || packet.length < 12) {
+      return 0;
+    }
+
+    const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
+    let updates = 0;
+    const now = performance.now();
+
+    for (const id of state.ownIds) {
+      for (let offset = 3; offset + 8 <= packet.length; offset += 1) {
+        if ((view.getUint16(offset, true) >>> 0) !== id) {
+          continue;
+        }
+
+        const x = view.getInt16(offset + 2, true);
+        const y = view.getInt16(offset + 4, true);
+        const size = view.getUint16(offset + 6, true);
+
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(size)) {
+          continue;
+        }
+
+        if (size <= 0 || size > 10000 || Math.abs(x) > 32768 || Math.abs(y) > 32768) {
+          continue;
+        }
+
+        state.nodes.set(id, {
+          id,
+          x,
+          y,
+          size,
+          color: null,
+          flags: 0,
+          updatedAt: now,
+          source: 'short-own-fallback',
+        });
+        updates += 1;
+        break;
+      }
+    }
+
+    if (updates > 0) {
+      state.shortOwnFallbackUpdates += updates;
+      log('short own cell records updated', { updates, ownIds: Array.from(state.ownIds), meta }, 'packet');
+    }
+
+    return updates;
   }
 
   function parseUpdateNodesProtocol6(packet) {
@@ -895,7 +1050,7 @@ function pageOverlayMain(initialState) {
   function downloadDebugDump() {
     const dump = {
       meta: {
-        version: 'packet-overlay-v2',
+        version: 'packet-overlay-v3',
         createdAt: new Date().toISOString(),
         href: location.href,
       },
@@ -911,6 +1066,8 @@ function pageOverlayMain(initialState) {
         sockets: state.sockets,
         wsMessages: state.wsMessages,
         addNodePackets: state.addNodePackets,
+        ownListPackets: state.ownListPackets,
+        shortOwnFallbackUpdates: state.shortOwnFallbackUpdates,
         updatePackets: state.updatePackets,
         updateParseErrors: state.updateParseErrors,
         opCounts: state.opCounts,
@@ -939,7 +1096,7 @@ function pageOverlayMain(initialState) {
     }, 1000);
   }
 
-  window.__blobioCustomSkinOverlayV3 = {
+  window.__blobioCustomSkinOverlayV4 = {
     state,
     refresh,
     dump: () => ({
@@ -948,6 +1105,8 @@ function pageOverlayMain(initialState) {
       ownIds: Array.from(state.ownIds),
       nodes: state.nodes.size,
       drawn: state.drawn,
+      ownListPackets: state.ownListPackets,
+      shortOwnFallbackUpdates: state.shortOwnFallbackUpdates,
       opCounts: state.opCounts,
       earlyPackets: state.earlyPackets,
       camera: state.camera,

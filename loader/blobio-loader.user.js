@@ -25,6 +25,7 @@
   const CUSTOM_SKIN_PREVIOUS_KEY = 'blobio.customSkin.previousSkin';
   const CUSTOM_SKIN_LOCAL_NAME_KEY = 'blobio.customSkin.localName';
   const CUSTOM_SKIN_BASE_KEY = 'blobio.customSkin.baseSkin';
+  const STORAGE_BRIDGE_SOURCE = 'BlobioExtensionStorageBridge';
   const CUSTOM_SKIN_TYPE = 'free';
   const CUSTOM_SKIN_TYPES = ['free', 'premium'];
   const CUSTOM_SKIN_NAME = 'BlobioCustomSkin';
@@ -46,6 +47,7 @@
 
   function runBundle(source) {
     try {
+      syncCustomClientSkinConfig();
       const run = new Function(`${source}\n//# sourceURL=blobio-extension.bundle.js`);
       run();
     } catch (error) {
@@ -105,6 +107,54 @@
     }
 
     setLocalValue(key, value);
+  }
+
+  function removeSharedValue(key) {
+    try {
+      if (typeof GM_deleteValue === 'function') {
+        GM_deleteValue(key);
+      }
+    } catch {
+      // Keep local fallback even if GM storage fails.
+    }
+
+    removeLocalValue(key);
+  }
+
+  function isCustomSkinSharedKey(key) {
+    return String(key || '').startsWith('blobio.customSkin.');
+  }
+
+  function installSharedStorageBridge() {
+    if (globalThis.__blobioSharedStorageBridgeInstalled) {
+      return;
+    }
+
+    try {
+      window.addEventListener('message', (event) => {
+        if (event.source && event.source !== window) {
+          return;
+        }
+
+        const message = event.data;
+        if (!message || message.source !== STORAGE_BRIDGE_SOURCE || !isCustomSkinSharedKey(message.key)) {
+          return;
+        }
+
+        if (message.type === 'set') {
+          setSharedValue(message.key, message.value ?? '');
+        } else if (message.type === 'remove') {
+          removeSharedValue(message.key);
+        }
+
+        if (location.host === CUSTOM_CLIENT_HOST) {
+          syncCustomClientSkinConfig();
+        }
+      });
+      globalThis.__blobioSharedStorageBridgeInstalled = true;
+    } catch {
+      // A missing bridge only disables cross-origin syncing. local page storage still works.
+    }
   }
 
   function isValidImgurSkinUrl(url) {
@@ -1186,6 +1236,7 @@
     });
   }
 
+  installSharedStorageBridge();
   syncCustomClientSkinConfig();
   // The custom skin runtime is now packet-overlay based and lives in the bundle.
   // Do not inject the old replacement/GWT bootstrap from the loader.

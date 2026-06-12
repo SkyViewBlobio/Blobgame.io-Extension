@@ -1,4 +1,6 @@
 const SHARED_KEY_PREFIX = 'blobio.customSkin.';
+const STORAGE_BRIDGE_SOURCE = 'BlobioExtensionStorageBridge';
+
 
 function getWindow(document) {
   return document?.defaultView || globalThis;
@@ -23,6 +25,24 @@ function getGmApi(document) {
 
 function isSharedKey(key) {
   return String(key || '').startsWith(SHARED_KEY_PREFIX);
+}
+
+function postSharedStorageMessage(document, type, key, value = '') {
+  if (!isSharedKey(key)) {
+    return;
+  }
+
+  try {
+    const win = getWindow(document);
+    win?.postMessage?.({
+      source: STORAGE_BRIDGE_SOURCE,
+      type,
+      key: String(key),
+      value: String(value),
+    }, '*');
+  } catch {
+    // The page may block postMessage in unusual browser modes. localStorage still works.
+  }
 }
 
 export function createBlobioStorage(document = globalThis.document) {
@@ -53,6 +73,7 @@ export function createBlobioStorage(document = globalThis.document) {
       }
 
       localStorage?.setItem?.(key, nextValue);
+      postSharedStorageMessage(document, 'set', key, nextValue);
     },
 
     removeItem(key) {
@@ -61,6 +82,7 @@ export function createBlobioStorage(document = globalThis.document) {
       }
 
       localStorage?.removeItem?.(key);
+      postSharedStorageMessage(document, 'remove', key);
     },
   };
 }

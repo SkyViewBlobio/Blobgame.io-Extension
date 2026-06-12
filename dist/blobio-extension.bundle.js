@@ -242,7 +242,7 @@ html.${className} #game-wrapper .custom-select {
 }
 
 html.${className} #game-wrapper .blobio-menu-layered-select {
-  z-index: 1 !important;
+  z-index: 6 !important;
 }
 
 html.${className} #game-wrapper .custom-select-option {
@@ -268,7 +268,7 @@ html.${className} #game-wrapper .custom-select-options {
 }
 
 html.${className} #game-wrapper .blobio-menu-layered-select .custom-select-options {
-  z-index: 2 !important;
+  z-index: 7 !important;
 }
 
 html.${className} #game-wrapper .custom-select-option.selected,
@@ -278,7 +278,7 @@ html.${className} #game-wrapper .custom-select-option:hover {
 
 html.${className} #ip-container {
   position: relative !important;
-  z-index: 1 !important;
+  z-index: 5 !important;
 }
 
 html.${className} app-settings,
@@ -813,13 +813,13 @@ html.${className} app-skins .blobio-custom-skin-tab.active {
 
 html.${className} app-skins .blobio-custom-skin-panel {
   display: none !important;
-  padding: 12px !important;
-  margin-top: -8px !important;
-  border: 1px solid rgba(142, 255, 174, 0.34) !important;
+  padding: 10px 12px 12px !important;
+  margin-top: -16px !important;
+  border: 1px solid rgba(142, 255, 174, 0.42) !important;
   border-radius: 10px !important;
-  background: rgba(2, 32, 18, 0.86) !important;
+  background: linear-gradient(145deg, rgba(3, 31, 19, 0.94), rgba(1, 10, 7, 0.94)) !important;
   color: #dfffe6 !important;
-  box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.12), 0 0 18px rgba(79, 255, 130, 0.16) !important;
+  box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.14), 0 0 18px rgba(79, 255, 130, 0.18) !important;
 }
 
 html.${className} app-skins.blobio-custom-skin-active .skins-container:not(.blobio-custom-skin-panel) {
@@ -830,10 +830,18 @@ html.${className} app-skins.blobio-custom-skin-active .blobio-custom-skin-panel 
   display: block !important;
 }
 
+html.${className} app-skins.blobio-custom-skin-active .right > .inner-container,
+html.${className} app-skins.blobio-custom-skin-active .inner-container.zero-top-left-border {
+  border: 1px solid rgba(142, 255, 174, 0.36) !important;
+  border-radius: 10px !important;
+  background: linear-gradient(145deg, rgba(3, 31, 19, 0.92), rgba(1, 10, 7, 0.92)) !important;
+  box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.12), 0 0 18px rgba(79, 255, 130, 0.14) !important;
+}
+
 html.${className} .blobio-custom-skin-controls {
   display: grid;
-  gap: 6px;
-  margin: -2px 0 10px;
+  gap: 5px;
+  margin: -8px 0 8px;
 }
 
 html.${className} .blobio-custom-skin-input {
@@ -883,6 +891,17 @@ html.${className} .blobio-custom-skin {
 html.${className} .blobio-custom-skin.is-selected {
   box-shadow: 0 0 18px rgba(99, 255, 142, 0.5), inset 0 0 10px rgba(99, 255, 142, 0.2);
   transform: translateY(-2px) scale(1.04);
+}
+
+html.${className} .blobio-custom-skin .title {
+  color: #f2fff5 !important;
+  font-weight: 800 !important;
+  text-shadow: 0 0 7px rgba(118, 255, 154, 0.76), 0 0 16px rgba(79, 255, 130, 0.32) !important;
+}
+
+html.${className} .blobio-custom-skin.is-selected .title {
+  color: #ffffff !important;
+  text-shadow: 0 0 10px rgba(190, 255, 204, 0.96), 0 0 22px rgba(99, 255, 142, 0.52) !important;
 }
 
 html.${className} .blobio-custom-skin-actions {
@@ -1090,6 +1109,7 @@ html.${className} .blobio-watermark-extension::after {
 
   // src/storage/BlobioStorage.js
   var SHARED_KEY_PREFIX = "blobio.customSkin.";
+  var STORAGE_BRIDGE_SOURCE = "BlobioExtensionStorageBridge";
   function getWindow(document2) {
     return document2?.defaultView || globalThis;
   }
@@ -1110,6 +1130,21 @@ html.${className} .blobio-watermark-extension::after {
   }
   function isSharedKey(key) {
     return String(key || "").startsWith(SHARED_KEY_PREFIX);
+  }
+  function postSharedStorageMessage(document2, type, key, value = "") {
+    if (!isSharedKey(key)) {
+      return;
+    }
+    try {
+      const win = getWindow(document2);
+      win?.postMessage?.({
+        source: STORAGE_BRIDGE_SOURCE,
+        type,
+        key: String(key),
+        value: String(value)
+      }, "*");
+    } catch {
+    }
   }
   function createBlobioStorage(document2 = globalThis.document) {
     const localStorage2 = getLocalStorage(document2);
@@ -1134,12 +1169,14 @@ html.${className} .blobio-watermark-extension::after {
           gmApi.setValue(key, nextValue);
         }
         localStorage2?.setItem?.(key, nextValue);
+        postSharedStorageMessage(document2, "set", key, nextValue);
       },
       removeItem(key) {
         if (isSharedKey(key) && typeof gmApi.deleteValue === "function") {
           gmApi.deleteValue(key);
         }
         localStorage2?.removeItem?.(key);
+        postSharedStorageMessage(document2, "remove", key);
       }
     };
   }
@@ -3389,8 +3426,8 @@ html.${className} .blobio-watermark-extension::after {
     const OWN_ID_LIMIT = 128;
     const NODE_LIMIT = 5e3;
     const DEBUG_LIMIT = 700;
-    if (window.__blobioCustomSkinOverlayV3) {
-      window.__blobioCustomSkinOverlayV3.refresh?.(initialState);
+    if (window.__blobioCustomSkinOverlayV4) {
+      window.__blobioCustomSkinOverlayV4.refresh?.(initialState);
       return;
     }
     const state = {
@@ -3412,6 +3449,8 @@ html.${className} .blobio-watermark-extension::after {
       sockets: 0,
       wsMessages: 0,
       addNodePackets: 0,
+      ownListPackets: 0,
+      shortOwnFallbackUpdates: 0,
       updatePackets: 0,
       updateParseErrors: 0,
       opCounts: {},
@@ -3873,6 +3912,10 @@ html.${className} .blobio-watermark-extension::after {
         parseAddNode(packet, meta);
         return;
       }
+      if (opcode === 49) {
+        parseOwnNodeList(packet, meta);
+        return;
+      }
       if (opcode === 16) {
         parseUpdateNodes(packet, meta);
         return;
@@ -3906,12 +3949,36 @@ html.${className} .blobio-watermark-extension::after {
       const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
       const id = view.getUint32(1, true) >>> 0;
       if (!id) return;
-      state.ownIds.add(id);
+      addOwnId(id, "add-node", meta);
+      state.addNodePackets += 1;
+    }
+    function parseOwnNodeList(packet, meta) {
+      if (packet.length < 7) return;
+      const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
+      const count = view.getUint32(1, true);
+      if (!Number.isFinite(count) || count <= 0 || count > OWN_ID_LIMIT) return;
+      let offset = 5;
+      let added = 0;
+      for (let index = 0; index < count && offset + 2 <= packet.length; index += 1) {
+        const id = view.getUint16(offset, true) >>> 0;
+        offset += 2;
+        if (id) {
+          addOwnId(id, "own-list-short", meta);
+          added += 1;
+        }
+      }
+      if (added > 0) {
+        state.ownListPackets += 1;
+        log("own node list parsed", { added, ownIds: Array.from(state.ownIds), meta }, "packet");
+      }
+    }
+    function addOwnId(id, source, meta) {
+      if (!id) return;
+      state.ownIds.add(id >>> 0);
       while (state.ownIds.size > OWN_ID_LIMIT) {
         state.ownIds.delete(state.ownIds.values().next().value);
       }
-      state.addNodePackets += 1;
-      log("own node added", { id, ownIds: state.ownIds.size, meta }, "packet");
+      log("own node added", { id, source, ownIds: state.ownIds.size, meta }, "packet");
     }
     function parseUpdatePosition(packet) {
       if (packet.length < 13) return;
@@ -3924,19 +3991,21 @@ html.${className} .blobio-watermark-extension::after {
       }
     }
     function parseUpdateNodes(packet, meta) {
-      const parsed = [parseUpdateNodesProtocol6(packet), parseUpdateNodesProtocol5(packet), parseUpdateNodesProtocol4(packet)].filter((item) => item && item.ok).sort((a, b) => scoreParse(b) - scoreParse(a))[0];
+      const parsed = [parseUpdateNodesShort(packet), parseUpdateNodesProtocol6(packet), parseUpdateNodesProtocol5(packet), parseUpdateNodesProtocol4(packet)].filter((item) => item && item.ok).sort((a, b) => scoreParse(b) - scoreParse(a))[0];
       if (!parsed) {
         state.updateParseErrors += 1;
         if (state.debug) log("update packet parse failed", { length: packet.length, meta }, "packet-error");
         return;
       }
       applyUpdateParse(parsed);
+      const shortOwnUpdates = applyShortOwnRecordFallback(packet, meta);
       state.updatePackets += 1;
       state.lastPacketSummary = {
         protocol: parsed.protocol,
         records: parsed.records.length,
         removed: parsed.removed.length,
         ownRecords: parsed.records.filter((record) => state.ownIds.has(record.id)).length,
+        shortOwnUpdates,
         length: packet.length
       };
     }
@@ -3946,6 +4015,7 @@ html.${className} .blobio-watermark-extension::after {
         if (state.ownIds.has(record.id)) score += 100;
         if (Math.abs(record.x) < 1e5 && Math.abs(record.y) < 1e5 && record.size > 0 && record.size < 1e4) score += 1;
       }
+      if (parsed.protocol === "short") score += 6;
       if (parsed.offset === parsed.length) score += 4;
       return score;
     }
@@ -3969,6 +4039,98 @@ html.${className} .blobio-watermark-extension::after {
       while (state.nodes.size > NODE_LIMIT) {
         state.nodes.delete(state.nodes.keys().next().value);
       }
+    }
+    function parseUpdateNodesShort(packet) {
+      const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
+      let offset = 1;
+      if (packet.length < 12) return null;
+      const eatCount = view.getUint16(offset, true);
+      offset += 2 + eatCount * 4;
+      if (offset >= packet.length) return null;
+      const records = [];
+      let guard = 0;
+      while (offset + 9 <= packet.length && guard < 4096) {
+        guard += 1;
+        const id = view.getUint16(offset, true) >>> 0;
+        offset += 2;
+        if (id === 0) break;
+        const x = view.getInt16(offset, true);
+        offset += 2;
+        const y = view.getInt16(offset, true);
+        offset += 2;
+        const size = view.getUint16(offset, true);
+        offset += 2;
+        const flags = view.getUint8(offset);
+        offset += 1;
+        let color = null;
+        if (flags & 2) {
+          if (offset + 3 > packet.length) return null;
+          color = { r: packet[offset], g: packet[offset + 1], b: packet[offset + 2] };
+          offset += 3;
+        }
+        if (flags & 4) offset = skipUtf8Zero(packet, offset);
+        if (flags & 8) offset = skipUtf8Zero(packet, offset);
+        if (offset < 0) return null;
+        records.push({ id, x, y, size, flags, color });
+      }
+      const removed = readRemoveRecordsShort(packet, offset);
+      if (!removed) return null;
+      return { ok: true, protocol: "short", records, removed: removed.ids, offset: removed.offset, length: packet.length };
+    }
+    function readRemoveRecordsShort(packet, offset) {
+      if (offset < 0 || offset >= packet.length) return { ids: [], offset };
+      if (offset + 2 > packet.length) return { ids: [], offset };
+      const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
+      const count = view.getUint16(offset, true);
+      offset += 2;
+      if (count > 1e4 || offset + count * 2 > packet.length) return null;
+      const ids = [];
+      for (let index = 0; index < count; index += 1) {
+        ids.push(view.getUint16(offset, true) >>> 0);
+        offset += 2;
+      }
+      return { ids, offset };
+    }
+    function applyShortOwnRecordFallback(packet, meta) {
+      if (!state.ownIds.size || packet.length < 12) {
+        return 0;
+      }
+      const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
+      let updates = 0;
+      const now = performance.now();
+      for (const id of state.ownIds) {
+        for (let offset = 3; offset + 8 <= packet.length; offset += 1) {
+          if (view.getUint16(offset, true) >>> 0 !== id) {
+            continue;
+          }
+          const x = view.getInt16(offset + 2, true);
+          const y = view.getInt16(offset + 4, true);
+          const size = view.getUint16(offset + 6, true);
+          if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(size)) {
+            continue;
+          }
+          if (size <= 0 || size > 1e4 || Math.abs(x) > 32768 || Math.abs(y) > 32768) {
+            continue;
+          }
+          state.nodes.set(id, {
+            id,
+            x,
+            y,
+            size,
+            color: null,
+            flags: 0,
+            updatedAt: now,
+            source: "short-own-fallback"
+          });
+          updates += 1;
+          break;
+        }
+      }
+      if (updates > 0) {
+        state.shortOwnFallbackUpdates += updates;
+        log("short own cell records updated", { updates, ownIds: Array.from(state.ownIds), meta }, "packet");
+      }
+      return updates;
     }
     function parseUpdateNodesProtocol6(packet) {
       const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
@@ -4110,7 +4272,7 @@ html.${className} .blobio-watermark-extension::after {
     function downloadDebugDump() {
       const dump = {
         meta: {
-          version: "packet-overlay-v2",
+          version: "packet-overlay-v3",
           createdAt: (/* @__PURE__ */ new Date()).toISOString(),
           href: location.href
         },
@@ -4126,6 +4288,8 @@ html.${className} .blobio-watermark-extension::after {
           sockets: state.sockets,
           wsMessages: state.wsMessages,
           addNodePackets: state.addNodePackets,
+          ownListPackets: state.ownListPackets,
+          shortOwnFallbackUpdates: state.shortOwnFallbackUpdates,
           updatePackets: state.updatePackets,
           updateParseErrors: state.updateParseErrors,
           opCounts: state.opCounts,
@@ -4152,7 +4316,7 @@ html.${className} .blobio-watermark-extension::after {
         a.remove();
       }, 1e3);
     }
-    window.__blobioCustomSkinOverlayV3 = {
+    window.__blobioCustomSkinOverlayV4 = {
       state,
       refresh,
       dump: () => ({
@@ -4161,6 +4325,8 @@ html.${className} .blobio-watermark-extension::after {
         ownIds: Array.from(state.ownIds),
         nodes: state.nodes.size,
         drawn: state.drawn,
+        ownListPackets: state.ownListPackets,
+        shortOwnFallbackUpdates: state.shortOwnFallbackUpdates,
         opCounts: state.opCounts,
         earlyPackets: state.earlyPackets,
         camera: state.camera,
