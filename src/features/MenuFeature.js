@@ -4,7 +4,7 @@ import { createBlobioStorage } from '../storage/BlobioStorage.js';
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
 const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
-const DEFAULT_EXTENSION_VERSION = '0.1.22';
+const DEFAULT_EXTENSION_VERSION = '0.1.23';
 const HIDDEN_CLASS = 'blobio-original-hidden';
 const PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
 const FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -16,6 +16,7 @@ const WATERMARK_INPUT_GAP = 6;
 const CUSTOM_SKIN_ENABLED_KEY = 'blobio.customSkin.enabled';
 const CUSTOM_SKIN_GALLERY_KEY = 'blobio.customSkin.gallery';
 const CUSTOM_SKIN_ACTIVE_KEY = 'blobio.customSkin.activeUrl';
+const CUSTOM_SKIN_SELECTED_KEY = 'blobio.customSkin.selectedUrl';
 const CUSTOM_SKIN_PREVIOUS_KEY = 'blobio.customSkin.previousSkin';
 const CUSTOM_SKIN_LOCAL_NAME_KEY = 'blobio.customSkin.localName';
 const CUSTOM_SKIN_BASE_KEY = 'blobio.customSkin.baseSkin';
@@ -1325,6 +1326,7 @@ export class MenuFeature {
     try {
       this.storage?.setItem?.(CUSTOM_SKIN_ENABLED_KEY, '1');
       this.storage?.setItem?.(CUSTOM_SKIN_ACTIVE_KEY, url);
+      this.storage?.setItem?.(CUSTOM_SKIN_SELECTED_KEY, url);
       this.clearCustomSkinBaseConfig();
       this.storage?.removeItem?.(CUSTOM_SKIN_PREVIOUS_KEY);
       this.updateChooseSkinPreview(url);
@@ -1338,6 +1340,7 @@ export class MenuFeature {
   clearCustomSkinUse() {
     try {
       this.storage?.removeItem?.(CUSTOM_SKIN_ACTIVE_KEY);
+      this.storage?.removeItem?.(CUSTOM_SKIN_SELECTED_KEY);
       this.clearCustomSkinBaseConfig();
       this.storage?.removeItem?.(CUSTOM_SKIN_PREVIOUS_KEY);
     } catch (error) {
@@ -1518,7 +1521,7 @@ export class MenuFeature {
       this.customSkinSelectedUrl = null;
       panel.dataset.selectedSkinUrl = '';
       this.renderCustomSkinGallery(panel);
-      this.showCustomSkinNotice(panel, 'Skin was removed', 'error');
+      this.showCustomSkinNotice(panel, 'Skin is removed', 'error');
     });
 
     return panel;
@@ -1591,6 +1594,16 @@ export class MenuFeature {
     this.customSkinSelectedUrl = selectedUrl || null;
     panel.dataset.selectedSkinUrl = selectedUrl;
 
+    try {
+      if (selectedUrl) {
+        this.storage?.setItem?.(CUSTOM_SKIN_SELECTED_KEY, selectedUrl);
+      } else {
+        this.storage?.removeItem?.(CUSTOM_SKIN_SELECTED_KEY);
+      }
+    } catch (error) {
+      this.logger.warn('[Blobio] Could not save selected Custom Skin.', error);
+    }
+
     for (const card of panel.querySelectorAll?.('.blobio-custom-skin') || []) {
       if (card.dataset.skinUrl === selectedUrl) {
         card.classList?.add('is-selected');
@@ -1611,10 +1624,7 @@ export class MenuFeature {
 
   showCustomSkinNotice(panel, message, type) {
     const skins = this.findAncestor(panel, 'APP-SKINS');
-    const label = skins?.querySelector?.('.label');
-    if (!label) {
-      return;
-    }
+    const label = skins?.querySelector?.('.label') || skins?.querySelector?.('.right') || panel;
 
     this.clearCustomSkinNoticeTimer();
 

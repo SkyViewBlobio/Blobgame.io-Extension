@@ -242,7 +242,7 @@ html.${className} #game-wrapper .custom-select {
 }
 
 html.${className} #game-wrapper .blobio-menu-layered-select {
-  z-index: 6 !important;
+  z-index: 12 !important;
 }
 
 html.${className} #game-wrapper .custom-select-option {
@@ -268,7 +268,7 @@ html.${className} #game-wrapper .custom-select-options {
 }
 
 html.${className} #game-wrapper .blobio-menu-layered-select .custom-select-options {
-  z-index: 7 !important;
+  z-index: 18 !important;
 }
 
 html.${className} #game-wrapper .custom-select-option.selected,
@@ -815,11 +815,40 @@ html.${className} app-skins .blobio-custom-skin-panel {
   display: none !important;
   padding: 10px 12px 12px !important;
   margin-top: -16px !important;
+  min-height: 390px !important;
+  height: calc(100% - 8px) !important;
+  max-height: 460px !important;
+  overflow-y: auto !important;
+  box-sizing: border-box !important;
   border: 1px solid rgba(142, 255, 174, 0.42) !important;
   border-radius: 10px !important;
   background: linear-gradient(145deg, rgba(3, 31, 19, 0.94), rgba(1, 10, 7, 0.94)) !important;
   color: #dfffe6 !important;
   box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.14), 0 0 18px rgba(79, 255, 130, 0.18) !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(155, 255, 181, 0.62) rgba(5, 34, 19, 0.28);
+}
+
+html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(5, 34, 19, 0.22);
+  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.1);
+}
+
+html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(3, 31, 19, 0.58);
+  border-radius: 999px;
+  background: rgba(155, 255, 181, 0.58);
+  box-shadow: 0 0 8px rgba(155, 255, 181, 0.56), inset 0 0 6px rgba(255, 255, 255, 0.2);
+}
+
+html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(190, 255, 204, 0.74);
+  box-shadow: 0 0 12px rgba(155, 255, 181, 0.78), inset 0 0 7px rgba(255, 255, 255, 0.24);
 }
 
 html.${className} app-skins.blobio-custom-skin-active .skins-container:not(.blobio-custom-skin-panel) {
@@ -832,6 +861,8 @@ html.${className} app-skins.blobio-custom-skin-active .blobio-custom-skin-panel 
 
 html.${className} app-skins.blobio-custom-skin-active .right > .inner-container,
 html.${className} app-skins.blobio-custom-skin-active .inner-container.zero-top-left-border {
+  min-height: 430px !important;
+  height: auto !important;
   border: 1px solid rgba(142, 255, 174, 0.36) !important;
   border-radius: 10px !important;
   background: linear-gradient(145deg, rgba(3, 31, 19, 0.92), rgba(1, 10, 7, 0.92)) !important;
@@ -1128,6 +1159,13 @@ html.${className} .blobio-watermark-extension::after {
       deleteValue: win?.GM_deleteValue || globalThis.GM_deleteValue
     };
   }
+  function getSharedBridge(document2) {
+    try {
+      return getWindow(document2)?.__blobioSharedStorageBridge || globalThis.__blobioSharedStorageBridge || null;
+    } catch {
+      return null;
+    }
+  }
   function isSharedKey(key) {
     return String(key || "").startsWith(SHARED_KEY_PREFIX);
   }
@@ -1149,8 +1187,19 @@ html.${className} .blobio-watermark-extension::after {
   function createBlobioStorage(document2 = globalThis.document) {
     const localStorage2 = getLocalStorage(document2);
     const gmApi = getGmApi(document2);
+    const bridge = getSharedBridge(document2);
     return {
       getItem(key) {
+        if (isSharedKey(key) && typeof bridge?.getItem === "function") {
+          const value = bridge.getItem(key);
+          if (value !== void 0 && value !== null) {
+            const nextValue = String(value);
+            if (localStorage2?.getItem?.(key) !== nextValue) {
+              localStorage2?.setItem?.(key, nextValue);
+            }
+            return nextValue;
+          }
+        }
         if (isSharedKey(key) && typeof gmApi.getValue === "function") {
           const value = gmApi.getValue(key, void 0);
           if (value !== void 0 && value !== null) {
@@ -1165,6 +1214,9 @@ html.${className} .blobio-watermark-extension::after {
       },
       setItem(key, value) {
         const nextValue = String(value);
+        if (isSharedKey(key) && typeof bridge?.setItem === "function") {
+          bridge.setItem(key, nextValue);
+        }
         if (isSharedKey(key) && typeof gmApi.setValue === "function") {
           gmApi.setValue(key, nextValue);
         }
@@ -1172,6 +1224,9 @@ html.${className} .blobio-watermark-extension::after {
         postSharedStorageMessage(document2, "set", key, nextValue);
       },
       removeItem(key) {
+        if (isSharedKey(key) && typeof bridge?.removeItem === "function") {
+          bridge.removeItem(key);
+        }
         if (isSharedKey(key) && typeof gmApi.deleteValue === "function") {
           gmApi.deleteValue(key);
         }
@@ -1185,7 +1240,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.22";
+  var DEFAULT_EXTENSION_VERSION = "0.1.23";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -1197,6 +1252,7 @@ html.${className} .blobio-watermark-extension::after {
   var CUSTOM_SKIN_ENABLED_KEY = "blobio.customSkin.enabled";
   var CUSTOM_SKIN_GALLERY_KEY = "blobio.customSkin.gallery";
   var CUSTOM_SKIN_ACTIVE_KEY = "blobio.customSkin.activeUrl";
+  var CUSTOM_SKIN_SELECTED_KEY = "blobio.customSkin.selectedUrl";
   var CUSTOM_SKIN_PREVIOUS_KEY = "blobio.customSkin.previousSkin";
   var CUSTOM_SKIN_LOCAL_NAME_KEY = "blobio.customSkin.localName";
   var CUSTOM_SKIN_BASE_KEY = "blobio.customSkin.baseSkin";
@@ -2276,6 +2332,7 @@ html.${className} .blobio-watermark-extension::after {
       try {
         this.storage?.setItem?.(CUSTOM_SKIN_ENABLED_KEY, "1");
         this.storage?.setItem?.(CUSTOM_SKIN_ACTIVE_KEY, url);
+        this.storage?.setItem?.(CUSTOM_SKIN_SELECTED_KEY, url);
         this.clearCustomSkinBaseConfig();
         this.storage?.removeItem?.(CUSTOM_SKIN_PREVIOUS_KEY);
         this.updateChooseSkinPreview(url);
@@ -2288,6 +2345,7 @@ html.${className} .blobio-watermark-extension::after {
     clearCustomSkinUse() {
       try {
         this.storage?.removeItem?.(CUSTOM_SKIN_ACTIVE_KEY);
+        this.storage?.removeItem?.(CUSTOM_SKIN_SELECTED_KEY);
         this.clearCustomSkinBaseConfig();
         this.storage?.removeItem?.(CUSTOM_SKIN_PREVIOUS_KEY);
       } catch (error) {
@@ -2437,7 +2495,7 @@ html.${className} .blobio-watermark-extension::after {
         this.customSkinSelectedUrl = null;
         panel.dataset.selectedSkinUrl = "";
         this.renderCustomSkinGallery(panel);
-        this.showCustomSkinNotice(panel, "Skin was removed", "error");
+        this.showCustomSkinNotice(panel, "Skin is removed", "error");
       });
       return panel;
     }
@@ -2491,6 +2549,15 @@ html.${className} .blobio-watermark-extension::after {
       const selectedUrl = this.isValidImgurSkinUrl(url) ? url : "";
       this.customSkinSelectedUrl = selectedUrl || null;
       panel.dataset.selectedSkinUrl = selectedUrl;
+      try {
+        if (selectedUrl) {
+          this.storage?.setItem?.(CUSTOM_SKIN_SELECTED_KEY, selectedUrl);
+        } else {
+          this.storage?.removeItem?.(CUSTOM_SKIN_SELECTED_KEY);
+        }
+      } catch (error) {
+        this.logger.warn("[Blobio] Could not save selected Custom Skin.", error);
+      }
       for (const card of panel.querySelectorAll?.(".blobio-custom-skin") || []) {
         if (card.dataset.skinUrl === selectedUrl) {
           card.classList?.add("is-selected");
@@ -2509,10 +2576,7 @@ html.${className} .blobio-watermark-extension::after {
     }
     showCustomSkinNotice(panel, message, type) {
       const skins = this.findAncestor(panel, "APP-SKINS");
-      const label = skins?.querySelector?.(".label");
-      if (!label) {
-        return;
-      }
+      const label = skins?.querySelector?.(".label") || skins?.querySelector?.(".right") || panel;
       this.clearCustomSkinNoticeTimer();
       let notice = label.querySelector?.(".blobio-custom-skin-notice");
       if (!notice) {
@@ -3345,6 +3409,7 @@ html.${className} .blobio-watermark-extension::after {
   // src/features/CustomSkinOverlayFeature.js
   var CUSTOM_SKIN_ENABLED_KEY2 = "blobio.customSkin.enabled";
   var CUSTOM_SKIN_ACTIVE_KEY2 = "blobio.customSkin.activeUrl";
+  var CUSTOM_SKIN_SELECTED_KEY2 = "blobio.customSkin.selectedUrl";
   var DIRECT_IMGUR_IMAGE_MATCH2 = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i;
   var RUNTIME_HOST = "custom.client.blobgame.io";
   function isValidImgurSkinUrl(url) {
@@ -3385,16 +3450,25 @@ html.${className} .blobio-watermark-extension::after {
       this.started = false;
     }
     getBootstrapState() {
+      const win = this.document?.defaultView || globalThis;
+      const bridgeState = win.__blobioCustomSkinBridgeState || globalThis.__blobioCustomSkinBridgeState || null;
+      if (bridgeState?.enabled && isValidImgurSkinUrl(bridgeState.activeUrl)) {
+        return {
+          enabled: true,
+          activeUrl: String(bridgeState.activeUrl).trim(),
+          debug: Boolean(bridgeState.debug)
+        };
+      }
       let enabled = false;
       let activeUrl = "";
       let debug = false;
       try {
         enabled = this.storage?.getItem?.(CUSTOM_SKIN_ENABLED_KEY2) === "1";
-        activeUrl = this.storage?.getItem?.(CUSTOM_SKIN_ACTIVE_KEY2) || "";
+        activeUrl = this.storage?.getItem?.(CUSTOM_SKIN_ACTIVE_KEY2) || this.storage?.getItem?.(CUSTOM_SKIN_SELECTED_KEY2) || "";
         debug = this.storage?.getItem?.("blobio.customSkin.debug") === "1";
       } catch {
       }
-      if (!enabled || !isValidImgurSkinUrl(activeUrl)) {
+      if (!isValidImgurSkinUrl(activeUrl)) {
         return {
           enabled: false,
           activeUrl: "",
@@ -3402,7 +3476,7 @@ html.${className} .blobio-watermark-extension::after {
         };
       }
       return {
-        enabled: true,
+        enabled: enabled || isValidImgurSkinUrl(activeUrl),
         activeUrl,
         debug
       };
@@ -3422,6 +3496,7 @@ html.${className} .blobio-watermark-extension::after {
     const LOG_PREFIX = "[BlobioSkinOverlay]";
     const CUSTOM_SKIN_ENABLED_KEY3 = "blobio.customSkin.enabled";
     const CUSTOM_SKIN_ACTIVE_KEY3 = "blobio.customSkin.activeUrl";
+    const CUSTOM_SKIN_SELECTED_KEY3 = "blobio.customSkin.selectedUrl";
     const DIRECT_IMGUR_IMAGE_MATCH3 = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i;
     const OWN_ID_LIMIT = 128;
     const NODE_LIMIT = 5e3;
@@ -3460,11 +3535,13 @@ html.${className} .blobio-watermark-extension::after {
       lastPacketSummary: null,
       debugEvents: [],
       frameHooks: [],
-      startedAt: (/* @__PURE__ */ new Date()).toISOString()
+      startedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      storageBridgeSeen: Boolean(window.__blobioSharedStorageBridge)
     };
     function refresh(nextState) {
       const activeUrl = readActiveUrl(nextState);
-      const enabled = readEnabled(nextState) && DIRECT_IMGUR_IMAGE_MATCH3.test(activeUrl);
+      const hasValidActiveUrl = DIRECT_IMGUR_IMAGE_MATCH3.test(activeUrl);
+      const enabled = hasValidActiveUrl && (readEnabled(nextState) || hasValidActiveUrl);
       state.debug = Boolean(nextState && nextState.debug) || localStorage.getItem("blobio.customSkin.debug") === "1";
       state.enabled = enabled;
       state.activeUrl = enabled ? activeUrl : "";
@@ -3483,6 +3560,10 @@ html.${className} .blobio-watermark-extension::after {
         return Boolean(nextState.enabled);
       }
       try {
+        const bridgeValue = window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_ENABLED_KEY3);
+        if (bridgeValue !== void 0 && bridgeValue !== null) {
+          return String(bridgeValue) === "1";
+        }
         return localStorage.getItem(CUSTOM_SKIN_ENABLED_KEY3) === "1";
       } catch {
         return false;
@@ -3493,7 +3574,11 @@ html.${className} .blobio-watermark-extension::after {
         return nextState.activeUrl.trim();
       }
       try {
-        return String(localStorage.getItem(CUSTOM_SKIN_ACTIVE_KEY3) || "").trim();
+        const bridgeUrl = window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_ACTIVE_KEY3) || window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_SELECTED_KEY3) || window.__blobioCustomSkinBridgeState?.activeUrl || "";
+        if (bridgeUrl) {
+          return String(bridgeUrl).trim();
+        }
+        return String(localStorage.getItem(CUSTOM_SKIN_ACTIVE_KEY3) || localStorage.getItem(CUSTOM_SKIN_SELECTED_KEY3) || "").trim();
       } catch {
         return "";
       }
@@ -4272,13 +4357,14 @@ html.${className} .blobio-watermark-extension::after {
     function downloadDebugDump() {
       const dump = {
         meta: {
-          version: "packet-overlay-v3",
+          version: "packet-overlay-v4",
           createdAt: (/* @__PURE__ */ new Date()).toISOString(),
           href: location.href
         },
         state: {
           enabled: state.enabled,
           activeUrl: state.activeUrl,
+          storageBridgeSeen: state.storageBridgeSeen,
           imageReady: state.imageReady,
           ownIds: Array.from(state.ownIds),
           nodeCount: state.nodes.size,

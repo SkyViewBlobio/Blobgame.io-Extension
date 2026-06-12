@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Blobio Web Script Loader
 // @namespace    https://github.com/SkyViewBlobio/Blobgame.io-Web-Script
-// @version      0.1.22
+// @version      0.1.23
 // @description  Loads the Blobio modular extension bundle from GitHub.
 // @match        *://blobgame.io/*
 // @match        *://custom.client.blobgame.io/*
@@ -32,8 +32,8 @@
   const DIRECT_IMGUR_IMAGE_MATCH = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i;
   const CUSTOM_CLIENT_HOST = 'custom.client.blobgame.io';
   const BUNDLE_URLS = [
-    'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Web-Script/main/dist/blobio-extension.bundle.js?v=0.1.22',
-    'https://cdn.jsdelivr.net/gh/SkyViewBlobio/Blobgame.io-Web-Script@main/dist/blobio-extension.bundle.js?v=0.1.22',
+    'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Web-Script/main/dist/blobio-extension.bundle.js?v=0.1.23',
+    'https://cdn.jsdelivr.net/gh/SkyViewBlobio/Blobgame.io-Web-Script@main/dist/blobio-extension.bundle.js?v=0.1.23',
   ];
 
   function logError(message, detail) {
@@ -48,6 +48,7 @@
   function runBundle(source) {
     try {
       syncCustomClientSkinConfig();
+      publishCustomSkinBridgeState();
       const run = new Function(`${source}\n//# sourceURL=blobio-extension.bundle.js`);
       run();
     } catch (error) {
@@ -129,6 +130,34 @@
     if (globalThis.__blobioSharedStorageBridgeInstalled) {
       return;
     }
+
+    globalThis.__blobioSharedStorageBridge = {
+      getItem(key) {
+        return isCustomSkinSharedKey(key) ? getSharedValue(key) : getLocalValue(key);
+      },
+      setItem(key, value) {
+        if (isCustomSkinSharedKey(key)) {
+          setSharedValue(key, value);
+        } else {
+          setLocalValue(key, value);
+        }
+      },
+      removeItem(key) {
+        if (isCustomSkinSharedKey(key)) {
+          removeSharedValue(key);
+        } else {
+          removeLocalValue(key);
+        }
+      },
+      snapshotCustomSkin() {
+        const activeUrl = getSharedValue(CUSTOM_SKIN_ACTIVE_KEY) || '';
+        return {
+          enabled: getSharedValue(CUSTOM_SKIN_ENABLED_KEY) === '1' && isValidImgurSkinUrl(activeUrl),
+          activeUrl: isValidImgurSkinUrl(activeUrl) ? activeUrl : '',
+          debug: getSharedValue('blobio.customSkin.debug') === '1',
+        };
+      },
+    };
 
     try {
       window.addEventListener('message', (event) => {
@@ -1057,6 +1086,23 @@
         removeLocalValue('config-skin');
         removeLocalValue('config-skin-type');
       }
+    }
+  }
+
+  function publishCustomSkinBridgeState() {
+    if (location.host !== CUSTOM_CLIENT_HOST) {
+      return;
+    }
+
+    try {
+      const activeUrl = getSharedValue(CUSTOM_SKIN_ACTIVE_KEY) || '';
+      globalThis.__blobioCustomSkinBridgeState = {
+        enabled: getSharedValue(CUSTOM_SKIN_ENABLED_KEY) === '1' && isValidImgurSkinUrl(activeUrl),
+        activeUrl: isValidImgurSkinUrl(activeUrl) ? activeUrl : '',
+        debug: getSharedValue('blobio.customSkin.debug') === '1',
+      };
+    } catch {
+      globalThis.__blobioCustomSkinBridgeState = { enabled: false, activeUrl: '', debug: false };
     }
   }
 

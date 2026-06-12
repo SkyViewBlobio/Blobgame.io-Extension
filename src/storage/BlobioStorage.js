@@ -23,6 +23,14 @@ function getGmApi(document) {
   };
 }
 
+function getSharedBridge(document) {
+  try {
+    return getWindow(document)?.__blobioSharedStorageBridge || globalThis.__blobioSharedStorageBridge || null;
+  } catch {
+    return null;
+  }
+}
+
 function isSharedKey(key) {
   return String(key || '').startsWith(SHARED_KEY_PREFIX);
 }
@@ -48,9 +56,22 @@ function postSharedStorageMessage(document, type, key, value = '') {
 export function createBlobioStorage(document = globalThis.document) {
   const localStorage = getLocalStorage(document);
   const gmApi = getGmApi(document);
+  const bridge = getSharedBridge(document);
 
   return {
     getItem(key) {
+      if (isSharedKey(key) && typeof bridge?.getItem === 'function') {
+        const value = bridge.getItem(key);
+        if (value !== undefined && value !== null) {
+          const nextValue = String(value);
+          if (localStorage?.getItem?.(key) !== nextValue) {
+            localStorage?.setItem?.(key, nextValue);
+          }
+
+          return nextValue;
+        }
+      }
+
       if (isSharedKey(key) && typeof gmApi.getValue === 'function') {
         const value = gmApi.getValue(key, undefined);
         if (value !== undefined && value !== null) {
@@ -68,6 +89,10 @@ export function createBlobioStorage(document = globalThis.document) {
 
     setItem(key, value) {
       const nextValue = String(value);
+      if (isSharedKey(key) && typeof bridge?.setItem === 'function') {
+        bridge.setItem(key, nextValue);
+      }
+
       if (isSharedKey(key) && typeof gmApi.setValue === 'function') {
         gmApi.setValue(key, nextValue);
       }
@@ -77,6 +102,10 @@ export function createBlobioStorage(document = globalThis.document) {
     },
 
     removeItem(key) {
+      if (isSharedKey(key) && typeof bridge?.removeItem === 'function') {
+        bridge.removeItem(key);
+      }
+
       if (isSharedKey(key) && typeof gmApi.deleteValue === 'function') {
         gmApi.deleteValue(key);
       }

@@ -2,6 +2,7 @@ import { createBlobioStorage } from '../storage/BlobioStorage.js';
 
 const CUSTOM_SKIN_ENABLED_KEY = 'blobio.customSkin.enabled';
 const CUSTOM_SKIN_ACTIVE_KEY = 'blobio.customSkin.activeUrl';
+const CUSTOM_SKIN_SELECTED_KEY = 'blobio.customSkin.selectedUrl';
 const DIRECT_IMGUR_IMAGE_MATCH = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i;
 const RUNTIME_HOST = 'custom.client.blobgame.io';
 
@@ -50,19 +51,29 @@ export class CustomSkinOverlayFeature {
   }
 
   getBootstrapState() {
+    const win = this.document?.defaultView || globalThis;
+    const bridgeState = win.__blobioCustomSkinBridgeState || globalThis.__blobioCustomSkinBridgeState || null;
+    if (bridgeState?.enabled && isValidImgurSkinUrl(bridgeState.activeUrl)) {
+      return {
+        enabled: true,
+        activeUrl: String(bridgeState.activeUrl).trim(),
+        debug: Boolean(bridgeState.debug),
+      };
+    }
+
     let enabled = false;
     let activeUrl = '';
     let debug = false;
 
     try {
       enabled = this.storage?.getItem?.(CUSTOM_SKIN_ENABLED_KEY) === '1';
-      activeUrl = this.storage?.getItem?.(CUSTOM_SKIN_ACTIVE_KEY) || '';
+      activeUrl = this.storage?.getItem?.(CUSTOM_SKIN_ACTIVE_KEY) || this.storage?.getItem?.(CUSTOM_SKIN_SELECTED_KEY) || '';
       debug = this.storage?.getItem?.('blobio.customSkin.debug') === '1';
     } catch {
       // Fall through to a disabled state.
     }
 
-    if (!enabled || !isValidImgurSkinUrl(activeUrl)) {
+    if (!isValidImgurSkinUrl(activeUrl)) {
       return {
         enabled: false,
         activeUrl: '',
@@ -71,7 +82,7 @@ export class CustomSkinOverlayFeature {
     }
 
     return {
-      enabled: true,
+      enabled: enabled || isValidImgurSkinUrl(activeUrl),
       activeUrl,
       debug,
     };
@@ -94,6 +105,7 @@ function pageOverlayMain(initialState) {
   const LOG_PREFIX = '[BlobioSkinOverlay]';
   const CUSTOM_SKIN_ENABLED_KEY = 'blobio.customSkin.enabled';
   const CUSTOM_SKIN_ACTIVE_KEY = 'blobio.customSkin.activeUrl';
+  const CUSTOM_SKIN_SELECTED_KEY = 'blobio.customSkin.selectedUrl';
   const DIRECT_IMGUR_IMAGE_MATCH = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i;
   const OWN_ID_LIMIT = 128;
   const NODE_LIMIT = 5000;
@@ -135,11 +147,13 @@ function pageOverlayMain(initialState) {
     debugEvents: [],
     frameHooks: [],
     startedAt: new Date().toISOString(),
+    storageBridgeSeen: Boolean(window.__blobioSharedStorageBridge),
   };
 
   function refresh(nextState) {
     const activeUrl = readActiveUrl(nextState);
-    const enabled = readEnabled(nextState) && DIRECT_IMGUR_IMAGE_MATCH.test(activeUrl);
+    const hasValidActiveUrl = DIRECT_IMGUR_IMAGE_MATCH.test(activeUrl);
+    const enabled = hasValidActiveUrl && (readEnabled(nextState) || hasValidActiveUrl);
     state.debug = Boolean(nextState && nextState.debug) || localStorage.getItem('blobio.customSkin.debug') === '1';
     state.enabled = enabled;
     state.activeUrl = enabled ? activeUrl : '';
@@ -162,6 +176,11 @@ function pageOverlayMain(initialState) {
     }
 
     try {
+      const bridgeValue = window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_ENABLED_KEY);
+      if (bridgeValue !== undefined && bridgeValue !== null) {
+        return String(bridgeValue) === '1';
+      }
+
       return localStorage.getItem(CUSTOM_SKIN_ENABLED_KEY) === '1';
     } catch {
       return false;
@@ -174,7 +193,15 @@ function pageOverlayMain(initialState) {
     }
 
     try {
-      return String(localStorage.getItem(CUSTOM_SKIN_ACTIVE_KEY) || '').trim();
+      const bridgeUrl = window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_ACTIVE_KEY)
+        || window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_SELECTED_KEY)
+        || window.__blobioCustomSkinBridgeState?.activeUrl
+        || '';
+      if (bridgeUrl) {
+        return String(bridgeUrl).trim();
+      }
+
+      return String(localStorage.getItem(CUSTOM_SKIN_ACTIVE_KEY) || localStorage.getItem(CUSTOM_SKIN_SELECTED_KEY) || '').trim();
     } catch {
       return '';
     }
@@ -1050,13 +1077,14 @@ function pageOverlayMain(initialState) {
   function downloadDebugDump() {
     const dump = {
       meta: {
-        version: 'packet-overlay-v3',
+        version: 'packet-overlay-v4',
         createdAt: new Date().toISOString(),
         href: location.href,
       },
       state: {
         enabled: state.enabled,
         activeUrl: state.activeUrl,
+        storageBridgeSeen: state.storageBridgeSeen,
         imageReady: state.imageReady,
         ownIds: Array.from(state.ownIds),
         nodeCount: state.nodes.size,
