@@ -91,6 +91,13 @@ html.${className} #game-wrapper .blobio-menu-layered-select {
   z-index: 6 !important;
 }
 
+html.${className} app-settings .blobio-menu-layered-select,
+html.${className} app-skins .blobio-menu-layered-select,
+html.${className} app-profile .blobio-menu-layered-select,
+html.${className} app-shop .blobio-menu-layered-select {
+  z-index: auto !important;
+}
+
 html.${className} #game-wrapper .custom-select-option {
   background: rgba(3, 44, 23, 0.78) !important;
 }
@@ -136,7 +143,7 @@ html.${className} .popup,
 html.${className} .dialog,
 html.${className} .cdk-overlay-container {
   position: relative !important;
-  z-index: 40 !important;
+  z-index: 900 !important;
 }
 
 html.${className} app-settings *,
@@ -144,6 +151,13 @@ html.${className} app-skins *,
 html.${className} app-profile *,
 html.${className} app-shop * {
   isolation: auto;
+}
+
+html.${className} app-settings .custom-select-options,
+html.${className} app-skins .custom-select-options,
+html.${className} app-profile .custom-select-options,
+html.${className} app-shop .custom-select-options {
+  z-index: 901 !important;
 }
 
 html.${className} #ip-container table {
@@ -755,6 +769,24 @@ html.${className} .blobio-custom-skin-error {
   font-weight: 700;
   text-align: center;
   text-shadow: 0 0 6px rgba(148, 18, 18, 0.72);
+}
+
+html.${className} .blobio-custom-skin-diagnostics {
+  margin: -3px auto 8px !important;
+  max-width: 96% !important;
+  padding: 5px 8px !important;
+  border: 1px solid rgba(142, 255, 174, 0.28) !important;
+  border-radius: 8px !important;
+  background: rgba(0, 22, 12, 0.36) !important;
+  color: rgba(226, 255, 232, 0.88) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  text-shadow: 0 0 6px rgba(118, 255, 154, 0.48) !important;
 }
 
 html.${className} .blobio-custom-skin-grid {

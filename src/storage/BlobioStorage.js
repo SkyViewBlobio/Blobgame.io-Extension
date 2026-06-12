@@ -23,6 +23,15 @@ function getGmApi(document) {
   };
 }
 
+function getChromeStorage(document) {
+  try {
+    const win = getWindow(document);
+    return win?.chrome?.storage?.local || globalThis.chrome?.storage?.local || null;
+  } catch {
+    return null;
+  }
+}
+
 function getSharedBridge(document) {
   try {
     return getWindow(document)?.__blobioSharedStorageBridge || globalThis.__blobioSharedStorageBridge || null;
@@ -56,6 +65,7 @@ function postSharedStorageMessage(document, type, key, value = '') {
 export function createBlobioStorage(document = globalThis.document) {
   const localStorage = getLocalStorage(document);
   const gmApi = getGmApi(document);
+  const chromeStorage = getChromeStorage(document);
   const bridge = getSharedBridge(document);
 
   return {
@@ -97,6 +107,10 @@ export function createBlobioStorage(document = globalThis.document) {
         gmApi.setValue(key, nextValue);
       }
 
+      if (isSharedKey(key) && typeof chromeStorage?.set === 'function') {
+        try { chromeStorage.set({ [key]: nextValue }); } catch {}
+      }
+
       localStorage?.setItem?.(key, nextValue);
       postSharedStorageMessage(document, 'set', key, nextValue);
     },
@@ -108,6 +122,10 @@ export function createBlobioStorage(document = globalThis.document) {
 
       if (isSharedKey(key) && typeof gmApi.deleteValue === 'function') {
         gmApi.deleteValue(key);
+      }
+
+      if (isSharedKey(key) && typeof chromeStorage?.remove === 'function') {
+        try { chromeStorage.remove(key); } catch {}
       }
 
       localStorage?.removeItem?.(key);

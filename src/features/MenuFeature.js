@@ -20,6 +20,18 @@ const CUSTOM_SKIN_SELECTED_KEY = 'blobio.customSkin.selectedUrl';
 const CUSTOM_SKIN_PREVIOUS_KEY = 'blobio.customSkin.previousSkin';
 const CUSTOM_SKIN_LOCAL_NAME_KEY = 'blobio.customSkin.localName';
 const CUSTOM_SKIN_BASE_KEY = 'blobio.customSkin.baseSkin';
+const CUSTOM_SKIN_RUNTIME_ACTIVE_KEY = 'blobio.customSkin.runtimeActiveUrl';
+const CUSTOM_SKIN_PENDING_ACTIVE_KEY = 'blobio.customSkin.pendingActiveUrl';
+const CUSTOM_SKIN_UI_SELECTED_KEY = 'blobio.customSkin.uiSelectedUrl';
+const CUSTOM_SKIN_UI_APPLIED_KEY = 'blobio.customSkin.uiAppliedUrl';
+const CUSTOM_SKIN_URL_KEYS = [
+  CUSTOM_SKIN_ACTIVE_KEY,
+  CUSTOM_SKIN_SELECTED_KEY,
+  CUSTOM_SKIN_RUNTIME_ACTIVE_KEY,
+  CUSTOM_SKIN_PENDING_ACTIVE_KEY,
+  CUSTOM_SKIN_UI_APPLIED_KEY,
+  CUSTOM_SKIN_UI_SELECTED_KEY,
+];
 const CUSTOM_SKIN_DEFAULT_URL = 'https://i.imgur.com/OZz80VZ.jpeg';
 const CUSTOM_SKIN_NAME = 'BlobioCustomSkin';
 const CUSTOM_SKIN_TYPE = 'free';
@@ -142,6 +154,7 @@ export class MenuFeature {
     this.extensionTooltip = null;
     this.documentClickHandler = null;
     this.keydownHandler = null;
+    this.customSkinLaunchPatchInstalled = false;
   }
 
   start() {
@@ -169,6 +182,7 @@ export class MenuFeature {
     this.syncCustomSkinAvailability();
     this.installExtensionSettings();
     this.installCustomSkinUi();
+    this.installCustomSkinLaunchUrlPatch();
     this.syncWatermark();
     this.syncUsernameAnimation();
     this.watchPage();
@@ -366,6 +380,7 @@ export class MenuFeature {
       this.syncCustomSkinAvailability();
       this.installExtensionSettings();
       this.installCustomSkinUi();
+      this.installCustomSkinLaunchUrlPatch();
       this.syncWatermark();
       this.syncUsernameAnimation();
     }, 0);
@@ -1166,13 +1181,15 @@ export class MenuFeature {
       [CUSTOM_SKIN_ENABLED_KEY, enabled && cleanUrl ? '1' : '0'],
       [CUSTOM_SKIN_ACTIVE_KEY, enabled && cleanUrl ? cleanUrl : ''],
       [CUSTOM_SKIN_SELECTED_KEY, cleanUrl],
-      ['blobio.customSkin.runtimeActiveUrl', enabled && cleanUrl ? cleanUrl : ''],
-      ['blobio.customSkin.pendingActiveUrl', enabled && cleanUrl ? cleanUrl : ''],
+      [CUSTOM_SKIN_RUNTIME_ACTIVE_KEY, enabled && cleanUrl ? cleanUrl : ''],
+      [CUSTOM_SKIN_PENDING_ACTIVE_KEY, enabled && cleanUrl ? cleanUrl : ''],
+      [CUSTOM_SKIN_UI_APPLIED_KEY, enabled && cleanUrl ? cleanUrl : ''],
+      [CUSTOM_SKIN_UI_SELECTED_KEY, cleanUrl],
     ];
 
     for (const [key, value] of pairs) {
-      const shouldSet = (enabled && cleanUrl) || key === CUSTOM_SKIN_ENABLED_KEY || (key === CUSTOM_SKIN_SELECTED_KEY && cleanUrl);
-      const storedValue = key === CUSTOM_SKIN_ENABLED_KEY ? (enabled && cleanUrl ? '1' : '0') : (key === CUSTOM_SKIN_SELECTED_KEY ? cleanUrl : value);
+      const shouldSet = (enabled && cleanUrl) || key === CUSTOM_SKIN_ENABLED_KEY || ((key === CUSTOM_SKIN_SELECTED_KEY || key === CUSTOM_SKIN_UI_SELECTED_KEY) && cleanUrl);
+      const storedValue = key === CUSTOM_SKIN_ENABLED_KEY ? (enabled && cleanUrl ? '1' : '0') : ((key === CUSTOM_SKIN_SELECTED_KEY || key === CUSTOM_SKIN_UI_SELECTED_KEY) ? cleanUrl : value);
 
       try {
         if (shouldSet) {
@@ -1201,6 +1218,17 @@ export class MenuFeature {
       } catch {}
 
       try {
+        const chromeStorage = win.chrome?.storage?.local || globalThis.chrome?.storage?.local;
+        if (chromeStorage && typeof chromeStorage.set === 'function' && typeof chromeStorage.remove === 'function') {
+          if (shouldSet) {
+            chromeStorage.set({ [key]: storedValue });
+          } else {
+            chromeStorage.remove(key);
+          }
+        }
+      } catch {}
+
+      try {
         win.postMessage?.({
           source: 'BlobioExtensionStorageBridge',
           type: shouldSet ? 'set' : 'remove',
@@ -1217,7 +1245,22 @@ export class MenuFeature {
         selectedUrl: cleanUrl,
         updatedAt: Date.now(),
       };
+      win.__blobioCustomSkinRuntimeState = {
+        enabled: enabled && Boolean(cleanUrl),
+        activeUrl: enabled ? cleanUrl : '',
+        selectedUrl: cleanUrl,
+        updatedAt: Date.now(),
+      };
+      if (this.document.documentElement?.dataset) {
+        if (enabled && cleanUrl) {
+          this.document.documentElement.dataset.blobioCustomSkinUrl = cleanUrl;
+        } else {
+          delete this.document.documentElement.dataset.blobioCustomSkinUrl;
+        }
+      }
     } catch {}
+
+    this.injectCustomSkinLaunchPagePatch(enabled && cleanUrl ? cleanUrl : '');
   }
 
   getCustomSkinBaseConfig() {
@@ -1524,6 +1567,10 @@ export class MenuFeature {
     const grid = this.document.createElement('div');
     grid.classList.add('blobio-custom-skin-grid');
 
+    const diagnostics = this.document.createElement('div');
+    diagnostics.classList.add('blobio-custom-skin-diagnostics');
+    diagnostics.setAttribute('aria-live', 'polite');
+
     const actions = this.document.createElement('div');
     actions.classList.add('blobio-custom-skin-actions');
 
@@ -1539,7 +1586,7 @@ export class MenuFeature {
 
     controls.append(input, error);
     actions.append(useButton, removeButton);
-    panel.append(controls, grid, actions);
+    panel.append(controls, diagnostics, grid, actions);
 
     this.addCustomSkinListener(input, 'keydown', (event) => {
       if (event.key !== 'Enter') {
@@ -1719,6 +1766,7 @@ export class MenuFeature {
     });
 
     this.selectCustomSkinCard(panel, selectedUrl);
+    this.updateCustomSkinDiagnostics(panel);
   }
 
   selectCustomSkinCard(panel, url) {
@@ -1729,8 +1777,10 @@ export class MenuFeature {
     try {
       if (selectedUrl) {
         this.storage?.setItem?.(CUSTOM_SKIN_SELECTED_KEY, selectedUrl);
+        this.storage?.setItem?.(CUSTOM_SKIN_UI_SELECTED_KEY, selectedUrl);
       } else {
         this.storage?.removeItem?.(CUSTOM_SKIN_SELECTED_KEY);
+        this.storage?.removeItem?.(CUSTOM_SKIN_UI_SELECTED_KEY);
       }
     } catch (error) {
       this.logger.warn('[Blobio] Could not save selected Custom Skin.', error);
@@ -1752,6 +1802,247 @@ export class MenuFeature {
         actions.classList.remove('is-visible');
       }
     }
+
+    this.updateCustomSkinDiagnostics(panel);
+  }
+
+  getCustomSkinUrlDiagnostics() {
+    const win = this.document.defaultView || globalThis;
+    const diagnostics = {
+      uiSelectedUrl: '',
+      uiAppliedUrl: '',
+      activeUrl: '',
+      selectedUrl: '',
+      runtimeActiveUrl: '',
+      pendingActiveUrl: '',
+      datasetUrl: '',
+      localStorageActiveUrl: '',
+      localStorageSelectedUrl: '',
+      locationQueryUrl: '',
+      locationHashUrl: '',
+    };
+
+    const getStored = (key) => {
+      try { return this.storage?.getItem?.(key) || ''; } catch { return ''; }
+    };
+    const getLocal = (key) => {
+      try { return win.localStorage?.getItem?.(key) || ''; } catch { return ''; }
+    };
+
+    diagnostics.uiSelectedUrl = getStored(CUSTOM_SKIN_UI_SELECTED_KEY);
+    diagnostics.uiAppliedUrl = getStored(CUSTOM_SKIN_UI_APPLIED_KEY);
+    diagnostics.activeUrl = getStored(CUSTOM_SKIN_ACTIVE_KEY);
+    diagnostics.selectedUrl = getStored(CUSTOM_SKIN_SELECTED_KEY);
+    diagnostics.runtimeActiveUrl = getStored(CUSTOM_SKIN_RUNTIME_ACTIVE_KEY);
+    diagnostics.pendingActiveUrl = getStored(CUSTOM_SKIN_PENDING_ACTIVE_KEY);
+    diagnostics.localStorageActiveUrl = getLocal(CUSTOM_SKIN_ACTIVE_KEY);
+    diagnostics.localStorageSelectedUrl = getLocal(CUSTOM_SKIN_SELECTED_KEY);
+
+    try { diagnostics.datasetUrl = this.document.documentElement?.dataset?.blobioCustomSkinUrl || ''; } catch {}
+    try {
+      const search = new URLSearchParams(String(win.location?.search || ''));
+      diagnostics.locationQueryUrl = search.get('blobioSkin') || search.get('blobioCustomSkin') || '';
+    } catch {}
+    try {
+      const hash = new URLSearchParams(String(win.location?.hash || '').replace(/^#/, ''));
+      diagnostics.locationHashUrl = hash.get('blobioSkin') || hash.get('blobioCustomSkin') || '';
+    } catch {}
+
+    return diagnostics;
+  }
+
+  updateCustomSkinDiagnostics(panel) {
+    const row = panel?.querySelector?.('.blobio-custom-skin-diagnostics');
+    if (!row) {
+      return;
+    }
+
+    const selected = panel.dataset.selectedSkinUrl || this.customSkinSelectedUrl || '';
+    const active = this.getActiveCustomSkinUrl();
+    const diagnostics = this.getCustomSkinUrlDiagnostics();
+    const chosen = active || diagnostics.uiAppliedUrl || diagnostics.runtimeActiveUrl || diagnostics.pendingActiveUrl || diagnostics.locationQueryUrl || diagnostics.locationHashUrl;
+    row.textContent = `Selected: ${selected || 'none'} | Applied: ${chosen || 'none'}`;
+    row.title = Object.entries(diagnostics).map(([key, value]) => `${key}: ${value || '<empty>'}`).join('\n');
+
+    const win = this.document.defaultView || globalThis;
+    const chromeStorage = win.chrome?.storage?.local || globalThis.chrome?.storage?.local;
+    if (chromeStorage && typeof chromeStorage.get === 'function') {
+      try {
+        const keys = [CUSTOM_SKIN_ACTIVE_KEY, CUSTOM_SKIN_SELECTED_KEY, CUSTOM_SKIN_RUNTIME_ACTIVE_KEY, CUSTOM_SKIN_PENDING_ACTIVE_KEY, CUSTOM_SKIN_UI_APPLIED_KEY, CUSTOM_SKIN_UI_SELECTED_KEY];
+        const done = (items = {}) => {
+          const chromeChosen = keys.map((key) => items[key]).find((value) => this.isValidImgurSkinUrl(value)) || '';
+          if (chromeChosen && !row.textContent.includes(chromeChosen)) {
+            row.textContent += ` | Chrome: ${chromeChosen}`;
+          }
+          row.title += '\n' + keys.map((key) => `chrome.storage.local:${key}: ${items[key] || '<empty>'}`).join('\n');
+        };
+        const maybePromise = chromeStorage.get(keys, done);
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          maybePromise.then(done).catch(() => {});
+        }
+      } catch {}
+    }
+  }
+
+  injectCustomSkinLaunchPagePatch(activeUrl) {
+    const cleanUrl = this.isValidImgurSkinUrl(activeUrl) ? String(activeUrl).trim() : '';
+    try {
+      const script = this.document.createElement('script');
+      script.dataset.blobioCustomSkinLaunchPatch = 'true';
+      script.textContent = `;(${function pageLaunchPatch(url) {
+        'use strict';
+
+        window.__blobioCustomSkinLaunchUrl = typeof url === 'string' ? url : '';
+
+        function isValidSkinUrl(value) {
+          return /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i.test(String(value || '').trim());
+        }
+
+        function currentUrl() {
+          const direct = window.__blobioCustomSkinLaunchUrl || '';
+          if (isValidSkinUrl(direct)) return direct;
+          try {
+            return localStorage.getItem('blobio.customSkin.activeUrl')
+              || localStorage.getItem('blobio.customSkin.uiAppliedUrl')
+              || localStorage.getItem('blobio.customSkin.selectedUrl')
+              || localStorage.getItem('blobio.customSkin.uiSelectedUrl')
+              || '';
+          } catch {
+            return '';
+          }
+        }
+
+        function patchUrl(raw) {
+          const skin = currentUrl();
+          if (!isValidSkinUrl(skin)) return raw;
+          try {
+            const next = new URL(String(raw), location.href);
+            if (next.hostname !== 'custom.client.blobgame.io') return raw;
+            next.searchParams.set('blobioSkin', skin);
+            return next.toString();
+          } catch {
+            return raw;
+          }
+        }
+
+        function patchAnchors() {
+          try {
+            for (const anchor of document.querySelectorAll('a[href*="custom.client.blobgame.io"]')) {
+              const href = anchor.getAttribute('href') || '';
+              const next = patchUrl(href);
+              if (next && next !== href) anchor.setAttribute('href', next);
+            }
+          } catch {}
+        }
+
+        if (!window.__blobioCustomSkinPageLaunchPatchInstalled) {
+          window.__blobioCustomSkinPageLaunchPatchInstalled = true;
+
+          const nativeOpen = window.open;
+          if (typeof nativeOpen === 'function') {
+            window.open = function blobioSkinWindowOpen(raw, target, features) {
+              return nativeOpen.call(this, patchUrl(raw), target, features);
+            };
+          }
+
+          try {
+            const nativeAssign = Location.prototype.assign;
+            if (typeof nativeAssign === 'function') {
+              Location.prototype.assign = function blobioSkinLocationAssign(raw) {
+                return nativeAssign.call(this, patchUrl(raw));
+              };
+            }
+          } catch {}
+
+          try {
+            const nativeReplace = Location.prototype.replace;
+            if (typeof nativeReplace === 'function') {
+              Location.prototype.replace = function blobioSkinLocationReplace(raw) {
+                return nativeReplace.call(this, patchUrl(raw));
+              };
+            }
+          } catch {}
+
+          document.addEventListener('click', (event) => {
+            const anchor = event.target && event.target.closest && event.target.closest('a[href*="custom.client.blobgame.io"]');
+            if (!anchor) return;
+            const href = anchor.getAttribute('href') || '';
+            const next = patchUrl(href);
+            if (next && next !== href) anchor.setAttribute('href', next);
+          }, true);
+
+          try {
+            const observer = new MutationObserver(patchAnchors);
+            observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] });
+          } catch {}
+        }
+
+        patchAnchors();
+      }.toString()})(${JSON.stringify(cleanUrl)});`;
+      (this.document.documentElement || this.document.head || this.document.body)?.appendChild?.(script);
+      script.remove();
+    } catch {}
+  }
+
+  buildCustomClientUrlWithSkin(rawUrl) {
+    const activeUrl = this.getActiveCustomSkinUrl() || this.customSkinSelectedUrl || this.getCustomSkinUrlDiagnostics().uiAppliedUrl || this.getCustomSkinUrlDiagnostics().uiSelectedUrl;
+    if (!this.isValidImgurSkinUrl(activeUrl)) {
+      return rawUrl;
+    }
+
+    try {
+      const next = new URL(String(rawUrl), this.document.defaultView?.location?.href || globalThis.location?.href || 'https://blobgame.io/');
+      if (next.hostname !== 'custom.client.blobgame.io') {
+        return rawUrl;
+      }
+      next.searchParams.set('blobioSkin', activeUrl);
+      return next.toString();
+    } catch {
+      return rawUrl;
+    }
+  }
+
+  installCustomSkinLaunchUrlPatch() {
+    if (this.customSkinLaunchPatchInstalled) {
+      return;
+    }
+
+    const win = this.document.defaultView || globalThis;
+    this.customSkinLaunchPatchInstalled = true;
+    this.injectCustomSkinLaunchPagePatch(this.getActiveCustomSkinUrl() || this.getCustomSkinUrlDiagnostics().uiAppliedUrl || this.getCustomSkinUrlDiagnostics().uiSelectedUrl);
+
+    const patchAnchors = () => {
+      for (const anchor of this.document.querySelectorAll?.('a[href*="custom.client.blobgame.io"]') || []) {
+        const href = anchor.getAttribute?.('href') || '';
+        const nextHref = this.buildCustomClientUrlWithSkin(href);
+        if (nextHref && nextHref !== href) {
+          anchor.setAttribute('href', nextHref);
+        }
+      }
+    };
+
+    patchAnchors();
+    try {
+      const MutationObserverCtor = win.MutationObserver || globalThis.MutationObserver;
+      const observer = MutationObserverCtor ? new MutationObserverCtor(patchAnchors) : null;
+      observer?.observe?.(this.document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] });
+    } catch {}
+
+    const originalOpen = win.open;
+    if (typeof originalOpen === 'function' && !win.__blobioCustomSkinWindowOpenPatched) {
+      win.__blobioCustomSkinWindowOpenPatched = true;
+      win.open = (url, target, features) => originalOpen.call(win, this.buildCustomClientUrlWithSkin(url), target, features);
+    }
+
+    this.document.addEventListener?.('click', (event) => {
+      const anchor = event.target?.closest?.('a[href*="custom.client.blobgame.io"]');
+      if (!anchor) return;
+      const href = anchor.getAttribute?.('href') || '';
+      const nextHref = this.buildCustomClientUrlWithSkin(href);
+      if (nextHref && nextHref !== href) {
+        anchor.setAttribute('href', nextHref);
+      }
+    }, true);
   }
 
   showCustomSkinNotice(panel, message, type) {
@@ -1768,6 +2059,22 @@ export class MenuFeature {
     notice.classList.add('blobio-custom-skin-notice', 'is-floating');
     notice.classList.add(type === 'error' ? 'is-error' : 'is-success');
     notice.textContent = message;
+    notice.style.cssText = [
+      'position:fixed',
+      'left:50%',
+      'top:72px',
+      'transform:translateX(-50%)',
+      'z-index:2147483647',
+      'padding:10px 16px',
+      'border-radius:10px',
+      'border:1px solid rgba(150,255,180,.75)',
+      'background:rgba(0,28,14,.92)',
+      'color:#effff2',
+      'font-weight:800',
+      'text-shadow:0 0 8px rgba(118,255,154,.75)',
+      'box-shadow:0 0 24px rgba(79,255,130,.36)',
+      'pointer-events:none'
+    ].join(';');
     (this.document.body || host).appendChild(notice);
     host.classList?.add('blobio-custom-skin-notice-host');
 
