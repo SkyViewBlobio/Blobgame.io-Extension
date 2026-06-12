@@ -26,10 +26,11 @@ const CUSTOM_SKIN_TYPES = ['free', 'premium'];
 const DIRECT_IMGUR_IMAGE_MATCH = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i;
 const CUSTOM_SKIN_NOTICE_DURATION = 2200;
 const MAIN_MENU_ALIGNMENT_CLASS = 'blobio-main-menu-align-target';
+const MAIN_MENU_LAYERED_SELECT_CLASS = 'blobio-menu-layered-select';
 
 const EXTENSION_OPTION_TOOLTIPS = {
   watermark: 'This option will display the Extension name text, alongside its current version.',
-  customSkin: 'This option lets you apply one of your saved direct i.imgur.com images as your local skin. Requires login and at least one owned skin.',
+  customSkin: 'This option lets you apply one of your saved direct i.imgur.com images as a local overlay skin. Only you see it.',
 };
 
 const DEFAULT_VIDEO = {
@@ -136,6 +137,7 @@ export class MenuFeature {
     this.customSkinListeners = [];
     this.customSkinSelectedUrl = null;
     this.customSkinNoticeTimer = null;
+    this.mainMenuLayeredSelectTargets = new Set();
     this.extensionTooltip = null;
     this.documentClickHandler = null;
     this.keydownHandler = null;
@@ -152,7 +154,6 @@ export class MenuFeature {
     }
 
     this.syncCustomSkinRuntimeConfig();
-    this.installCustomSkinRuntimeHook();
     if (!this.frontPageUi) {
       this.started = true;
       return true;
@@ -276,6 +277,7 @@ export class MenuFeature {
       '#ip-container',
     ];
     const nextTargets = new Set();
+    const nextLayeredSelects = new Set();
 
     for (const selector of selectors) {
       for (const node of this.document.querySelectorAll?.(selector) || []) {
@@ -288,6 +290,13 @@ export class MenuFeature {
       }
     }
 
+    const gameSelects = Array.from(this.document.querySelectorAll?.('#game-wrapper .custom-select') || [])
+      .filter((node) => !this.isInsideOwnUi(node));
+    for (const node of gameSelects.slice(0, 2)) {
+      node.classList?.add(MAIN_MENU_LAYERED_SELECT_CLASS);
+      nextLayeredSelects.add(node);
+    }
+
     for (const node of this.mainMenuAlignmentTargets) {
       if (!nextTargets.has(node)) {
         node.classList?.remove(MAIN_MENU_ALIGNMENT_CLASS);
@@ -295,6 +304,14 @@ export class MenuFeature {
     }
 
     this.mainMenuAlignmentTargets = nextTargets;
+
+    for (const node of this.mainMenuLayeredSelectTargets) {
+      if (!nextLayeredSelects.has(node)) {
+        node.classList?.remove(MAIN_MENU_LAYERED_SELECT_CLASS);
+      }
+    }
+
+    this.mainMenuLayeredSelectTargets = nextLayeredSelects;
   }
 
   clearMainMenuAlignment() {
@@ -303,6 +320,12 @@ export class MenuFeature {
     }
 
     this.mainMenuAlignmentTargets.clear();
+
+    for (const node of this.mainMenuLayeredSelectTargets) {
+      node.classList?.remove(MAIN_MENU_LAYERED_SELECT_CLASS);
+    }
+
+    this.mainMenuLayeredSelectTargets.clear();
   }
 
   watchPage() {
@@ -1015,11 +1038,7 @@ export class MenuFeature {
   }
 
   isLoggedInForCustomSkin() {
-    try {
-      return Boolean(this.storage?.getItem?.('access-token'));
-    } catch {
-      return false;
-    }
+    return true;
   }
 
   getAccessTokenUserId() {
@@ -1038,13 +1057,11 @@ export class MenuFeature {
   }
 
   syncCustomSkinAvailability() {
-    if (this.isCustomSkinEnabled() && !this.isLoggedInForCustomSkin()) {
-      this.setCustomSkinEnabled(false);
-    }
+    // Custom skins are rendered locally by the extension overlay, so they do not require login.
   }
 
   setCustomSkinEnabled(enabled) {
-    const nextEnabled = Boolean(enabled && this.isLoggedInForCustomSkin());
+    const nextEnabled = Boolean(enabled);
 
     try {
       this.storage?.setItem?.(CUSTOM_SKIN_ENABLED_KEY, nextEnabled ? '1' : '0');
@@ -1304,10 +1321,6 @@ export class MenuFeature {
       return { ok: false, reason: 'invalid-url' };
     }
 
-    if (!this.isLoggedInForCustomSkin()) {
-      this.setCustomSkinEnabled(false);
-      return { ok: false, reason: 'logged-out' };
-    }
 
     try {
       this.storage?.setItem?.(CUSTOM_SKIN_ENABLED_KEY, '1');
@@ -1490,7 +1503,7 @@ export class MenuFeature {
         this.renderCustomSkinGallery(panel);
         this.showCustomSkinNotice(panel, 'Skin is now applied', 'success');
       } else if (result.reason === 'logged-out') {
-        this.showCustomSkinNotice(panel, 'Log in to use Custom Skin.', 'error');
+        this.showCustomSkinNotice(panel, 'Custom Skin could not be applied.', 'error');
       }
     });
 
@@ -1702,19 +1715,78 @@ export class MenuFeature {
     const win = this.document.defaultView || globalThis;
     const storage = this.storage;
     const logger = this.logger;
+    const debugEvents = win.__blobioCustomSkinDebugEvents || [];
+    win.__blobioCustomSkinDebugEvents = debugEvents;
 
-    win.__blobioCustomSkinDebugLog = (message, detail) => {
+    const redact = (value) => String(value || '')
+      .replace(/([?&]token=)[^&]+/gi, '$1<redacted>')
+      .replace(/"token"\s*:\s*"[^"]+"/gi, '"token":"<redacted>"')
+      .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '<redacted-jwt>');
+
+    const sanitize = (value, depth = 0) => {
+      if (value === null || value === undefined) {
+        return value;
+      }
+
+      if (typeof value === 'string' || value instanceof String) {
+        return redact(value);
+      }
+
+      if (typeof value === 'number' || typeof value === 'boolean') {
+        return value;
+      }
+
+      if (depth >= 2) {
+        return '[truncated]';
+      }
+
+      if (Array.isArray(value)) {
+        return value.slice(0, 12).map((item) => sanitize(item, depth + 1));
+      }
+
+      if (typeof value === 'object') {
+        const result = {};
+        for (const key of Object.keys(value).slice(0, 24)) {
+          result[key] = /token|authorization|cookie/i.test(key)
+            ? '<redacted>'
+            : sanitize(value[key], depth + 1);
+        }
+        return result;
+      }
+
+      return redact(value);
+    };
+
+    win.__blobioCustomSkinDebugDump = () => [...win.__blobioCustomSkinDebugEvents];
+
+    win.__blobioCustomSkinDebugLog = (message, detail, stage = 'debug') => {
       try {
+        const event = {
+          time: new Date().toISOString(),
+          stage,
+          message,
+          detail: sanitize(detail),
+        };
+        win.__blobioCustomSkinDebugEvents.push(event);
+        while (win.__blobioCustomSkinDebugEvents.length > 250) {
+          win.__blobioCustomSkinDebugEvents.shift();
+        }
+
         if (storage?.getItem?.('blobio.customSkin.debug') !== '1') {
           return;
         }
 
         const log = win.console?.debug || logger?.debug || logger?.log;
-        log?.call(win.console || logger, '[Blobio]', message, detail || '');
+        log?.call(win.console || logger, '[Blobio]', message, event.detail || '');
       } catch {
         // Debug logging must never break the injected game client.
       }
     };
+
+    win.__blobioCustomSkinDebugLog('Bundle custom skin runtime installed.', {
+      activeUrl: this.getActiveCustomSkinUrl(),
+      enabled: this.isCustomSkinEnabled(),
+    }, 'bootstrap');
 
     win.__blobioCustomSkinRuntimeState = () => {
       const activeUrl = this.getActiveCustomSkinUrl();
@@ -1781,7 +1853,7 @@ export class MenuFeature {
       const originalOpen = xhrPrototype.open;
       if (typeof originalOpen === 'function') {
         xhrPrototype.open = function openCustomSkinDebugRequest(method, url, ...rest) {
-          win.__blobioCustomSkinDebugLog?.('XHR open', { method, url: redact(url) });
+          win.__blobioCustomSkinDebugLog?.('XHR open', { method, url: redact(url) }, 'network');
           return originalOpen.call(this, method, url, ...rest);
         };
         win.__blobioCustomSkinXhrHookInstalled = true;
@@ -1792,7 +1864,7 @@ export class MenuFeature {
       const originalFetch = win.fetch;
       win.fetch = function fetchCustomSkinDebug(input, init) {
         const url = typeof input === 'string' || input instanceof String ? String(input) : input?.url;
-        win.__blobioCustomSkinDebugLog?.('fetch', { url: redact(url || '') });
+        win.__blobioCustomSkinDebugLog?.('fetch', { url: redact(url || '') }, 'network');
         return originalFetch.call(this, input, init);
       };
       win.__blobioCustomSkinFetchHookInstalled = true;
@@ -1801,14 +1873,14 @@ export class MenuFeature {
     if (typeof win.WebSocket === 'function' && !win.__blobioCustomSkinWebSocketHookInstalled) {
       const NativeWebSocket = win.WebSocket;
       const WrappedWebSocket = function BlobioDebugWebSocket(url, protocols) {
-        win.__blobioCustomSkinDebugLog?.('WebSocket open', { url: redact(url), protocols });
+        win.__blobioCustomSkinDebugLog?.('WebSocket open', { url: redact(url), protocols }, 'network');
         const socket = new NativeWebSocket(url, protocols);
         const nativeSend = socket.send;
 
         if (typeof nativeSend === 'function') {
           socket.send = function sendBlobioDebugPacket(data) {
             const length = typeof data === 'string' ? data.length : data?.byteLength ?? data?.size ?? 0;
-            win.__blobioCustomSkinDebugLog?.('WebSocket send', { length });
+            win.__blobioCustomSkinDebugLog?.('WebSocket send', { length }, 'network');
             return nativeSend.call(this, data);
           };
         }
@@ -1816,7 +1888,7 @@ export class MenuFeature {
         socket.addEventListener?.('message', (event) => {
           const data = event?.data;
           const length = typeof data === 'string' ? data.length : data?.byteLength ?? data?.size ?? 0;
-          win.__blobioCustomSkinDebugLog?.('WebSocket message', { length });
+          win.__blobioCustomSkinDebugLog?.('WebSocket message', { length }, 'network');
         });
 
         return socket;
@@ -1902,8 +1974,9 @@ export class MenuFeature {
       if (loadedUrl !== state.activeUrl) {
         loadedUrl = state.activeUrl;
         image.crossOrigin = 'anonymous';
-        image.onload = () => win.__blobioCustomSkinDebugLog?.('Custom skin image loaded.', loadedUrl);
-        image.onerror = () => win.__blobioCustomSkinDebugLog?.('Custom skin image failed to load.', loadedUrl);
+        win.__blobioCustomSkinDebugLog?.('Custom skin image load started.', { url: loadedUrl }, 'image');
+        image.onload = () => win.__blobioCustomSkinDebugLog?.('Custom skin image loaded.', { url: loadedUrl, width: image.naturalWidth, height: image.naturalHeight }, 'image');
+        image.onerror = () => win.__blobioCustomSkinDebugLog?.('Custom skin image failed to load.', { url: loadedUrl }, 'image');
         image.src = loadedUrl;
       }
 
@@ -1939,7 +2012,7 @@ export class MenuFeature {
         win.__blobioCustomSkinDebugLog?.('Custom skin overlay frame.', {
           cells: win.__blobioCustomSkinCells?.size || 0,
           drawn,
-        });
+        }, 'overlay-frame');
       }
     };
 

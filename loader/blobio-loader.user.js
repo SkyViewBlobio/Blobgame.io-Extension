@@ -188,6 +188,7 @@
   const CUSTOM_SKIN_TYPES = ${JSON.stringify(CUSTOM_SKIN_TYPES)};
   const DIRECT_IMGUR_IMAGE_MATCH = /^https:\\/\\/i\\.imgur\\.com\\/[a-z0-9]+\\.(?:png|jpe?g|gif|webp)(?:\\?.*)?$/i;
   const GWT_PATCH_MARKER = '__blobioCustomSkinGwtPatch';
+  const DEBUG_EVENT_LIMIT = 250;
 
   if (window.__blobioCustomSkinPageBootstrapInstalled) {
     return;
@@ -195,16 +196,82 @@
 
   window.__blobioCustomSkinPageBootstrapInstalled = true;
 
-  function debug(message, detail) {
+  function getDebugEnabled() {
+    return STATE.debug || getLocalValue('blobio.customSkin.debug') === '1';
+  }
+
+  function sanitizeForDebug(value, depth = 0) {
+    if (value === null || value === undefined) {
+      return value;
+    }
+
+    if (typeof value === 'string' || value instanceof String) {
+      return redactSensitive(value);
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return value;
+    }
+
+    if (depth >= 2) {
+      return '[truncated]';
+    }
+
+    if (Array.isArray(value)) {
+      return value.slice(0, 12).map((item) => sanitizeForDebug(item, depth + 1));
+    }
+
+    if (typeof value === 'object') {
+      const result = {};
+      for (const key of Object.keys(value).slice(0, 24)) {
+        result[key] = /token|authorization|cookie/i.test(key)
+          ? '<redacted>'
+          : sanitizeForDebug(value[key], depth + 1);
+      }
+      return result;
+    }
+
+    return redactSensitive(value);
+  }
+
+  function recordDebug(stage, message, detail) {
+    const events = window.__blobioCustomSkinDebugEvents || [];
+    window.__blobioCustomSkinDebugEvents = events;
+
+    const event = {
+      time: new Date().toISOString(),
+      stage,
+      message,
+      detail: sanitizeForDebug(detail),
+    };
+    events.push(event);
+    while (events.length > DEBUG_EVENT_LIMIT) {
+      events.shift();
+    }
+
+    if (getDebugEnabled()) {
+      console.debug(LOG_PREFIX, message, event.detail ?? '');
+    }
+
+    return event;
+  }
+
+  window.__blobioCustomSkinDebugDump = function customSkinDebugDump() {
+    return (window.__blobioCustomSkinDebugEvents || []).slice();
+  };
+
+  function debug(message, detail, stage = 'debug') {
     if (!STATE.debug && getLocalValue('blobio.customSkin.debug') !== '1') {
+      recordDebug(stage, message, detail);
       return;
     }
 
-    console.debug(LOG_PREFIX, message, detail || '');
+    recordDebug(stage, message, detail);
   }
 
   function logError(message, detail) {
-    console.error(LOG_PREFIX, message, detail || '');
+    const event = recordDebug('error', message, detail);
+    console.error(LOG_PREFIX, message, event.detail || '');
   }
 
   function redactSensitive(value) {
@@ -214,13 +281,19 @@
       .replace(/\\beyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b/g, '<redacted-jwt>');
   }
 
+  recordDebug('bootstrap', 'Custom skin page bootstrap installed.', {
+    activeUrl: STATE.activeUrl,
+    localName: STATE.localName,
+    debug: STATE.debug,
+  });
+
   function installNetworkDebugHooks() {
     const xhrPrototype = window.XMLHttpRequest?.prototype;
     if (xhrPrototype && !window.__blobioCustomSkinXhrDebugInstalled) {
       const originalOpen = xhrPrototype.open;
       if (typeof originalOpen === 'function') {
         xhrPrototype.open = function openBlobioDebugRequest(method, url, ...rest) {
-          debug('XHR open', { method, url: redactSensitive(url) });
+          debug('XHR open', { method, url: redactSensitive(url) }, 'network');
           return originalOpen.call(this, method, url, ...rest);
         };
         window.__blobioCustomSkinXhrDebugInstalled = true;
@@ -231,7 +304,7 @@
       const originalFetch = window.fetch;
       window.fetch = function fetchBlobioDebug(input, init) {
         const url = typeof input === 'string' || input instanceof String ? String(input) : input?.url;
-        debug('fetch', { url: redactSensitive(url || '') });
+        debug('fetch', { url: redactSensitive(url || '') }, 'network');
         return originalFetch.call(this, input, init);
       };
       window.__blobioCustomSkinFetchDebugInstalled = true;
@@ -240,14 +313,14 @@
     if (typeof window.WebSocket === 'function' && !window.__blobioCustomSkinWebSocketDebugInstalled) {
       const NativeWebSocket = window.WebSocket;
       const WrappedWebSocket = function BlobioDebugWebSocket(url, protocols) {
-        debug('WebSocket open', { url: redactSensitive(url), protocols });
+        debug('WebSocket open', { url: redactSensitive(url), protocols }, 'network');
         const socket = new NativeWebSocket(url, protocols);
         const nativeSend = socket.send;
 
         if (typeof nativeSend === 'function') {
           socket.send = function sendBlobioDebugPacket(data) {
             const length = typeof data === 'string' ? data.length : data?.byteLength ?? data?.size ?? 0;
-            debug('WebSocket send', { length });
+            debug('WebSocket send', { length }, 'network');
             return nativeSend.call(this, data);
           };
         }
@@ -255,7 +328,7 @@
         socket.addEventListener?.('message', (event) => {
           const data = event?.data;
           const length = typeof data === 'string' ? data.length : data?.byteLength ?? data?.size ?? 0;
-          debug('WebSocket message', { length });
+          debug('WebSocket message', { length }, 'network');
         });
 
         return socket;
@@ -354,6 +427,40 @@
     return Boolean(playerName && cellName && playerName === cellName);
   };
 
+  const inspectedCellShapes = new Set();
+
+  function summarizeCell(cell) {
+    if (!cell || typeof cell !== 'object') {
+      return null;
+    }
+
+    const keys = Object.keys(cell).slice(0, 24);
+    const numeric = {};
+    for (const key of ['J', 'pID', 'userId', 'uid', 'u', 'B', 'name', 'screenX', 'x', 'X', 'C', 'R', 'H', 'screenY', 'y', 'Y', 'D', 'S', 'I', 'screenSize', 'size', 'radius', 'r', 'w', 'M', 'F', 'A', 'O']) {
+      const value = cell[key];
+      if (value !== undefined && value !== null && (typeof value === 'number' || typeof value === 'string')) {
+        numeric[key] = value;
+      }
+    }
+
+    return { keys, fields: numeric };
+  }
+
+  window.__blobioCustomSkinInspectCell = function customSkinInspectCell(cell) {
+    const summary = summarizeCell(cell);
+    if (!summary) {
+      return;
+    }
+
+    const signature = summary.keys.join(',');
+    if (inspectedCellShapes.has(signature)) {
+      return;
+    }
+
+    inspectedCellShapes.add(signature);
+    recordDebug('cell-shape', 'Observed GWT cell shape.', summary);
+  };
+
   const overlayCells = new Set();
 
   window.__blobioCustomSkinRegisterCell = function customSkinRegisterCell(cell) {
@@ -362,7 +469,7 @@
     }
 
     overlayCells.add(cell);
-    debug('Registered local custom skin cell.', overlayCells.size);
+    debug('Registered local custom skin cell.', { count: overlayCells.size, cell: summarizeCell(cell) }, 'cell-register');
     return true;
   };
 
@@ -375,6 +482,8 @@
       return;
     }
 
+    recordDebug('overlay', 'Installing custom skin overlay canvas.', { imageAvailable: true });
+
     const overlay = document.createElement('canvas');
     overlay.className = 'blobio-custom-skin-overlay-canvas';
     overlay.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:2147481000';
@@ -386,6 +495,9 @@
     function appendOverlay() {
       try {
         (document.body || document.documentElement)?.appendChild?.(overlay);
+        recordDebug('overlay', 'Custom skin overlay canvas attached.', {
+          parent: overlay.parentNode?.tagName || overlay.parentNode?.nodeName || 'unknown',
+        });
       } catch {
         // Body may not exist at document-start.
       }
@@ -444,17 +556,17 @@
       if (loadedUrl !== state.activeUrl) {
         loadedUrl = state.activeUrl;
         image.crossOrigin = 'anonymous';
-        image.onload = () => debug('Custom skin image loaded.', loadedUrl);
-        image.onerror = () => debug('Custom skin image failed to load.', loadedUrl);
+        recordDebug('image', 'Custom skin image load started.', { url: loadedUrl });
+        image.onload = () => debug('Custom skin image loaded.', { url: loadedUrl, width: image.naturalWidth, height: image.naturalHeight }, 'image');
+        image.onerror = () => debug('Custom skin image failed to load.', { url: loadedUrl }, 'image');
         image.src = loadedUrl;
       }
 
       ctx.clearRect(0, 0, overlay.width, overlay.height);
-      if (!image.complete || image.naturalWidth === 0) {
-        return;
-      }
 
       let drawn = 0;
+      let validRects = 0;
+      let invalidSample = null;
       for (const cell of overlayCells) {
         if (!window.__blobioCustomSkinIsLocalCell?.(cell)) {
           overlayCells.delete(cell);
@@ -463,6 +575,12 @@
 
         const rect = getCellRect(cell, overlay);
         if (!rect) {
+          invalidSample ||= summarizeCell(cell);
+          continue;
+        }
+
+        validRects += 1;
+        if (!image.complete || image.naturalWidth === 0) {
           continue;
         }
 
@@ -478,7 +596,13 @@
       const now = Date.now();
       if (now - lastLog > 1000) {
         lastLog = now;
-        debug('Custom skin overlay frame.', { cells: overlayCells.size, drawn });
+        debug('Custom skin overlay frame.', {
+          cells: overlayCells.size,
+          validRects,
+          drawn,
+          imageReady: Boolean(image.complete && image.naturalWidth > 0),
+          invalidSample,
+        }, 'overlay-frame');
       }
     }
 
@@ -496,7 +620,10 @@
     setLocalValue(CUSTOM_SKIN_ENABLED_KEY, '1');
     setLocalValue(CUSTOM_SKIN_ACTIVE_KEY, state.activeUrl);
     setLocalValue(CUSTOM_SKIN_LOCAL_NAME_KEY, state.localName);
-    debug('Custom skin overlay state synced before GWT startup.', state.activeUrl);
+    debug('Custom skin overlay state synced before GWT startup.', {
+      activeUrl: state.activeUrl,
+      localName: state.localName,
+    }, 'bootstrap');
   }
 
   function getUrlPath(url) {
@@ -511,8 +638,23 @@
     return /(?:^|\\/)assets\\/assets\\.txt$/i.test(getUrlPath(url));
   }
 
-  function isGwtCacheScriptUrl(url) {
-    return /(?:^|\\/)html\\/[a-f0-9]{32}\\.cache\\.js$/i.test(getUrlPath(url));
+  function isGwtScriptUrl(url) {
+    const path = getUrlPath(url);
+    return (
+      /(?:^|\\/)html\\/html\\.nocache\\.js$/i.test(path) ||
+      /(?:^|\\/)html\\/[a-f0-9]{32}\\.cache\\.js$/i.test(path) ||
+      /(?:^|\\/)html-\\d+\\.js$/i.test(path) ||
+      /(?:^|\\/)html\\/html-\\d+\\.js$/i.test(path)
+    );
+  }
+
+  function isPatchableGwtScriptUrl(url) {
+    const path = getUrlPath(url);
+    return (
+      /(?:^|\\/)html\\/[a-f0-9]{32}\\.cache\\.js$/i.test(path) ||
+      /(?:^|\\/)html-\\d+\\.js$/i.test(path) ||
+      /(?:^|\\/)html\\/html-\\d+\\.js$/i.test(path)
+    );
   }
 
   function resolveCustomSkinUrl(url) {
@@ -523,10 +665,16 @@
     return String(text || '');
   }
 
-  function patchGwtCacheSource(source) {
+  function patchGwtCacheSource(source, sourceUrl = '') {
     const originalSource = String(source || '');
     const state = getState();
-    if (!state || originalSource.includes(GWT_PATCH_MARKER)) {
+    if (!state) {
+      recordDebug('gwt-patch', 'Skipped GWT patch because custom skin state is inactive.', { url: redactSensitive(sourceUrl) });
+      return originalSource;
+    }
+
+    if (originalSource.includes(GWT_PATCH_MARKER)) {
+      recordDebug('gwt-patch', 'Skipped GWT patch because source is already patched.', { url: redactSensitive(sourceUrl) });
       return originalSource;
     }
 
@@ -534,22 +682,30 @@
     let changed = false;
     const constructorPattern = /function ([$A-Za-z_][0-9A-Za-z_$]*)\\(a,b,c,d,e,f,g,h,i,j\\)\\{var k,l,m,n,o,p;([\\s\\S]{0,3200}?h!=null&&\\(this\\.B=h\\);this\\.L=i;)/;
     const gamePattern = /(function [$A-Za-z_][0-9A-Za-z_$]*\\(\\)\\{Hb\\.call\\(this,'CONTEXT',0\\);)/;
+    const constructorMatched = constructorPattern.test(patched);
+    const gameMatched = gamePattern.test(patched);
 
-    if (constructorPattern.test(patched)) {
+    if (constructorMatched) {
       patched = patched.replace(
         constructorPattern,
-        "function $1(a,b,c,d,e,f,g,h,i,j){var k,l,m,n,o,p;$2try{if($wnd.__blobioCustomSkinIsLocalCell&&$wnd.__blobioCustomSkinIsLocalCell(this)){$wnd.__blobioCustomSkinRegisterCell&&$wnd.__blobioCustomSkinRegisterCell(this);$wnd.__blobioCustomSkinDrawOverlay&&$wnd.__blobioCustomSkinDrawOverlay(this)}}catch(_blobioError){}",
+        "function $1(a,b,c,d,e,f,g,h,i,j){var k,l,m,n,o,p;$2try{$wnd.__blobioCustomSkinInspectCell&&$wnd.__blobioCustomSkinInspectCell(this);if($wnd.__blobioCustomSkinIsLocalCell&&$wnd.__blobioCustomSkinIsLocalCell(this)){$wnd.__blobioCustomSkinRegisterCell&&$wnd.__blobioCustomSkinRegisterCell(this);$wnd.__blobioCustomSkinDrawOverlay&&$wnd.__blobioCustomSkinDrawOverlay(this)}}catch(_blobioError){}",
       );
       changed = true;
-      debug('Patched GWT cell constructor for custom skin overlay.', state.localName);
-    } else {
-      logError('Could not patch GWT cell constructor. Custom skin overlay may not find local cells.');
     }
 
-    if (gamePattern.test(patched)) {
+    if (gameMatched) {
       patched = patched.replace(gamePattern, "$1try{$wnd.__blobioGwtGame=this}catch(e){}");
       changed = true;
     }
+
+    recordDebug('gwt-patch', 'GWT patch summary.', {
+      url: redactSensitive(sourceUrl),
+      sourceLength: originalSource.length,
+      constructorMatched,
+      gameMatched,
+      changed,
+      localName: state.localName,
+    });
 
     return changed ? '/*' + GWT_PATCH_MARKER + '*/\\n' + patched : originalSource;
   }
@@ -635,8 +791,8 @@
         xhrPrototype.open = function openCustomSkinRequest(method, url, ...rest) {
           if (isAssetManifestUrl(url)) {
             installTextResponsePatch(this, patchAssetManifestText);
-          } else if (isGwtCacheScriptUrl(url)) {
-            installTextResponsePatch(this, patchGwtCacheSource);
+          } else if (isGwtScriptUrl(url)) {
+            installTextResponsePatch(this, (text) => patchGwtCacheSource(text, url));
           }
 
           return originalOpen.call(this, method, resolveCustomSkinUrl(url), ...rest);
@@ -653,11 +809,11 @@
         const nextInput = resolvedUrl && resolvedUrl !== originalUrl ? resolvedUrl : input;
         const responsePromise = originalFetch.call(this, nextInput, init);
 
-        if (!originalUrl || typeof window.Response !== 'function' || (!isAssetManifestUrl(originalUrl) && !isGwtCacheScriptUrl(originalUrl))) {
+        if (!originalUrl || typeof window.Response !== 'function' || (!isAssetManifestUrl(originalUrl) && !isGwtScriptUrl(originalUrl))) {
           return responsePromise;
         }
 
-        const patchText = isGwtCacheScriptUrl(originalUrl) ? patchGwtCacheSource : patchAssetManifestText;
+        const patchText = isGwtScriptUrl(originalUrl) ? (text) => patchGwtCacheSource(text, originalUrl) : patchAssetManifestText;
         return responsePromise.then((response) => response.clone().text().then((text) => {
           const patchedText = patchText(text);
           if (patchedText === text) {
@@ -703,10 +859,10 @@
     return xhr.responseText || xhr.response || '';
   }
 
-  function createPatchedScript(original, source) {
+  function createPatchedScript(original, source, sourceUrl) {
     const replacement = document.createElement('script');
     replacement.__blobioCustomSkinPatchedScript = true;
-    replacement.text = patchGwtCacheSource(source);
+    replacement.text = patchGwtCacheSource(source, sourceUrl);
     replacement.setAttribute?.('data-blobio-custom-skin-gwt', '1');
 
     if (original?.nonce) {
@@ -718,13 +874,25 @@
 
   function tryAppendPatchedGwtScript(parent, node, beforeNode, originalAppendChild, originalInsertBefore) {
     const sourceUrl = getScriptSource(node);
-    if (!node || node.__blobioCustomSkinPatchedScript || !isGwtCacheScriptUrl(sourceUrl)) {
+    if (!node || node.__blobioCustomSkinPatchedScript) {
+      return null;
+    }
+
+    if (sourceUrl) {
+      recordDebug('script', 'Script node seen.', {
+        url: redactSensitive(sourceUrl),
+        gwtScript: isGwtScriptUrl(sourceUrl),
+        patchable: isPatchableGwtScriptUrl(sourceUrl),
+      });
+    }
+
+    if (!sourceUrl || !isPatchableGwtScriptUrl(sourceUrl)) {
       return null;
     }
 
     try {
       const source = fetchTextSync(sourceUrl);
-      const replacement = createPatchedScript(node, source);
+      const replacement = createPatchedScript(node, source, sourceUrl);
       if (beforeNode && typeof originalInsertBefore === 'function') {
         originalInsertBefore.call(parent, replacement, beforeNode);
       } else {
@@ -732,7 +900,7 @@
       }
 
       dispatchScriptEvent(node, 'load');
-      debug('Loaded patched GWT cache script.', sourceUrl);
+      debug('Loaded patched GWT script.', { url: redactSensitive(sourceUrl) }, 'script');
       return node;
     } catch (error) {
       logError('Failed to load patched GWT cache script. Falling back to the original script.', error);
@@ -775,6 +943,7 @@
 
   window.__blobioCustomSkinPatchAssetManifest = patchAssetManifestText;
   window.__blobioCustomSkinPatchGwtCacheSource = patchGwtCacheSource;
+  window.__blobioCustomSkinIsGwtScriptUrl = isGwtScriptUrl;
 })();`;
   }
 
@@ -1018,7 +1187,8 @@
   }
 
   syncCustomClientSkinConfig();
-  injectPageCustomSkinBootstrap();
+  // The custom skin runtime is now packet-overlay based and lives in the bundle.
+  // Do not inject the old replacement/GWT bootstrap from the loader.
   installEarlyCustomSkinHooks();
   fetchBundle();
 })();
