@@ -242,7 +242,7 @@ html.${className} #game-wrapper .custom-select {
 }
 
 html.${className} #game-wrapper .blobio-menu-layered-select {
-  z-index: 12 !important;
+  z-index: 6 !important;
 }
 
 html.${className} #game-wrapper .custom-select-option {
@@ -268,7 +268,7 @@ html.${className} #game-wrapper .custom-select-options {
 }
 
 html.${className} #game-wrapper .blobio-menu-layered-select .custom-select-options {
-  z-index: 18 !important;
+  z-index: 7 !important;
 }
 
 html.${className} #game-wrapper .custom-select-option.selected,
@@ -290,7 +290,14 @@ html.${className} .popup,
 html.${className} .dialog,
 html.${className} .cdk-overlay-container {
   position: relative !important;
-  z-index: 20 !important;
+  z-index: 40 !important;
+}
+
+html.${className} app-settings *,
+html.${className} app-skins *,
+html.${className} app-profile *,
+html.${className} app-shop * {
+  isolation: auto;
 }
 
 html.${className} #ip-container table {
@@ -814,10 +821,10 @@ html.${className} app-skins .blobio-custom-skin-tab.active {
 html.${className} app-skins .blobio-custom-skin-panel {
   display: none !important;
   padding: 10px 12px 12px !important;
-  margin-top: -16px !important;
-  min-height: 390px !important;
-  height: calc(100% - 8px) !important;
-  max-height: 460px !important;
+  margin-top: -10px !important;
+  min-height: 455px !important;
+  height: calc(100% + 72px) !important;
+  max-height: 560px !important;
   overflow-y: auto !important;
   box-sizing: border-box !important;
   border: 1px solid rgba(142, 255, 174, 0.42) !important;
@@ -826,7 +833,7 @@ html.${className} app-skins .blobio-custom-skin-panel {
   color: #dfffe6 !important;
   box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.14), 0 0 18px rgba(79, 255, 130, 0.18) !important;
   scrollbar-width: thin;
-  scrollbar-color: rgba(155, 255, 181, 0.62) rgba(5, 34, 19, 0.28);
+  scrollbar-color: rgba(174, 255, 195, 0.46) rgba(5, 34, 19, 0.16);
 }
 
 html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar {
@@ -842,8 +849,9 @@ html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-track {
 html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-thumb {
   border: 2px solid rgba(3, 31, 19, 0.58);
   border-radius: 999px;
-  background: rgba(155, 255, 181, 0.58);
-  box-shadow: 0 0 8px rgba(155, 255, 181, 0.56), inset 0 0 6px rgba(255, 255, 255, 0.2);
+  background: rgba(174, 255, 195, 0.42);
+  box-shadow: 0 0 10px rgba(174, 255, 195, 0.68), inset 0 0 6px rgba(255, 255, 255, 0.22);
+  outline: 1px solid rgba(210, 255, 220, 0.32);
 }
 
 html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-thumb:hover {
@@ -861,7 +869,7 @@ html.${className} app-skins.blobio-custom-skin-active .blobio-custom-skin-panel 
 
 html.${className} app-skins.blobio-custom-skin-active .right > .inner-container,
 html.${className} app-skins.blobio-custom-skin-active .inner-container.zero-top-left-border {
-  min-height: 430px !important;
+  min-height: 525px !important;
   height: auto !important;
   border: 1px solid rgba(142, 255, 174, 0.36) !important;
   border-radius: 10px !important;
@@ -980,11 +988,12 @@ html.${className} app-skins .blobio-custom-skin-notice-host {
   position: relative;
 }
 
-html.${className} app-skins .blobio-custom-skin-notice {
-  position: absolute;
+html.${className} .blobio-custom-skin-notice {
+  position: fixed;
   left: 50%;
-  top: -8px;
-  transform: translate(-50%, -100%);
+  top: 78px;
+  transform: translateX(-50%);
+  z-index: 2147483601;
   width: max-content;
   max-width: 90%;
   padding: 4px 11px;
@@ -997,7 +1006,7 @@ html.${className} app-skins .blobio-custom-skin-notice {
   white-space: nowrap;
 }
 
-html.${className} app-skins .blobio-custom-skin-notice.is-success {
+html.${className} .blobio-custom-skin-notice.is-success {
   color: #dfffe6;
   border: 1px solid rgba(142, 255, 174, 0.62);
   background: rgba(3, 44, 23, 0.86);
@@ -1005,7 +1014,7 @@ html.${className} app-skins .blobio-custom-skin-notice.is-success {
   box-shadow: 0 0 16px rgba(79, 255, 130, 0.26), inset 0 0 10px rgba(79, 255, 130, 0.12);
 }
 
-html.${className} app-skins .blobio-custom-skin-notice.is-error {
+html.${className} .blobio-custom-skin-notice.is-error {
   color: #ffaaa8;
   border: 1px solid rgba(255, 116, 116, 0.72);
   background: rgba(102, 10, 16, 0.9);
@@ -2196,6 +2205,65 @@ html.${className} .blobio-watermark-extension::after {
         return "";
       }
     }
+    publishCustomSkinRuntimeState(url, enabled = true) {
+      const cleanUrl = this.isValidImgurSkinUrl(url) ? String(url).trim() : "";
+      const win = this.document.defaultView || globalThis;
+      const pairs = [
+        [CUSTOM_SKIN_ENABLED_KEY, enabled && cleanUrl ? "1" : "0"],
+        [CUSTOM_SKIN_ACTIVE_KEY, enabled && cleanUrl ? cleanUrl : ""],
+        [CUSTOM_SKIN_SELECTED_KEY, cleanUrl],
+        ["blobio.customSkin.runtimeActiveUrl", enabled && cleanUrl ? cleanUrl : ""],
+        ["blobio.customSkin.pendingActiveUrl", enabled && cleanUrl ? cleanUrl : ""]
+      ];
+      for (const [key, value] of pairs) {
+        const shouldSet = enabled && cleanUrl || key === CUSTOM_SKIN_ENABLED_KEY || key === CUSTOM_SKIN_SELECTED_KEY && cleanUrl;
+        const storedValue = key === CUSTOM_SKIN_ENABLED_KEY ? enabled && cleanUrl ? "1" : "0" : key === CUSTOM_SKIN_SELECTED_KEY ? cleanUrl : value;
+        try {
+          if (shouldSet) {
+            this.storage?.setItem?.(key, storedValue);
+          } else {
+            this.storage?.removeItem?.(key);
+          }
+        } catch {
+        }
+        try {
+          if (shouldSet) {
+            win.localStorage?.setItem?.(key, storedValue);
+          } else {
+            win.localStorage?.removeItem?.(key);
+          }
+        } catch {
+        }
+        try {
+          const gmSet = win.GM_setValue || globalThis.GM_setValue;
+          const gmDelete = win.GM_deleteValue || globalThis.GM_deleteValue;
+          if (shouldSet && typeof gmSet === "function") {
+            gmSet(key, storedValue);
+          } else if (typeof gmDelete === "function") {
+            gmDelete(key);
+          }
+        } catch {
+        }
+        try {
+          win.postMessage?.({
+            source: "BlobioExtensionStorageBridge",
+            type: shouldSet ? "set" : "remove",
+            key,
+            value: shouldSet ? storedValue : ""
+          }, "*");
+        } catch {
+        }
+      }
+      try {
+        win.__blobioCustomSkinBridgeState = {
+          enabled: enabled && Boolean(cleanUrl),
+          activeUrl: enabled ? cleanUrl : "",
+          selectedUrl: cleanUrl,
+          updatedAt: Date.now()
+        };
+      } catch {
+      }
+    }
     getCustomSkinBaseConfig() {
       try {
         const raw = this.storage?.getItem?.(CUSTOM_SKIN_BASE_KEY);
@@ -2330,9 +2398,7 @@ html.${className} .blobio-watermark-extension::after {
         return { ok: false, reason: "invalid-url" };
       }
       try {
-        this.storage?.setItem?.(CUSTOM_SKIN_ENABLED_KEY, "1");
-        this.storage?.setItem?.(CUSTOM_SKIN_ACTIVE_KEY, url);
-        this.storage?.setItem?.(CUSTOM_SKIN_SELECTED_KEY, url);
+        this.publishCustomSkinRuntimeState(url, true);
         this.clearCustomSkinBaseConfig();
         this.storage?.removeItem?.(CUSTOM_SKIN_PREVIOUS_KEY);
         this.updateChooseSkinPreview(url);
@@ -2344,8 +2410,8 @@ html.${className} .blobio-watermark-extension::after {
     }
     clearCustomSkinUse() {
       try {
-        this.storage?.removeItem?.(CUSTOM_SKIN_ACTIVE_KEY);
-        this.storage?.removeItem?.(CUSTOM_SKIN_SELECTED_KEY);
+        const selected = this.customSkinSelectedUrl || this.getActiveCustomSkinUrl();
+        this.publishCustomSkinRuntimeState(selected, false);
         this.clearCustomSkinBaseConfig();
         this.storage?.removeItem?.(CUSTOM_SKIN_PREVIOUS_KEY);
       } catch (error) {
@@ -2412,6 +2478,7 @@ html.${className} .blobio-watermark-extension::after {
         panel = this.createCustomSkinPanel();
         host.appendChild(panel);
       }
+      this.bindCustomSkinPanel(panel);
       this.renderCustomSkinGallery(panel);
       if (tab.dataset.blobioCustomSkinListener !== "true") {
         tab.dataset.blobioCustomSkinListener = "true";
@@ -2495,9 +2562,70 @@ html.${className} .blobio-watermark-extension::after {
         this.customSkinSelectedUrl = null;
         panel.dataset.selectedSkinUrl = "";
         this.renderCustomSkinGallery(panel);
-        this.showCustomSkinNotice(panel, "Skin is removed", "error");
+        this.showCustomSkinNotice(panel, "Skin is removed", "success");
       });
+      this.bindCustomSkinPanel(panel);
       return panel;
+    }
+    bindCustomSkinPanel(panel) {
+      if (!panel || panel.dataset.blobioCustomSkinBound === "true") {
+        return;
+      }
+      panel.dataset.blobioCustomSkinBound = "true";
+      this.addCustomSkinListener(panel, "click", (event) => {
+        const target = event.target;
+        const useButton = target?.closest?.(".blobio-custom-skin-action-use");
+        const removeButton = target?.closest?.(".blobio-custom-skin-action-remove");
+        const card = target?.closest?.(".blobio-custom-skin");
+        if (useButton) {
+          event.preventDefault?.();
+          event.stopPropagation?.();
+          event.stopImmediatePropagation?.();
+          const url = panel.dataset.selectedSkinUrl || "";
+          const result = this.useCustomSkinUrl(url);
+          if (result.ok) {
+            this.renderCustomSkinGallery(panel);
+            this.showCustomSkinNotice(panel, "Skin is now applied", "success");
+          } else {
+            this.showCustomSkinNotice(panel, "Custom Skin could not be applied.", "error");
+          }
+          return;
+        }
+        if (removeButton) {
+          event.preventDefault?.();
+          event.stopPropagation?.();
+          event.stopImmediatePropagation?.();
+          const url = panel.dataset.selectedSkinUrl || "";
+          if (!url) {
+            this.showCustomSkinNotice(panel, "No Custom Skin selected.", "error");
+            return;
+          }
+          this.removeCustomSkinUrl(url);
+          this.customSkinSelectedUrl = null;
+          panel.dataset.selectedSkinUrl = "";
+          this.renderCustomSkinGallery(panel);
+          this.showCustomSkinNotice(panel, "Skin is removed", "success");
+          return;
+        }
+        if (card) {
+          event.stopPropagation?.();
+          this.selectCustomSkinCard(panel, card.dataset.skinUrl || "");
+        }
+      }, true);
+      this.addCustomSkinListener(panel, "keydown", (event) => {
+        const input = event.target?.closest?.(".blobio-custom-skin-input");
+        if (!input || event.key !== "Enter") {
+          return;
+        }
+        event.preventDefault?.();
+        this.tryAddCustomSkinFromInput(panel, input, panel.querySelector?.(".blobio-custom-skin-error"));
+      }, true);
+      this.addCustomSkinListener(panel, "change", (event) => {
+        const input = event.target?.closest?.(".blobio-custom-skin-input");
+        if (input) {
+          this.tryAddCustomSkinFromInput(panel, input, panel.querySelector?.(".blobio-custom-skin-error"));
+        }
+      }, true);
     }
     tryAddCustomSkinFromInput(panel, input, error) {
       const url = String(input.value || "").trim();
@@ -2576,22 +2704,21 @@ html.${className} .blobio-watermark-extension::after {
     }
     showCustomSkinNotice(panel, message, type) {
       const skins = this.findAncestor(panel, "APP-SKINS");
-      const label = skins?.querySelector?.(".label") || skins?.querySelector?.(".right") || panel;
+      const host = skins || this.document.body || panel;
       this.clearCustomSkinNoticeTimer();
-      let notice = label.querySelector?.(".blobio-custom-skin-notice");
-      if (!notice) {
-        notice = this.document.createElement("div");
-        notice.classList.add("blobio-custom-skin-notice");
-        label.appendChild(notice);
+      for (const oldNotice of this.document.querySelectorAll?.(".blobio-custom-skin-notice") || []) {
+        oldNotice.remove();
       }
-      label.classList?.add("blobio-custom-skin-notice-host");
-      notice.classList.remove("is-success", "is-error");
+      const notice = this.document.createElement("div");
+      notice.classList.add("blobio-custom-skin-notice", "is-floating");
       notice.classList.add(type === "error" ? "is-error" : "is-success");
       notice.textContent = message;
+      (this.document.body || host).appendChild(notice);
+      host.classList?.add("blobio-custom-skin-notice-host");
       const setTimer = this.document.defaultView?.setTimeout || globalThis.setTimeout;
       this.customSkinNoticeTimer = setTimer(() => {
         notice.remove();
-        label.classList?.remove("blobio-custom-skin-notice-host");
+        host.classList?.remove("blobio-custom-skin-notice-host");
         this.customSkinNoticeTimer = null;
       }, CUSTOM_SKIN_NOTICE_DURATION);
     }
@@ -3501,8 +3628,8 @@ html.${className} .blobio-watermark-extension::after {
     const OWN_ID_LIMIT = 128;
     const NODE_LIMIT = 5e3;
     const DEBUG_LIMIT = 700;
-    if (window.__blobioCustomSkinOverlayV4) {
-      window.__blobioCustomSkinOverlayV4.refresh?.(initialState);
+    if (window.__blobioCustomSkinOverlayV5) {
+      window.__blobioCustomSkinOverlayV5.refresh?.(initialState);
       return;
     }
     const state = {
@@ -3570,15 +3697,14 @@ html.${className} .blobio-watermark-extension::after {
       }
     }
     function readActiveUrl(nextState) {
-      if (nextState && typeof nextState.activeUrl === "string") {
+      if (nextState && typeof nextState.activeUrl === "string" && nextState.activeUrl.trim()) {
         return nextState.activeUrl.trim();
       }
       try {
-        const bridgeUrl = window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_ACTIVE_KEY3) || window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_SELECTED_KEY3) || window.__blobioCustomSkinBridgeState?.activeUrl || "";
-        if (bridgeUrl) {
-          return String(bridgeUrl).trim();
-        }
-        return String(localStorage.getItem(CUSTOM_SKIN_ACTIVE_KEY3) || localStorage.getItem(CUSTOM_SKIN_SELECTED_KEY3) || "").trim();
+        const urlParams = new URLSearchParams(String(location.search || ""));
+        const hashParams = new URLSearchParams(String(location.hash || "").replace(/^#/, ""));
+        const bridgeUrl = window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_ACTIVE_KEY3) || window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_SELECTED_KEY3) || window.__blobioCustomSkinBridgeState?.activeUrl || window.__blobioCustomSkinBridgeState?.selectedUrl || window.__blobioCustomSkinRuntimeState?.activeUrl || document.documentElement?.dataset?.blobioCustomSkinUrl || localStorage.getItem(CUSTOM_SKIN_ACTIVE_KEY3) || localStorage.getItem(CUSTOM_SKIN_SELECTED_KEY3) || localStorage.getItem("blobio.customSkin.runtimeActiveUrl") || localStorage.getItem("blobio.customSkin.pendingActiveUrl") || urlParams.get("blobioSkin") || urlParams.get("blobioCustomSkin") || hashParams.get("blobioSkin") || hashParams.get("blobioCustomSkin") || "";
+        return String(bridgeUrl || "").trim();
       } catch {
         return "";
       }
@@ -4357,7 +4483,7 @@ html.${className} .blobio-watermark-extension::after {
     function downloadDebugDump() {
       const dump = {
         meta: {
-          version: "packet-overlay-v4",
+          version: "packet-overlay-v5",
           createdAt: (/* @__PURE__ */ new Date()).toISOString(),
           href: location.href
         },
@@ -4402,7 +4528,7 @@ html.${className} .blobio-watermark-extension::after {
         a.remove();
       }, 1e3);
     }
-    window.__blobioCustomSkinOverlayV4 = {
+    window.__blobioCustomSkinOverlayV5 = {
       state,
       refresh,
       dump: () => ({
@@ -4426,6 +4552,14 @@ html.${className} .blobio-watermark-extension::after {
         downloadDebugDump();
       }
     }, true);
+    window.addEventListener?.("blobio-custom-skin-state", (event) => {
+      refresh(event.detail || null);
+    }, false);
+    window.addEventListener?.("message", (event) => {
+      const message = event.data;
+      if (!message || message.source !== "BlobioExtensionStorageBridge" || !message.key) return;
+      if (String(message.key).startsWith("blobio.customSkin.")) refresh();
+    }, false);
     refresh(initialState);
     installSocketHooks();
     renderLoop();

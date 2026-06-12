@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Blobio Web Script Loader
 // @namespace    https://github.com/SkyViewBlobio/Blobgame.io-Web-Script
-// @version      0.1.23
+// @version      0.1.24
 // @description  Loads the Blobio modular extension bundle from GitHub.
 // @match        *://blobgame.io/*
 // @match        *://custom.client.blobgame.io/*
@@ -32,8 +32,8 @@
   const DIRECT_IMGUR_IMAGE_MATCH = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i;
   const CUSTOM_CLIENT_HOST = 'custom.client.blobgame.io';
   const BUNDLE_URLS = [
-    'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Web-Script/main/dist/blobio-extension.bundle.js?v=0.1.23',
-    'https://cdn.jsdelivr.net/gh/SkyViewBlobio/Blobgame.io-Web-Script@main/dist/blobio-extension.bundle.js?v=0.1.23',
+    'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Web-Script/main/dist/blobio-extension.bundle.js?v=0.1.24',
+    'https://cdn.jsdelivr.net/gh/SkyViewBlobio/Blobgame.io-Web-Script@main/dist/blobio-extension.bundle.js?v=0.1.24',
   ];
 
   function logError(message, detail) {
@@ -161,10 +161,6 @@
 
     try {
       window.addEventListener('message', (event) => {
-        if (event.source && event.source !== window) {
-          return;
-        }
-
         const message = event.data;
         if (!message || message.source !== STORAGE_BRIDGE_SOURCE || !isCustomSkinSharedKey(message.key)) {
           return;
@@ -1095,11 +1091,13 @@
     }
 
     try {
-      const activeUrl = getSharedValue(CUSTOM_SKIN_ACTIVE_KEY) || '';
+      const activeUrl = getSharedValue(CUSTOM_SKIN_ACTIVE_KEY) || getSharedValue('blobio.customSkin.selectedUrl') || '';
       globalThis.__blobioCustomSkinBridgeState = {
-        enabled: getSharedValue(CUSTOM_SKIN_ENABLED_KEY) === '1' && isValidImgurSkinUrl(activeUrl),
+        enabled: isValidImgurSkinUrl(activeUrl) && getSharedValue(CUSTOM_SKIN_ENABLED_KEY) !== '0',
         activeUrl: isValidImgurSkinUrl(activeUrl) ? activeUrl : '',
+        selectedUrl: isValidImgurSkinUrl(activeUrl) ? activeUrl : '',
         debug: getSharedValue('blobio.customSkin.debug') === '1',
+        updatedAt: Date.now(),
       };
     } catch {
       globalThis.__blobioCustomSkinBridgeState = { enabled: false, activeUrl: '', debug: false };

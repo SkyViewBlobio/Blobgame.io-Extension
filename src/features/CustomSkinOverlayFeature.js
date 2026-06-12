@@ -111,8 +111,8 @@ function pageOverlayMain(initialState) {
   const NODE_LIMIT = 5000;
   const DEBUG_LIMIT = 700;
 
-  if (window.__blobioCustomSkinOverlayV4) {
-    window.__blobioCustomSkinOverlayV4.refresh?.(initialState);
+  if (window.__blobioCustomSkinOverlayV5) {
+    window.__blobioCustomSkinOverlayV5.refresh?.(initialState);
     return;
   }
 
@@ -188,20 +188,29 @@ function pageOverlayMain(initialState) {
   }
 
   function readActiveUrl(nextState) {
-    if (nextState && typeof nextState.activeUrl === 'string') {
+    if (nextState && typeof nextState.activeUrl === 'string' && nextState.activeUrl.trim()) {
       return nextState.activeUrl.trim();
     }
 
     try {
+      const urlParams = new URLSearchParams(String(location.search || ''));
+      const hashParams = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
       const bridgeUrl = window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_ACTIVE_KEY)
         || window.__blobioSharedStorageBridge?.getItem?.(CUSTOM_SKIN_SELECTED_KEY)
         || window.__blobioCustomSkinBridgeState?.activeUrl
+        || window.__blobioCustomSkinBridgeState?.selectedUrl
+        || window.__blobioCustomSkinRuntimeState?.activeUrl
+        || document.documentElement?.dataset?.blobioCustomSkinUrl
+        || localStorage.getItem(CUSTOM_SKIN_ACTIVE_KEY)
+        || localStorage.getItem(CUSTOM_SKIN_SELECTED_KEY)
+        || localStorage.getItem('blobio.customSkin.runtimeActiveUrl')
+        || localStorage.getItem('blobio.customSkin.pendingActiveUrl')
+        || urlParams.get('blobioSkin')
+        || urlParams.get('blobioCustomSkin')
+        || hashParams.get('blobioSkin')
+        || hashParams.get('blobioCustomSkin')
         || '';
-      if (bridgeUrl) {
-        return String(bridgeUrl).trim();
-      }
-
-      return String(localStorage.getItem(CUSTOM_SKIN_ACTIVE_KEY) || localStorage.getItem(CUSTOM_SKIN_SELECTED_KEY) || '').trim();
+      return String(bridgeUrl || '').trim();
     } catch {
       return '';
     }
@@ -1077,7 +1086,7 @@ function pageOverlayMain(initialState) {
   function downloadDebugDump() {
     const dump = {
       meta: {
-        version: 'packet-overlay-v4',
+        version: 'packet-overlay-v5',
         createdAt: new Date().toISOString(),
         href: location.href,
       },
@@ -1124,7 +1133,7 @@ function pageOverlayMain(initialState) {
     }, 1000);
   }
 
-  window.__blobioCustomSkinOverlayV4 = {
+  window.__blobioCustomSkinOverlayV5 = {
     state,
     refresh,
     dump: () => ({
@@ -1149,6 +1158,15 @@ function pageOverlayMain(initialState) {
       downloadDebugDump();
     }
   }, true);
+
+  window.addEventListener?.('blobio-custom-skin-state', (event) => {
+    refresh(event.detail || null);
+  }, false);
+  window.addEventListener?.('message', (event) => {
+    const message = event.data;
+    if (!message || message.source !== 'BlobioExtensionStorageBridge' || !message.key) return;
+    if (String(message.key).startsWith('blobio.customSkin.')) refresh();
+  }, false);
 
   refresh(initialState);
   installSocketHooks();

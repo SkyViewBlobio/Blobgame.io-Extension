@@ -88,7 +88,7 @@ html.${className} #game-wrapper .custom-select {
 }
 
 html.${className} #game-wrapper .blobio-menu-layered-select {
-  z-index: 12 !important;
+  z-index: 6 !important;
 }
 
 html.${className} #game-wrapper .custom-select-option {
@@ -114,7 +114,7 @@ html.${className} #game-wrapper .custom-select-options {
 }
 
 html.${className} #game-wrapper .blobio-menu-layered-select .custom-select-options {
-  z-index: 18 !important;
+  z-index: 7 !important;
 }
 
 html.${className} #game-wrapper .custom-select-option.selected,
@@ -136,7 +136,14 @@ html.${className} .popup,
 html.${className} .dialog,
 html.${className} .cdk-overlay-container {
   position: relative !important;
-  z-index: 20 !important;
+  z-index: 40 !important;
+}
+
+html.${className} app-settings *,
+html.${className} app-skins *,
+html.${className} app-profile *,
+html.${className} app-shop * {
+  isolation: auto;
 }
 
 html.${className} #ip-container table {
@@ -660,10 +667,10 @@ html.${className} app-skins .blobio-custom-skin-tab.active {
 html.${className} app-skins .blobio-custom-skin-panel {
   display: none !important;
   padding: 10px 12px 12px !important;
-  margin-top: -16px !important;
-  min-height: 390px !important;
-  height: calc(100% - 8px) !important;
-  max-height: 460px !important;
+  margin-top: -10px !important;
+  min-height: 455px !important;
+  height: calc(100% + 72px) !important;
+  max-height: 560px !important;
   overflow-y: auto !important;
   box-sizing: border-box !important;
   border: 1px solid rgba(142, 255, 174, 0.42) !important;
@@ -672,7 +679,7 @@ html.${className} app-skins .blobio-custom-skin-panel {
   color: #dfffe6 !important;
   box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.14), 0 0 18px rgba(79, 255, 130, 0.18) !important;
   scrollbar-width: thin;
-  scrollbar-color: rgba(155, 255, 181, 0.62) rgba(5, 34, 19, 0.28);
+  scrollbar-color: rgba(174, 255, 195, 0.46) rgba(5, 34, 19, 0.16);
 }
 
 html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar {
@@ -688,8 +695,9 @@ html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-track {
 html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-thumb {
   border: 2px solid rgba(3, 31, 19, 0.58);
   border-radius: 999px;
-  background: rgba(155, 255, 181, 0.58);
-  box-shadow: 0 0 8px rgba(155, 255, 181, 0.56), inset 0 0 6px rgba(255, 255, 255, 0.2);
+  background: rgba(174, 255, 195, 0.42);
+  box-shadow: 0 0 10px rgba(174, 255, 195, 0.68), inset 0 0 6px rgba(255, 255, 255, 0.22);
+  outline: 1px solid rgba(210, 255, 220, 0.32);
 }
 
 html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-thumb:hover {
@@ -707,7 +715,7 @@ html.${className} app-skins.blobio-custom-skin-active .blobio-custom-skin-panel 
 
 html.${className} app-skins.blobio-custom-skin-active .right > .inner-container,
 html.${className} app-skins.blobio-custom-skin-active .inner-container.zero-top-left-border {
-  min-height: 430px !important;
+  min-height: 525px !important;
   height: auto !important;
   border: 1px solid rgba(142, 255, 174, 0.36) !important;
   border-radius: 10px !important;
@@ -826,11 +834,12 @@ html.${className} app-skins .blobio-custom-skin-notice-host {
   position: relative;
 }
 
-html.${className} app-skins .blobio-custom-skin-notice {
-  position: absolute;
+html.${className} .blobio-custom-skin-notice {
+  position: fixed;
   left: 50%;
-  top: -8px;
-  transform: translate(-50%, -100%);
+  top: 78px;
+  transform: translateX(-50%);
+  z-index: 2147483601;
   width: max-content;
   max-width: 90%;
   padding: 4px 11px;
@@ -843,7 +852,7 @@ html.${className} app-skins .blobio-custom-skin-notice {
   white-space: nowrap;
 }
 
-html.${className} app-skins .blobio-custom-skin-notice.is-success {
+html.${className} .blobio-custom-skin-notice.is-success {
   color: #dfffe6;
   border: 1px solid rgba(142, 255, 174, 0.62);
   background: rgba(3, 44, 23, 0.86);
@@ -851,7 +860,7 @@ html.${className} app-skins .blobio-custom-skin-notice.is-success {
   box-shadow: 0 0 16px rgba(79, 255, 130, 0.26), inset 0 0 10px rgba(79, 255, 130, 0.12);
 }
 
-html.${className} app-skins .blobio-custom-skin-notice.is-error {
+html.${className} .blobio-custom-skin-notice.is-error {
   color: #ffaaa8;
   border: 1px solid rgba(255, 116, 116, 0.72);
   background: rgba(102, 10, 16, 0.9);

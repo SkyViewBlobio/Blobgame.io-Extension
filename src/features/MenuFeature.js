@@ -1158,6 +1158,68 @@ export class MenuFeature {
     }
   }
 
+
+  publishCustomSkinRuntimeState(url, enabled = true) {
+    const cleanUrl = this.isValidImgurSkinUrl(url) ? String(url).trim() : '';
+    const win = this.document.defaultView || globalThis;
+    const pairs = [
+      [CUSTOM_SKIN_ENABLED_KEY, enabled && cleanUrl ? '1' : '0'],
+      [CUSTOM_SKIN_ACTIVE_KEY, enabled && cleanUrl ? cleanUrl : ''],
+      [CUSTOM_SKIN_SELECTED_KEY, cleanUrl],
+      ['blobio.customSkin.runtimeActiveUrl', enabled && cleanUrl ? cleanUrl : ''],
+      ['blobio.customSkin.pendingActiveUrl', enabled && cleanUrl ? cleanUrl : ''],
+    ];
+
+    for (const [key, value] of pairs) {
+      const shouldSet = (enabled && cleanUrl) || key === CUSTOM_SKIN_ENABLED_KEY || (key === CUSTOM_SKIN_SELECTED_KEY && cleanUrl);
+      const storedValue = key === CUSTOM_SKIN_ENABLED_KEY ? (enabled && cleanUrl ? '1' : '0') : (key === CUSTOM_SKIN_SELECTED_KEY ? cleanUrl : value);
+
+      try {
+        if (shouldSet) {
+          this.storage?.setItem?.(key, storedValue);
+        } else {
+          this.storage?.removeItem?.(key);
+        }
+      } catch {}
+
+      try {
+        if (shouldSet) {
+          win.localStorage?.setItem?.(key, storedValue);
+        } else {
+          win.localStorage?.removeItem?.(key);
+        }
+      } catch {}
+
+      try {
+        const gmSet = win.GM_setValue || globalThis.GM_setValue;
+        const gmDelete = win.GM_deleteValue || globalThis.GM_deleteValue;
+        if (shouldSet && typeof gmSet === 'function') {
+          gmSet(key, storedValue);
+        } else if (typeof gmDelete === 'function') {
+          gmDelete(key);
+        }
+      } catch {}
+
+      try {
+        win.postMessage?.({
+          source: 'BlobioExtensionStorageBridge',
+          type: shouldSet ? 'set' : 'remove',
+          key,
+          value: shouldSet ? storedValue : '',
+        }, '*');
+      } catch {}
+    }
+
+    try {
+      win.__blobioCustomSkinBridgeState = {
+        enabled: enabled && Boolean(cleanUrl),
+        activeUrl: enabled ? cleanUrl : '',
+        selectedUrl: cleanUrl,
+        updatedAt: Date.now(),
+      };
+    } catch {}
+  }
+
   getCustomSkinBaseConfig() {
     try {
       const raw = this.storage?.getItem?.(CUSTOM_SKIN_BASE_KEY);
@@ -1324,9 +1386,7 @@ export class MenuFeature {
 
 
     try {
-      this.storage?.setItem?.(CUSTOM_SKIN_ENABLED_KEY, '1');
-      this.storage?.setItem?.(CUSTOM_SKIN_ACTIVE_KEY, url);
-      this.storage?.setItem?.(CUSTOM_SKIN_SELECTED_KEY, url);
+      this.publishCustomSkinRuntimeState(url, true);
       this.clearCustomSkinBaseConfig();
       this.storage?.removeItem?.(CUSTOM_SKIN_PREVIOUS_KEY);
       this.updateChooseSkinPreview(url);
@@ -1339,8 +1399,8 @@ export class MenuFeature {
 
   clearCustomSkinUse() {
     try {
-      this.storage?.removeItem?.(CUSTOM_SKIN_ACTIVE_KEY);
-      this.storage?.removeItem?.(CUSTOM_SKIN_SELECTED_KEY);
+      const selected = this.customSkinSelectedUrl || this.getActiveCustomSkinUrl();
+      this.publishCustomSkinRuntimeState(selected, false);
       this.clearCustomSkinBaseConfig();
       this.storage?.removeItem?.(CUSTOM_SKIN_PREVIOUS_KEY);
     } catch (error) {
@@ -1419,6 +1479,7 @@ export class MenuFeature {
       host.appendChild(panel);
     }
 
+    this.bindCustomSkinPanel(panel);
     this.renderCustomSkinGallery(panel);
 
     if (tab.dataset.blobioCustomSkinListener !== 'true') {
@@ -1521,10 +1582,81 @@ export class MenuFeature {
       this.customSkinSelectedUrl = null;
       panel.dataset.selectedSkinUrl = '';
       this.renderCustomSkinGallery(panel);
-      this.showCustomSkinNotice(panel, 'Skin is removed', 'error');
+      this.showCustomSkinNotice(panel, 'Skin is removed', 'success');
     });
 
+    this.bindCustomSkinPanel(panel);
     return panel;
+  }
+
+  bindCustomSkinPanel(panel) {
+    if (!panel || panel.dataset.blobioCustomSkinBound === 'true') {
+      return;
+    }
+
+    panel.dataset.blobioCustomSkinBound = 'true';
+
+    this.addCustomSkinListener(panel, 'click', (event) => {
+      const target = event.target;
+      const useButton = target?.closest?.('.blobio-custom-skin-action-use');
+      const removeButton = target?.closest?.('.blobio-custom-skin-action-remove');
+      const card = target?.closest?.('.blobio-custom-skin');
+
+      if (useButton) {
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        event.stopImmediatePropagation?.();
+        const url = panel.dataset.selectedSkinUrl || '';
+        const result = this.useCustomSkinUrl(url);
+        if (result.ok) {
+          this.renderCustomSkinGallery(panel);
+          this.showCustomSkinNotice(panel, 'Skin is now applied', 'success');
+        } else {
+          this.showCustomSkinNotice(panel, 'Custom Skin could not be applied.', 'error');
+        }
+        return;
+      }
+
+      if (removeButton) {
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        event.stopImmediatePropagation?.();
+        const url = panel.dataset.selectedSkinUrl || '';
+        if (!url) {
+          this.showCustomSkinNotice(panel, 'No Custom Skin selected.', 'error');
+          return;
+        }
+
+        this.removeCustomSkinUrl(url);
+        this.customSkinSelectedUrl = null;
+        panel.dataset.selectedSkinUrl = '';
+        this.renderCustomSkinGallery(panel);
+        this.showCustomSkinNotice(panel, 'Skin is removed', 'success');
+        return;
+      }
+
+      if (card) {
+        event.stopPropagation?.();
+        this.selectCustomSkinCard(panel, card.dataset.skinUrl || '');
+      }
+    }, true);
+
+    this.addCustomSkinListener(panel, 'keydown', (event) => {
+      const input = event.target?.closest?.('.blobio-custom-skin-input');
+      if (!input || event.key !== 'Enter') {
+        return;
+      }
+
+      event.preventDefault?.();
+      this.tryAddCustomSkinFromInput(panel, input, panel.querySelector?.('.blobio-custom-skin-error'));
+    }, true);
+
+    this.addCustomSkinListener(panel, 'change', (event) => {
+      const input = event.target?.closest?.('.blobio-custom-skin-input');
+      if (input) {
+        this.tryAddCustomSkinFromInput(panel, input, panel.querySelector?.('.blobio-custom-skin-error'));
+      }
+    }, true);
   }
 
   tryAddCustomSkinFromInput(panel, input, error) {
@@ -1624,26 +1756,25 @@ export class MenuFeature {
 
   showCustomSkinNotice(panel, message, type) {
     const skins = this.findAncestor(panel, 'APP-SKINS');
-    const label = skins?.querySelector?.('.label') || skins?.querySelector?.('.right') || panel;
+    const host = skins || this.document.body || panel;
 
     this.clearCustomSkinNoticeTimer();
 
-    let notice = label.querySelector?.('.blobio-custom-skin-notice');
-    if (!notice) {
-      notice = this.document.createElement('div');
-      notice.classList.add('blobio-custom-skin-notice');
-      label.appendChild(notice);
+    for (const oldNotice of this.document.querySelectorAll?.('.blobio-custom-skin-notice') || []) {
+      oldNotice.remove();
     }
 
-    label.classList?.add('blobio-custom-skin-notice-host');
-    notice.classList.remove('is-success', 'is-error');
+    const notice = this.document.createElement('div');
+    notice.classList.add('blobio-custom-skin-notice', 'is-floating');
     notice.classList.add(type === 'error' ? 'is-error' : 'is-success');
     notice.textContent = message;
+    (this.document.body || host).appendChild(notice);
+    host.classList?.add('blobio-custom-skin-notice-host');
 
     const setTimer = this.document.defaultView?.setTimeout || globalThis.setTimeout;
     this.customSkinNoticeTimer = setTimer(() => {
       notice.remove();
-      label.classList?.remove('blobio-custom-skin-notice-host');
+      host.classList?.remove('blobio-custom-skin-notice-host');
       this.customSkinNoticeTimer = null;
     }, CUSTOM_SKIN_NOTICE_DURATION);
   }
