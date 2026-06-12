@@ -9,7 +9,8 @@ html.${className} .${hiddenClass} {
 }
 
 html.${className} footer.footer {
-  display: flex !important;
+  display: block !important;
+  min-height: 150px !important;
   visibility: hidden !important;
   pointer-events: none !important;
 }

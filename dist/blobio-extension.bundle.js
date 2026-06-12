@@ -163,7 +163,8 @@ html.${className} .${hiddenClass} {
 }
 
 html.${className} footer.footer {
-  display: flex !important;
+  display: block !important;
+  min-height: 150px !important;
   visibility: hidden !important;
   pointer-events: none !important;
 }
@@ -1036,7 +1037,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.19";
+  var DEFAULT_EXTENSION_VERSION = "0.1.20";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;

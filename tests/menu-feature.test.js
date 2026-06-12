@@ -716,6 +716,9 @@ test('MenuFeature CSS hides the inputs image and frames main menu fields with gr
   assert.match(style, /footer\.footer\s*{[\s\S]*visibility: hidden !important;/);
   const footerCss = style.match(/footer\.footer\s*{[^}]*}/)?.[0] || '';
   assert.doesNotMatch(footerCss, /display: none !important;/);
+  assert.doesNotMatch(footerCss, /display: flex !important;/);
+  assert.match(footerCss, /display: block !important;/);
+  assert.match(footerCss, /min-height: 150px !important;/);
   assert.match(style, /footer\.footer \*\s*{[\s\S]*visibility: hidden !important;/);
   const footerDescendantCss = style.match(/footer\.footer \*\s*{[^}]*}/)?.[0] || '';
   assert.doesNotMatch(footerDescendantCss, /display: none !important;/);
