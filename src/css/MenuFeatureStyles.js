@@ -136,7 +136,6 @@ html.${className} #ip-container {
 
 html.${className} app-settings,
 html.${className} app-skins,
-html.${className} app-profile,
 html.${className} app-shop,
 html.${className} .modal,
 html.${className} .popup,
@@ -158,6 +157,67 @@ html.${className} app-skins .custom-select-options,
 html.${className} app-profile .custom-select-options,
 html.${className} app-shop .custom-select-options {
   z-index: 901 !important;
+}
+
+html.${className} #profile-modal {
+  z-index: 900 !important;
+}
+
+html.${className} #profile-modal app-profile {
+  box-sizing: border-box !important;
+  min-width: min(700px, calc(100vw - 32px)) !important;
+  border: 2px solid rgba(142, 255, 174, 0.58) !important;
+  outline: 1px solid rgba(213, 255, 224, 0.3) !important;
+  outline-offset: 2px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(145deg, rgba(3, 31, 19, 0.94), rgba(1, 10, 7, 0.94)) !important;
+  box-shadow: inset 0 0 24px rgba(79, 255, 130, 0.13), 0 0 22px rgba(79, 255, 130, 0.28), 0 0 5px rgba(194, 255, 210, 0.34) !important;
+}
+
+html.${className} #profile-modal .profile-records {
+  flex: 1 1 390px !important;
+  min-width: 390px !important;
+  box-sizing: border-box !important;
+}
+
+html.${className} #profile-modal .profile-records-title,
+html.${className} #profile-modal .profile-records-list,
+html.${className} #profile-modal .profile-records-list table {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.${className} #profile-modal .profile-records-title-userid,
+html.${className} #profile-modal .profile-records-title-text,
+html.${className} #profile-modal .profile-records-list th,
+html.${className} #profile-modal .profile-records-list td {
+  white-space: nowrap !important;
+}
+
+html.${className} #profile-modal .profile-records-list table {
+  table-layout: auto !important;
+  border-collapse: collapse !important;
+}
+
+html.${className} #profile-modal .profile-records-list th:first-child,
+html.${className} #profile-modal .profile-records-list td:first-child {
+  width: 48% !important;
+  text-align: left !important;
+}
+
+html.${className} #profile-modal .profile-records-list .rtd {
+  min-width: 92px !important;
+  text-align: right !important;
+}
+
+@media (max-width: 740px) {
+  html.${className} #profile-modal app-profile {
+    min-width: calc(100vw - 20px) !important;
+  }
+
+  html.${className} #profile-modal .profile-records {
+    min-width: 0 !important;
+  }
 }
 
 html.${className} #ip-container table {
@@ -576,13 +636,23 @@ html.${className} app-settings .blobio-extension-settings-panel {
   display: none;
 }
 
+html.${className} app-settings .inner-container.zero-top-left-border,
+html.${className} app-settings .right > .inner-container {
+  box-sizing: border-box !important;
+  border: 2px solid rgba(142, 255, 174, 0.54) !important;
+  outline: 1px solid rgba(213, 255, 224, 0.26) !important;
+  outline-offset: 1px !important;
+  border-radius: 10px !important;
+  box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.12), 0 0 20px rgba(79, 255, 130, 0.24), 0 0 4px rgba(194, 255, 210, 0.28) !important;
+}
+
 html.${className} app-settings.blobio-extension-settings-active .content-container > :not(.blobio-extension-settings-panel) {
   display: none !important;
 }
 
 html.${className} app-settings.blobio-extension-settings-active .inner-container {
   background: rgba(2, 32, 18, 0.9) !important;
-  box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.12), 0 0 18px rgba(79, 255, 130, 0.16) !important;
+  box-shadow: inset 0 0 24px rgba(79, 255, 130, 0.14), 0 0 22px rgba(79, 255, 130, 0.26), 0 0 5px rgba(194, 255, 210, 0.3) !important;
 }
 
 html.${className} app-settings.blobio-extension-settings-active .content-container {
@@ -680,33 +750,46 @@ html.${className} app-skins .blobio-custom-skin-tab.active {
 
 html.${className} app-skins .blobio-custom-skin-panel {
   display: none !important;
-  padding: 10px 12px 12px !important;
-  margin-top: -10px !important;
-  min-height: 455px !important;
-  height: calc(100% + 72px) !important;
-  max-height: 560px !important;
-  overflow-y: auto !important;
+  flex: 1 1 auto !important;
+  align-self: stretch !important;
+  padding: 0 !important;
+  margin-top: 4px !important;
+  min-height: var(--blobio-custom-skin-panel-height, 455px) !important;
+  height: 100% !important;
+  max-height: none !important;
+  overflow: hidden !important;
   box-sizing: border-box !important;
-  border: 1px solid rgba(142, 255, 174, 0.42) !important;
+  border: 2px solid rgba(142, 255, 174, 0.56) !important;
+  outline: 1px solid rgba(213, 255, 224, 0.28) !important;
+  outline-offset: 1px !important;
   border-radius: 10px !important;
   background: linear-gradient(145deg, rgba(3, 31, 19, 0.94), rgba(1, 10, 7, 0.94)) !important;
   color: #dfffe6 !important;
-  box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.14), 0 0 18px rgba(79, 255, 130, 0.18) !important;
+  box-shadow: inset 0 0 24px rgba(79, 255, 130, 0.15), 0 0 22px rgba(79, 255, 130, 0.26), 0 0 5px rgba(194, 255, 210, 0.3) !important;
+}
+
+html.${className} app-skins .blobio-custom-skin-content {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  padding: 18px 12px 14px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
   scrollbar-width: thin;
   scrollbar-color: rgba(174, 255, 195, 0.46) rgba(5, 34, 19, 0.16);
 }
 
-html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar {
+html.${className} app-skins .blobio-custom-skin-content::-webkit-scrollbar {
   width: 10px;
 }
 
-html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-track {
+html.${className} app-skins .blobio-custom-skin-content::-webkit-scrollbar-track {
   border-radius: 999px;
   background: rgba(5, 34, 19, 0.22);
   box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.1);
 }
 
-html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-thumb {
+html.${className} app-skins .blobio-custom-skin-content::-webkit-scrollbar-thumb {
   border: 2px solid rgba(3, 31, 19, 0.58);
   border-radius: 999px;
   background: rgba(174, 255, 195, 0.42);
@@ -714,7 +797,7 @@ html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-thumb {
   outline: 1px solid rgba(210, 255, 220, 0.32);
 }
 
-html.${className} app-skins .blobio-custom-skin-panel::-webkit-scrollbar-thumb:hover {
+html.${className} app-skins .blobio-custom-skin-content::-webkit-scrollbar-thumb:hover {
   background: rgba(190, 255, 204, 0.74);
   box-shadow: 0 0 12px rgba(155, 255, 181, 0.78), inset 0 0 7px rgba(255, 255, 255, 0.24);
 }
@@ -723,24 +806,41 @@ html.${className} app-skins.blobio-custom-skin-active .skins-container:not(.blob
   display: none !important;
 }
 
+html.${className} app-skins.blobio-custom-skin-active .body {
+  align-items: stretch !important;
+}
+
+html.${className} app-skins.blobio-custom-skin-active .right {
+  display: flex !important;
+  flex-direction: column !important;
+  align-self: stretch !important;
+  min-height: 0 !important;
+}
+
 html.${className} app-skins.blobio-custom-skin-active .blobio-custom-skin-panel {
-  display: block !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 html.${className} app-skins.blobio-custom-skin-active .right > .inner-container,
 html.${className} app-skins.blobio-custom-skin-active .inner-container.zero-top-left-border {
-  min-height: 525px !important;
-  height: auto !important;
-  border: 1px solid rgba(142, 255, 174, 0.36) !important;
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+  min-height: var(--blobio-custom-skin-panel-height, 525px) !important;
+  height: 100% !important;
+  border: 2px solid rgba(142, 255, 174, 0.5) !important;
+  outline: 1px solid rgba(213, 255, 224, 0.24) !important;
+  outline-offset: 1px !important;
   border-radius: 10px !important;
   background: linear-gradient(145deg, rgba(3, 31, 19, 0.92), rgba(1, 10, 7, 0.92)) !important;
-  box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.12), 0 0 18px rgba(79, 255, 130, 0.14) !important;
+  box-shadow: inset 0 0 24px rgba(79, 255, 130, 0.14), 0 0 22px rgba(79, 255, 130, 0.24), 0 0 4px rgba(194, 255, 210, 0.26) !important;
 }
 
 html.${className} .blobio-custom-skin-controls {
   display: grid;
   gap: 5px;
-  margin: -8px 0 8px;
+  margin: 0 0 8px;
 }
 
 html.${className} .blobio-custom-skin-input {
@@ -823,9 +923,14 @@ html.${className} .blobio-custom-skin.is-selected .title {
 
 html.${className} .blobio-custom-skin-actions {
   display: none;
+  flex: 0 0 auto;
   justify-content: center;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: auto;
+  padding: 10px 12px 12px;
+  border-top: 2px solid rgba(142, 255, 174, 0.34);
+  background: linear-gradient(180deg, rgba(3, 35, 20, 0.94), rgba(1, 16, 10, 0.98));
+  box-shadow: 0 -8px 18px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(213, 255, 224, 0.12);
 }
 
 html.${className} .blobio-custom-skin-actions.is-visible {
@@ -898,6 +1003,32 @@ html.${className} .blobio-custom-skin-notice.is-error {
   background: rgba(102, 10, 16, 0.9);
   text-shadow: 0 0 8px rgba(148, 18, 18, 0.78), 0 0 18px rgba(255, 42, 42, 0.38);
   box-shadow: 0 0 16px rgba(255, 49, 49, 0.3), inset 0 0 9px rgba(255, 89, 89, 0.18);
+}
+
+html.${className} .blobio-vip-plus-icon {
+  display: inline-block !important;
+  width: auto !important;
+  height: var(--blobio-vip-plus-size, 42px) !important;
+  max-width: 74px !important;
+  margin-left: 8px !important;
+  vertical-align: middle !important;
+  object-fit: contain !important;
+  transform: scale(1);
+  transform-origin: center;
+  transition: transform 170ms ease, filter 170ms ease;
+  filter: drop-shadow(0 0 7px rgba(255, 196, 55, 0.28));
+  cursor: pointer;
+}
+
+html.${className} .blobio-vip-plus-icon:hover {
+  transform: scale(1.09);
+  filter: drop-shadow(0 0 11px rgba(255, 204, 72, 0.48));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.${className} .blobio-vip-plus-icon {
+    transition: none;
+  }
 }
 
 html.${className} .blobio-watermark-host {

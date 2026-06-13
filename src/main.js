@@ -6,6 +6,7 @@ import socialsButtonUrl from '../assets/socal_icon_n.png';
 import updatesButtonUrl from '../assets/update_notes_n_.png';
 import youtubeIconUrl from '../assets/youtube_icon.png';
 import recommendedButtonUrl from '../assets/yt_recommended_n.png';
+import vipPlusIconUrl from '../assets/VIP_icon_plus.png';
 import { BackgroundFeature } from './features/BackgroundFeature.js';
 import { MenuFeature } from './features/MenuFeature.js';
 import { getBlobioHostMode } from './hostRules.js';
@@ -48,6 +49,7 @@ class BlobioExtension {
       discordIcon: discordIconUrl,
       facebookIcon: facebookIconUrl,
       instagramIcon: instagramIconUrl,
+      vipPlusIcon: vipPlusIconUrl,
     };
 
     if (hostMode === 'frontpage') {
