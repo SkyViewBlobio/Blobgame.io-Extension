@@ -83,7 +83,7 @@ export class CustomSkinOverlayFeature {
   injectPageOverlayRefresh(nextState) {
     const script = this.document.createElement('script');
     script.dataset.blobioCustomSkinOverlayRefresh = 'true';
-    script.textContent = `;(() => {\n  const state = ${JSON.stringify(nextState)};\n  window.__blobioCustomSkinOverlayV9?.refresh?.(state);\n})();`;
+    script.textContent = `;(() => {\n  const state = ${JSON.stringify(nextState)};\n  window.__blobioCustomSkinOverlayV10?.refresh?.(state);\n})();`;
     (this.document.documentElement || this.document.head || this.document.body)?.appendChild?.(script);
     script.remove();
   }
@@ -280,8 +280,8 @@ function pageOverlayMain(initialState) {
   const OWN_CLUSTER_LIMIT = 32;
   const OWN_CLUSTER_MIN_SIZE = 12;
 
-  if (window.__blobioCustomSkinOverlayV9) {
-    window.__blobioCustomSkinOverlayV9.refresh?.(initialState);
+  if (window.__blobioCustomSkinOverlayV10) {
+    window.__blobioCustomSkinOverlayV10.refresh?.(initialState);
     return;
   }
 
@@ -328,6 +328,11 @@ function pageOverlayMain(initialState) {
     ownRenderNodes: [],
     ownClusterCandidates: [],
     ownClusterMatches: [],
+    scrambleId: null,
+    scrambleCandidates: {},
+    localPlayerName: '',
+    packetNameMatches: [],
+    rawOwnRecords: [],
     };
 
   function refresh(nextState) {
@@ -777,79 +782,28 @@ function pageOverlayMain(initialState) {
   }
 
   function buildOwnRenderNodes() {
+    const now = performance.now();
     const confirmed = Array.from(state.ownIds)
       .map((id) => state.nodes.get(id))
-      .filter((node) => node && !node.removed);
+      .filter((node) => node && !node.removed && (!node.updatedAt || now - node.updatedAt <= OWN_CLUSTER_MAX_AGE_MS * 4));
 
-    const now = performance.now();
-    const liveConfirmed = confirmed.filter((node) => !node.updatedAt || now - node.updatedAt <= OWN_CLUSTER_MAX_AGE_MS * 3);
+    // v10: do not guess nearby cells anymore. The v9 cluster heuristic produced false duplicates.
+    // Only render cells that are confirmed through own-list/AddNode or packet name matching.
+    state.inferredOwnIds.clear();
+    state.ownClusterCandidates = [];
+    state.ownClusterMatches = [];
 
-    if (!liveConfirmed.length) {
-      state.inferredOwnIds.clear();
-      state.ownRenderNodes = [];
-      state.ownClusterCandidates = [];
-      state.ownClusterMatches = [];
-      return [];
-    }
-
-    const center = weightedNodeCenter(liveConfirmed);
-    const maxOwnSize = Math.max(...liveConfirmed.map((node) => Math.max(1, node.size || 1)));
-    const totalOwnSize = liveConfirmed.reduce((sum, node) => sum + Math.max(0, node.size || 0), 0);
-    const maxDistance = clamp(maxOwnSize * 8 + totalOwnSize * 3, 140, 900);
-    const minSize = Math.max(OWN_CLUSTER_MIN_SIZE, Math.min(maxOwnSize * 0.22, 28));
-    const maxSize = Math.max(maxOwnSize * 1.35, maxOwnSize + 70, 90);
-    const candidates = [];
-
-    for (const node of state.nodes.values()) {
-      if (!node || node.removed || state.ownIds.has(node.id)) continue;
-      if (!Number.isFinite(node.x) || !Number.isFinite(node.y) || !Number.isFinite(node.size)) continue;
-      if (node.size < minSize || node.size > maxSize) continue;
-      if (node.updatedAt && now - node.updatedAt > OWN_CLUSTER_MAX_AGE_MS) continue;
-
-      const distanceToCenter = Math.hypot(node.x - center.x, node.y - center.y);
-      const distanceToConfirmed = Math.min(...liveConfirmed.map((own) => Math.hypot(node.x - own.x, node.y - own.y)));
-      if (distanceToCenter > maxDistance && distanceToConfirmed > maxDistance * 0.85) continue;
-
-      const sizeScore = Math.abs(Math.log(Math.max(node.size, 1) / Math.max(maxOwnSize, 1)));
-      const distanceScore = Math.min(distanceToCenter, distanceToConfirmed) / Math.max(80, maxDistance);
-      const score = distanceScore + sizeScore * 0.45;
-
-      candidates.push({
-        id: node.id,
-        x: node.x,
-        y: node.y,
-        size: node.size,
-        distanceToCenter: Math.round(distanceToCenter),
-        distanceToConfirmed: Math.round(distanceToConfirmed),
-        score: Number(score.toFixed(3)),
-        updatedAgeMs: node.updatedAt ? Math.round(now - node.updatedAt) : null,
-      });
-    }
-
-    candidates.sort((a, b) => a.score - b.score);
-    const selected = candidates
-      .filter((candidate) => candidate.score <= 1.55)
-      .slice(0, OWN_CLUSTER_LIMIT);
-
-    state.inferredOwnIds = new Set(selected.map((candidate) => candidate.id));
-    state.ownClusterCandidates = candidates.slice(0, 40);
-    state.ownClusterMatches = selected;
-
-    const merged = new Map();
-    for (const node of liveConfirmed) merged.set(node.id, { ...node, ownership: 'confirmed' });
-    for (const candidate of selected) {
-      const node = state.nodes.get(candidate.id);
-      if (node && !node.removed) merged.set(node.id, { ...node, ownership: 'inferred', inferScore: candidate.score });
-    }
-
-    const renderNodes = Array.from(merged.values());
+    const renderNodes = confirmed.map((node) => ({ ...node, ownership: 'confirmed' }));
     state.ownRenderNodes = renderNodes.map((node) => ({
       id: node.id,
-      ownership: node.ownership || (state.ownIds.has(node.id) ? 'confirmed' : 'inferred'),
+      rawId: node.rawId ?? null,
+      ownership: 'confirmed',
       x: Math.round(node.x),
       y: Math.round(node.y),
       size: Math.round(node.size),
-      inferScore: node.inferScore ?? null,
+      name: node.name || '',
+      skin: node.skin || '',
+      inferScore: null,
     }));
 
     return renderNodes;
@@ -937,8 +891,8 @@ function pageOverlayMain(initialState) {
   function installCanvasCircleTracker() {
     if (state.canvasHooked) return;
     const proto = window.CanvasRenderingContext2D && window.CanvasRenderingContext2D.prototype;
-    if (!proto || proto.__blobioSkinCircleTrackerV9) return;
-    proto.__blobioSkinCircleTrackerV9 = true;
+    if (!proto || proto.__blobioSkinCircleTrackerV10) return;
+    proto.__blobioSkinCircleTrackerV10 = true;
     state.canvasHooked = true;
 
     const originalArc = proto.arc;
@@ -1304,29 +1258,43 @@ function pageOverlayMain(initialState) {
   }
 
   function parseOwnNodeList(packet, meta) {
-    // Blobgame short-packet mode uses opcode 0x31 to tell the client which cell IDs are local.
-    // The uploaded debug log showed 49,1,0,0,0,227,5,... which is count=1 and local id=0x05e3.
+    // Blobgame short-packet mode uses opcode 0x31 (decimal 49).
+    // Format observed in logs: opcode, uint32 count, then count cell IDs.
+    // Use uint32 IDs when available; older/short paths may fit into uint16.
     if (packet.length < 7) return;
 
     const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
-    const count = view.getUint32(1, true);
+    const count32 = view.getUint32(1, true);
+    const count16 = view.getUint16(1, true);
+    const count = count32 > 0 && count32 <= OWN_ID_LIMIT ? count32 : count16;
     if (!Number.isFinite(count) || count <= 0 || count > OWN_ID_LIMIT) return;
 
-    let offset = 5;
+    let offset = count === count32 ? 5 : 3;
     let added = 0;
+    const ids = [];
 
-    for (let index = 0; index < count && offset + 2 <= packet.length; index += 1) {
-      const id = view.getUint16(offset, true) >>> 0;
-      offset += 2;
+    for (let index = 0; index < count && offset < packet.length; index += 1) {
+      let id = 0;
+      if (offset + 4 <= packet.length) {
+        id = view.getUint32(offset, true) >>> 0;
+        offset += 4;
+      } else if (offset + 2 <= packet.length) {
+        id = view.getUint16(offset, true) >>> 0;
+        offset += 2;
+      } else {
+        break;
+      }
+
       if (id) {
-        addOwnId(id, 'own-list-short', meta);
+        addOwnId(id, 'own-list', meta);
+        ids.push(id);
         added += 1;
       }
     }
 
     if (added > 0) {
       state.ownListPackets += 1;
-      log('own node list parsed', { added, ownIds: Array.from(state.ownIds), meta }, 'packet');
+      log('own node list parsed', { added, ids, ownIds: Array.from(state.ownIds), raw: Array.from(packet.slice(0, Math.min(40, packet.length))), meta }, 'packet');
     }
   }
 
@@ -1352,10 +1320,93 @@ function pageOverlayMain(initialState) {
     }
   }
 
+  function getLocalPlayerName() {
+    const candidates = [];
+    try { candidates.push(localStorage.getItem('config-username')); } catch {}
+    try { candidates.push(localStorage.getItem('blobio.username')); } catch {}
+    try { candidates.push(localStorage.getItem('blobio.name')); } catch {}
+    try { candidates.push(window.__blobioSharedStorageBridge?.getItem?.('config-username')); } catch {}
+    try { candidates.push(readCookie('config-username')); } catch {}
+
+    for (const value of candidates) {
+      const normalized = normalizePlayerName(value);
+      if (normalized) return normalized;
+    }
+
+    return state.localPlayerName || '';
+  }
+
+  function normalizePlayerName(value) {
+    if (value === undefined || value === null) return '';
+    let text = String(value);
+    try { text = decodeURIComponent(text); } catch {}
+    text = text.replace(/[\u0000<>]/g, '').trim();
+    return text.slice(0, 32);
+  }
+
+  function rememberPacketName(name, recordId, source) {
+    const normalized = normalizePlayerName(name);
+    if (!normalized) return;
+
+    if (!state.localPlayerName && state.ownIds.has(recordId)) {
+      state.localPlayerName = normalized;
+      log('local player name learned from owned packet record', { name: normalized, recordId, source }, 'identity');
+    }
+  }
+
+  function isOwnName(name) {
+    const normalized = normalizePlayerName(name);
+    if (!normalized) return false;
+    const configured = getLocalPlayerName();
+    if (!configured) return false;
+    return normalized === configured;
+  }
+
+  function decodeNodeId(rawId) {
+    const raw = rawId >>> 0;
+    if (state.scrambleId === null || state.scrambleId === undefined) return raw;
+    return (raw ^ state.scrambleId) >>> 0;
+  }
+
+  function learnScrambleIdFromParsedRecords(records) {
+    if (!state.ownIds.size || !records || !records.length) return;
+
+    for (const record of records) {
+      const rawId = record.rawId >>> 0;
+      if (!rawId) continue;
+
+      for (const ownId of state.ownIds) {
+        const candidate = (rawId ^ (ownId >>> 0)) >>> 0;
+        // MultiOgarBlob scrambles IDs with XOR. In Blobgame short mode the low 16 bits commonly stay aligned.
+        // Repeated evidence from the same candidate is safer than one-off matching.
+        const plausible = ((rawId & 0xffff) === ((ownId >>> 0) & 0xffff)) || candidate === 0 || (candidate & 0xffff) === 0;
+        if (!plausible) continue;
+
+        const key = String(candidate >>> 0);
+        state.scrambleCandidates[key] = (state.scrambleCandidates[key] || 0) + 1;
+        if (state.scrambleCandidates[key] >= 2 || state.scrambleId === null) {
+          state.scrambleId = candidate >>> 0;
+        }
+      }
+    }
+  }
+
+  function applyDecodedIds(records) {
+    for (const record of records) {
+      record.id = decodeNodeId(record.rawId >>> 0);
+    }
+  }
+
   function parseUpdateNodes(packet, meta) {
-    const parsed = [parseUpdateNodesShort(packet), parseUpdateNodesProtocol6(packet), parseUpdateNodesProtocol5(packet), parseUpdateNodesProtocol4(packet)]
-      .filter((item) => item && item.ok)
-      .sort((a, b) => scoreParse(b) - scoreParse(a))[0];
+    const candidates = [parseUpdateNodesProtocol6(packet), parseUpdateNodesProtocol5(packet), parseUpdateNodesProtocol4(packet), parseUpdateNodesShort(packet)]
+      .filter((item) => item && item.ok);
+
+    for (const candidate of candidates) {
+      learnScrambleIdFromParsedRecords(candidate.records);
+      applyDecodedIds(candidate.records);
+    }
+
+    const parsed = candidates.sort((a, b) => scoreParse(b) - scoreParse(a))[0];
 
     if (!parsed) {
       state.updateParseErrors += 1;
@@ -1388,20 +1439,56 @@ function pageOverlayMain(initialState) {
   }
 
   function applyUpdateParse(parsed) {
+    const now = performance.now();
+    const configuredName = getLocalPlayerName();
+
     for (const record of parsed.records) {
       if (!record.id) continue;
+
+      rememberPacketName(record.name, record.id, parsed.protocol);
+
+      if (record.name && isOwnName(record.name)) {
+        addOwnId(record.id, 'packet-name-match', { protocol: parsed.protocol, name: record.name });
+        state.packetNameMatches.push({
+          t: new Date().toISOString(),
+          id: record.id,
+          rawId: record.rawId ?? null,
+          name: record.name,
+          protocol: parsed.protocol,
+        });
+        while (state.packetNameMatches.length > 80) state.packetNameMatches.shift();
+      }
+
+      if (state.ownIds.has(record.id)) {
+        state.rawOwnRecords.push({
+          t: new Date().toISOString(),
+          id: record.id,
+          rawId: record.rawId ?? null,
+          name: record.name || '',
+          x: record.x,
+          y: record.y,
+          size: record.size,
+          protocol: parsed.protocol,
+        });
+        while (state.rawOwnRecords.length > 80) state.rawOwnRecords.shift();
+      }
+
       state.nodes.set(record.id, {
         id: record.id,
+        rawId: record.rawId ?? record.id,
         x: record.x,
         y: record.y,
         size: record.size,
         color: record.color || null,
         flags: record.flags || 0,
-        updatedAt: performance.now(),
+        skin: record.skin || '',
+        name: record.name || '',
+        updatedAt: now,
       });
     }
 
-    for (const id of parsed.removed) {
+    const removed = parsed.removed.map((id) => decodeNodeId(id));
+    for (const id of removed) {
       state.nodes.delete(id);
       state.ownIds.delete(id);
     }
@@ -1445,7 +1532,7 @@ function pageOverlayMain(initialState) {
       if (flags & 0x08) offset = skipUtf8Zero(packet, offset);
       if (offset < 0) return null;
 
-      records.push({ id, x, y, size, flags, color });
+      records.push({ rawId: id, id, x, y, size, flags, color, name: '', skin: '' });
     }
 
     const removed = readRemoveRecordsShort(packet, offset);
@@ -1546,10 +1633,22 @@ function pageOverlayMain(initialState) {
         color = { r: packet[offset], g: packet[offset + 1], b: packet[offset + 2] };
         offset += 3;
       }
-      if (flags & 0x04) offset = skipUtf8Zero(packet, offset);
-      if (flags & 0x08) offset = skipUtf8Zero(packet, offset);
+      let skin = '';
+      let name = '';
+      if (flags & 0x04) {
+        const result = readUtf8Zero(packet, offset);
+        if (!result) return null;
+        skin = result.value;
+        offset = result.offset;
+      }
+      if (flags & 0x08) {
+        const result = readUtf8Zero(packet, offset);
+        if (!result) return null;
+        name = result.value;
+        offset = result.offset;
+      }
       if (offset < 0) return null;
-      records.push({ id, x, y, size, flags, color });
+      records.push({ rawId: id, id, x, y, size, flags, color, name, skin });
     }
 
     const removed = readRemoveRecords(packet, offset, 6);
@@ -1576,10 +1675,19 @@ function pageOverlayMain(initialState) {
       const size = view.getUint16(offset, true); offset += 2;
       const color = { r: packet[offset], g: packet[offset + 1], b: packet[offset + 2] }; offset += 3;
       const flags = view.getUint8(offset); offset += 1;
-      if (flags & 0x04) offset = skipUtf8Zero(packet, offset);
-      offset = skipUtf16Zero(packet, offset);
+      let skin = '';
+      if (flags & 0x04) {
+        const result = readUtf8Zero(packet, offset);
+        if (!result) return null;
+        skin = result.value;
+        offset = result.offset;
+      }
+      const nameResult = readUtf16Zero(packet, offset);
+      if (!nameResult) return null;
+      const name = nameResult.value;
+      offset = nameResult.offset;
       if (offset < 0) return null;
-      records.push({ id, x, y, size, flags, color });
+      records.push({ rawId: id, id, x, y, size, flags, color, name, skin });
     }
 
     const removed = readRemoveRecords(packet, offset, 5);
@@ -1606,14 +1714,51 @@ function pageOverlayMain(initialState) {
       const size = view.getUint16(offset, true); offset += 2;
       const color = { r: packet[offset], g: packet[offset + 1], b: packet[offset + 2] }; offset += 3;
       const flags = view.getUint8(offset); offset += 1;
-      offset = skipUtf16Zero(packet, offset);
+      const nameResult = readUtf16Zero(packet, offset);
+      if (!nameResult) return null;
+      const name = nameResult.value;
+      offset = nameResult.offset;
       if (offset < 0) return null;
-      records.push({ id, x, y, size, flags, color });
+      records.push({ rawId: id, id, x, y, size, flags, color, name, skin: '' });
     }
 
     const removed = readRemoveRecords(packet, offset, 4);
     if (!removed) return null;
     return { ok: true, protocol: 4, records, removed: removed.ids, offset: removed.offset, length: packet.length };
+  }
+
+  function readUtf8Zero(packet, offset) {
+    const start = offset;
+    while (offset < packet.length) {
+      if (packet[offset] === 0) {
+        try {
+          const bytes = packet.slice(start, offset);
+          const value = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+          return { value, offset: offset + 1 };
+        } catch {
+          return { value: '', offset: offset + 1 };
+        }
+      }
+      offset += 1;
+    }
+    return null;
+  }
+
+  function readUtf16Zero(packet, offset) {
+    const start = offset;
+    while (offset + 1 < packet.length) {
+      if (packet[offset] === 0 && packet[offset + 1] === 0) {
+        try {
+          const bytes = packet.slice(start, offset);
+          const value = new TextDecoder('utf-16le', { fatal: false }).decode(bytes);
+          return { value, offset: offset + 2 };
+        } catch {
+          return { value: '', offset: offset + 2 };
+        }
+      }
+      offset += 2;
+    }
+    return null;
   }
 
   function skipUtf8Zero(packet, offset) {
@@ -1657,7 +1802,7 @@ function pageOverlayMain(initialState) {
   function downloadDebugDump() {
     const dump = {
       meta: {
-        version: 'packet-overlay-v9',
+        version: 'packet-overlay-v10',
         createdAt: new Date().toISOString(),
         href: location.href,
       },
@@ -1680,6 +1825,11 @@ function pageOverlayMain(initialState) {
         inferredOwnIds: Array.from(state.inferredOwnIds),
         ownClusterCandidates: state.ownClusterCandidates,
         ownClusterMatches: state.ownClusterMatches,
+        scrambleId: state.scrambleId,
+        scrambleCandidates: state.scrambleCandidates,
+        localPlayerName: state.localPlayerName || getLocalPlayerName(),
+        packetNameMatches: state.packetNameMatches.slice(-40),
+        rawOwnRecords: state.rawOwnRecords.slice(-40),
         recentScreenCircles: state.recentScreenCircles.slice(-30),
         sockets: state.sockets,
         wsMessages: state.wsMessages,
@@ -1714,7 +1864,7 @@ function pageOverlayMain(initialState) {
     }, 1000);
   }
 
-  window.__blobioCustomSkinOverlayV9 = {
+  window.__blobioCustomSkinOverlayV10 = {
     state,
     refresh,
     dump: () => ({
@@ -1732,6 +1882,10 @@ function pageOverlayMain(initialState) {
       inferredOwnIds: Array.from(state.inferredOwnIds),
       ownClusterCandidates: state.ownClusterCandidates,
       ownClusterMatches: state.ownClusterMatches,
+      scrambleId: state.scrambleId,
+      localPlayerName: state.localPlayerName || getLocalPlayerName(),
+      packetNameMatches: state.packetNameMatches.slice(-20),
+      rawOwnRecords: state.rawOwnRecords.slice(-20),
       ownListPackets: state.ownListPackets,
       shortOwnFallbackUpdates: state.shortOwnFallbackUpdates,
       opCounts: state.opCounts,
