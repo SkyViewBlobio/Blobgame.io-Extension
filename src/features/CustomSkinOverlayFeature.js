@@ -83,7 +83,7 @@ export class CustomSkinOverlayFeature {
   injectPageOverlayRefresh(nextState) {
     const script = this.document.createElement('script');
     script.dataset.blobioCustomSkinOverlayRefresh = 'true';
-    script.textContent = `;(() => {\n  const state = ${JSON.stringify(nextState)};\n  window.__blobioCustomSkinOverlayV17?.refresh?.(state);\n})();`;
+    script.textContent = `;(() => {\n  const state = ${JSON.stringify(nextState)};\n  window.__blobioCustomSkinOverlayV18?.refresh?.(state);\n})();`;
     (this.document.documentElement || this.document.head || this.document.body)?.appendChild?.(script);
     script.remove();
   }
@@ -274,26 +274,27 @@ function pageOverlayMain(initialState) {
   const DEBUG_LIMIT = 700;
   const SCREEN_CIRCLE_LIMIT = 300;
   const SCREEN_CIRCLE_MAX_AGE_MS = 180;
-  const CELL_BORDER_OVERDRAW = 1.02;
+  const CELL_BORDER_OVERDRAW = 1.035;
   const MIN_CELL_SCREEN_RADIUS = 6;
   const OWN_CLUSTER_MAX_AGE_MS = 650;
   const OWN_CLUSTER_LIMIT = 32;
   const OWN_CLUSTER_MIN_SIZE = 12;
   const SIBLING_ID_WINDOW = 15;
-  const SIBLING_MIN_OBSERVATIONS = 3;
-  const SIBLING_MAX_AGE_MS = 1400;
-  const SIBLING_MAX_DISTANCE_FACTOR = 34;
-  const WEBGL_MATRIX_MAX_AGE_MS = 500;
+  const SIBLING_MIN_OBSERVATIONS = 1;
+  const SIBLING_MAX_AGE_MS = 2600;
+  const SIBLING_MAX_DISTANCE_FACTOR = 10;
+  const WEBGL_MATRIX_MAX_AGE_MS = 750;
+  const WEBGL_TRANSFORM_HOLD_MS = 1800;
   const WEBGL_MATRIX_LIMIT = 96;
   const SHORT_MODE_LOCK_THRESHOLD = 3;
-  const RENDER_SMOOTHING_MS = 55;
-  const RENDER_SNAP_DISTANCE = 1400;
-  const ZOOM_FACTOR_STORAGE_KEY = 'blobio.customSkin.overlayZoomFactorV17';
+  const RENDER_SMOOTHING_MS = 24;
+  const RENDER_SNAP_DISTANCE = 260;
+  const ZOOM_FACTOR_STORAGE_KEY = 'blobio.customSkin.overlayZoomFactorV18';
   const ZOOM_FACTOR_MIN = 0.25;
   const ZOOM_FACTOR_MAX = 4;
 
-  if (window.__blobioCustomSkinOverlayV17) {
-    window.__blobioCustomSkinOverlayV17.refresh?.(initialState);
+  if (window.__blobioCustomSkinOverlayV18) {
+    window.__blobioCustomSkinOverlayV18.refresh?.(initialState);
     return;
   }
 
@@ -358,10 +359,12 @@ function pageOverlayMain(initialState) {
     lastEffectiveScale: 1,
     webglMatrices: [],
     activeWebglTransform: null,
+    lastGoodWebglTransform: null,
     webglMatrixMatches: [],
     webglHookCount: 0,
     siblingOwnCandidates: [],
     siblingOwnMatches: [],
+    splitPromotionEvents: [],
     packetMode: 'auto',
     shortModeConfidence: 0,
     ignoredNonShortPackets: 0,
@@ -918,10 +921,15 @@ function pageOverlayMain(initialState) {
         const ownFlags = own.flags || 0;
         if ((recordFlags & 0x02) === 0 || (recordFlags & 0x21) !== 0) continue;
         if (recordFlags !== ownFlags) continue;
-        if (Number.isFinite(record.extra) && Number.isFinite(own.extra) && record.extra !== own.extra) continue;
 
+        const hasMatchingExtra = Number.isFinite(record.extra)
+          && Number.isFinite(own.extra)
+          && record.extra === own.extra;
+        if (Number.isFinite(record.extra) && Number.isFinite(own.extra) && !hasMatchingExtra) continue;
+
+        const exactSignature = recordFlags === ownFlags && hasMatchingExtra;
         const sizeRatio = record.size / Math.max(own.size || 1, 1);
-        if (sizeRatio < 0.18 || sizeRatio > 1.45) continue;
+        if (sizeRatio < 0.12 || sizeRatio > 1.6) continue;
 
         const distance = Math.hypot(record.x - own.x, record.y - own.y);
         const maxDistance = Math.max(260, (Math.max(own.size || 1, record.size || 1) + Math.min(own.size || 1, record.size || 1)) * SIBLING_MAX_DISTANCE_FACTOR);
@@ -947,6 +955,7 @@ function pageOverlayMain(initialState) {
             extra: Number.isFinite(record.extra) ? record.extra : null,
             ownFlags: own.flags || 0,
             ownExtra: Number.isFinite(own.extra) ? own.extra : null,
+            exactSignature,
             score: Number(score.toFixed(2)),
             protocol,
           };
@@ -969,8 +978,24 @@ function pageOverlayMain(initialState) {
       state.siblingOwnCandidates.push(summary);
       while (state.siblingOwnCandidates.length > 120) state.siblingOwnCandidates.shift();
 
-      if (next.observations >= SIBLING_MIN_OBSERVATIONS && next.score >= 4) {
+      const shouldPromote = best.exactSignature
+        || (next.observations >= SIBLING_MIN_OBSERVATIONS && next.score >= 4);
+
+      if (shouldPromote && !state.siblingOwnIds.has(record.id)) {
         state.siblingOwnIds.add(record.id);
+        state.splitPromotionEvents.push({
+          t: new Date().toISOString(),
+          id: record.id,
+          ownId: best.ownId,
+          idDelta: best.idDelta,
+          observations: next.observations,
+          score: Number(next.score.toFixed(2)),
+          exactSignature: best.exactSignature,
+          distance: best.distance,
+          size: best.size,
+          ownSize: best.ownSize,
+        });
+        while (state.splitPromotionEvents.length > 60) state.splitPromotionEvents.shift();
       }
     }
 
@@ -1006,17 +1031,46 @@ function pageOverlayMain(initialState) {
 
     const elapsed = now - visual.t;
     const dt = Math.max(0, Math.min(80, elapsed));
-    const distance = Math.hypot(targetX - visual.x, targetY - visual.y);
-    const snapDistance = Math.max(RENDER_SNAP_DISTANCE, targetSize * 18);
 
-    if (distance > snapDistance || elapsed > 500) {
-      visual.x = targetX;
-      visual.y = targetY;
+    if (
+      visual.targetX !== targetX
+      || visual.targetY !== targetY
+      || visual.targetSize !== targetSize
+    ) {
+      const targetElapsed = Math.max(1, now - (visual.targetAt || now));
+      const previousTargetX = Number.isFinite(visual.targetX) ? visual.targetX : visual.x;
+      const previousTargetY = Number.isFinite(visual.targetY) ? visual.targetY : visual.y;
+      visual.vx = (targetX - previousTargetX) / targetElapsed;
+      visual.vy = (targetY - previousTargetY) / targetElapsed;
+      visual.targetX = targetX;
+      visual.targetY = targetY;
+      visual.targetSize = targetSize;
+      visual.targetAt = now;
+    }
+
+    const packetAge = Math.max(0, now - (node.updatedAt || now));
+    const predictionMs = Math.min(32, packetAge + 10);
+    const maxLead = Math.max(8, targetSize * 0.35);
+    const leadX = Math.max(-maxLead, Math.min(maxLead, (visual.vx || 0) * predictionMs));
+    const leadY = Math.max(-maxLead, Math.min(maxLead, (visual.vy || 0) * predictionMs));
+    const desiredX = targetX + leadX;
+    const desiredY = targetY + leadY;
+
+    const distance = Math.hypot(desiredX - visual.x, desiredY - visual.y);
+    const snapDistance = Math.max(RENDER_SNAP_DISTANCE, targetSize * 3.2);
+
+    if (distance > snapDistance || elapsed > 300) {
+      visual.x = desiredX;
+      visual.y = desiredY;
       visual.size = targetSize;
     } else {
-      const alpha = 1 - Math.exp(-dt / RENDER_SMOOTHING_MS);
-      visual.x += (targetX - visual.x) * alpha;
-      visual.y += (targetY - visual.y) * alpha;
+      const relativeDistance = distance / Math.max(1, targetSize);
+      const smoothingMs = relativeDistance > 0.8
+        ? 10
+        : (relativeDistance > 0.35 ? 16 : RENDER_SMOOTHING_MS);
+      const alpha = 1 - Math.exp(-dt / smoothingMs);
+      visual.x += (desiredX - visual.x) * alpha;
+      visual.y += (desiredY - visual.y) * alpha;
       visual.size += (targetSize - visual.size) * alpha;
     }
 
@@ -1146,12 +1200,12 @@ function pageOverlayMain(initialState) {
     for (const contextName of ['WebGLRenderingContext', 'WebGL2RenderingContext']) {
       const Context = win[contextName];
       const proto = Context?.prototype;
-      if (!proto || proto.__blobioSkinWebglCameraTrackerV17) continue;
+      if (!proto || proto.__blobioSkinWebglCameraTrackerV18) continue;
 
       const nativeUniformMatrix4fv = proto.uniformMatrix4fv;
       if (typeof nativeUniformMatrix4fv !== 'function') continue;
 
-      proto.__blobioSkinWebglCameraTrackerV17 = true;
+      proto.__blobioSkinWebglCameraTrackerV18 = true;
       proto.uniformMatrix4fv = function blobioTrackedUniformMatrix4fv(location, transpose, value, ...rest) {
         try {
           recordWebglMatrix(this, value, rest, label, contextName);
@@ -1216,7 +1270,41 @@ function pageOverlayMain(initialState) {
     state.webglMatrices = fresh.slice(-WEBGL_MATRIX_LIMIT);
     state.webglMatrixMatches = [];
 
-    if (!nodes?.length || !fresh.length) {
+    if (!nodes?.length) {
+      state.activeWebglTransform = null;
+      return null;
+    }
+
+    if (!fresh.length) {
+      const held = state.lastGoodWebglTransform;
+      const heldRect = held?.canvas?.getBoundingClientRect?.();
+      if (
+        held
+        && now - held.t <= WEBGL_TRANSFORM_HOLD_MS
+        && heldRect
+        && heldRect.width >= 240
+        && heldRect.height >= 180
+      ) {
+        const retained = { ...held, rect: heldRect };
+        const radiusScale = getWebglRadiusScale(retained);
+        state.lastEffectiveScale = radiusScale;
+        state.activeWebglTransform = {
+          score: held.score ?? null,
+          ageMs: Math.round(now - held.t),
+          contextName: held.contextName,
+          label: `${held.label || 'matrix'}-held`,
+          radiusScale: Number(radiusScale.toFixed(6)),
+          canvas: {
+            width: Math.round(heldRect.width),
+            height: Math.round(heldRect.height),
+            left: Math.round(heldRect.left),
+            top: Math.round(heldRect.top),
+          },
+          matrix: held.matrix.map((value) => Number(value.toFixed(7))),
+        };
+        return retained;
+      }
+
       state.activeWebglTransform = null;
       return null;
     }
@@ -1292,6 +1380,14 @@ function pageOverlayMain(initialState) {
 
     const radiusScale = getWebglRadiusScale(best);
     state.lastEffectiveScale = radiusScale;
+    state.lastGoodWebglTransform = {
+      canvas: best.canvas,
+      matrix: best.matrix.slice(),
+      t: best.t,
+      label: best.label,
+      contextName: best.contextName,
+      score: Number(best.score.toFixed(2)),
+    };
     state.activeWebglTransform = {
       score: Number(best.score.toFixed(2)),
       ageMs: Math.round(now - best.t),
@@ -1342,8 +1438,8 @@ function pageOverlayMain(initialState) {
   function installCanvasCircleTracker() {
     if (state.canvasHooked) return;
     const proto = window.CanvasRenderingContext2D && window.CanvasRenderingContext2D.prototype;
-    if (!proto || proto.__blobioSkinCircleTrackerV17) return;
-    proto.__blobioSkinCircleTrackerV17 = true;
+    if (!proto || proto.__blobioSkinCircleTrackerV18) return;
+    proto.__blobioSkinCircleTrackerV18 = true;
     state.canvasHooked = true;
 
     const originalArc = proto.arc;
@@ -2684,7 +2780,7 @@ function pageOverlayMain(initialState) {
   function downloadDebugDump() {
     const dump = {
       meta: {
-        version: 'packet-overlay-v17',
+        version: 'packet-overlay-v18',
         createdAt: new Date().toISOString(),
         href: location.href,
       },
@@ -2723,6 +2819,7 @@ function pageOverlayMain(initialState) {
         siblingOwnIds: Array.from(state.siblingOwnIds),
         siblingOwnCandidates: state.siblingOwnCandidates.slice(-80),
         siblingOwnMatches: state.siblingOwnMatches,
+        splitPromotionEvents: state.splitPromotionEvents.slice(-40),
         siblingCandidateScores: Array.from(state.siblingCandidateScores.entries()).slice(-80).map(([id, item]) => ({ id, score: item.score, observations: item.observations, detail: item.detail })),
         scrambleId: state.scrambleId,
         scrambleCandidates: state.scrambleCandidates,
@@ -2767,7 +2864,7 @@ function pageOverlayMain(initialState) {
     }, 1000);
   }
 
-  window.__blobioCustomSkinOverlayV17 = {
+  window.__blobioCustomSkinOverlayV18 = {
     state,
     refresh,
     dump: () => ({
