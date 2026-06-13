@@ -22,31 +22,34 @@ export const VIP_BADGE_CSS = `
 .blobio-vip-plus-icon {
   display: block !important;
   width: auto !important;
-  height: var(--blobio-vip-plus-size, 188px) !important;
-  max-width: 320px !important;
+  height: var(--blobio-vip-plus-size, 132px) !important;
+  max-width: 250px !important;
   margin: 0 !important;
   object-fit: contain !important;
-  transform: scale(1) !important;
+  transform: rotate(-7deg) scale(1) !important;
   transform-origin: center;
-  transition: transform 170ms ease, filter 170ms ease !important;
+  transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1), filter 680ms ease !important;
   filter: drop-shadow(0 0 10px rgba(255, 196, 55, 0.34));
   cursor: pointer;
   pointer-events: auto !important;
 }
 
 .blobio-vip-plus-icon:hover {
-  transform: scale(1.06) !important;
-  filter: drop-shadow(0 0 15px rgba(255, 204, 72, 0.52));
+  transform: rotate(-7deg) scale(1.06) !important;
+  filter: drop-shadow(0 0 19px rgba(255, 204, 72, 0.68));
 }
 
 .blobio-vip-plus-time {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  max-width: 88%;
-  transform: translate(-50%, -50%);
+  left: 72%;
+  top: 79%;
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  max-width: 92%;
+  transform: translate(-50%, -50%) rotate(4deg);
   color: #f4fff6;
-  font-size: clamp(11px, calc(var(--blobio-vip-plus-size, 188px) * 0.09), 25px);
+  font-size: clamp(10px, calc(var(--blobio-vip-plus-size, 132px) * 0.085), 21px);
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -59,12 +62,24 @@ export const VIP_BADGE_CSS = `
 .blobio-vip-plus-time.is-unlimited {
   color: #fff7cf;
   text-shadow: 0 0 5px rgba(255, 255, 255, 0.95), 0 0 11px rgba(255, 211, 73, 0.92), 0 0 23px rgba(255, 174, 30, 0.7);
-  animation: blobio-vip-unlimited-pulse 2400ms ease-in-out infinite;
+  animation: blobio-vip-unlimited-pulse 2800ms ease-in-out infinite;
+}
+
+.blobio-vip-plus-time-letter {
+  display: inline-block;
+  transform: translateY(var(--blobio-vip-letter-y, 0px)) rotate(var(--blobio-vip-letter-rotate, 0deg));
+  transform-origin: center bottom;
 }
 
 @keyframes blobio-vip-unlimited-pulse {
-  0%, 100% { opacity: 0.82; transform: translate(-50%, -50%) scale(0.97); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
+  0%, 100% {
+    opacity: 0.84;
+    transform: translate(-50%, -50%) rotate(4deg) scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(4deg) scale(1.04);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -95,15 +110,15 @@ export const CHAT_ROLE_CSS = `
 
 #chat .blobio-chat-admin-tag {
   color: rgb(0, 255, 0) !important;
-  text-decoration: underline !important;
-  text-underline-offset: 2px;
+  font-style: italic !important;
+  text-decoration: none !important;
   text-shadow: 0 0 7px rgba(0, 255, 0, 0.72);
 }
 
 #chat .blobio-chat-admin-username {
   font-weight: 800 !important;
-  text-decoration: underline !important;
-  text-underline-offset: 2px;
+  font-style: italic !important;
+  text-decoration: none !important;
 }
 
 #chat .blobio-chat-admin-message {
@@ -113,7 +128,8 @@ export const CHAT_ROLE_CSS = `
   text-underline-offset: 2px;
 }
 
-#chat .blobio-chat-built-in-vip-hidden {
+#chat .blobio-chat-built-in-vip-hidden,
+#chat .blobio-chat-built-in-md-hidden {
   display: none !important;
 }
 `;

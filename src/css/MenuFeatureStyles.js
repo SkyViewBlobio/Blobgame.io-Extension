@@ -746,6 +746,10 @@ html.${className} app-settings .blobio-extension-setting-row {
   box-shadow: 0 0 14px rgba(79, 255, 130, 0.18), inset 0 0 10px rgba(79, 255, 130, 0.1);
 }
 
+html.${className} app-settings .blobio-admin-only-setting-row.is-hidden {
+  display: none !important;
+}
+
 html.${className} app-settings .blobio-extension-setting-row .slider {
   border: 1px solid rgba(214, 255, 224, 0.72);
   background-color: rgba(23, 96, 48, 0.86);

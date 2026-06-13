@@ -65,8 +65,15 @@ class BlobioExtension {
 
       this.features.push(
         new BackgroundFeature({ document, backgroundUrl, logger }),
-        new MenuFeature({ document, logger, assets: menuAssets, frontPageUi: true }),
         uidDetector,
+        new MenuFeature({
+          document,
+          logger,
+          assets: menuAssets,
+          frontPageUi: true,
+          roleRegistry: this.roleRegistry,
+          uidDetector,
+        }),
         new VipBadgeFeature({
           document,
           logger,

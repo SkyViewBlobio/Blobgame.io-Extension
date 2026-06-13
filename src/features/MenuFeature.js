@@ -1,10 +1,11 @@
 import { buildMenuCss } from '../css/MenuFeatureStyles.js';
 import { createBlobioStorage } from '../storage/BlobioStorage.js';
+import { isHideAdminMdEnabled, setHideAdminMdEnabled } from '../roles/RoleSettings.js';
 
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
 const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
-const DEFAULT_EXTENSION_VERSION = '0.1.49';
+const DEFAULT_EXTENSION_VERSION = '0.1.50';
 const HIDDEN_CLASS = 'blobio-original-hidden';
 const PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
 const FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -30,6 +31,7 @@ const MAIN_MENU_LAYERED_SELECT_CLASS = 'blobio-menu-layered-select';
 const EXTENSION_OPTION_TOOLTIPS = {
   watermark: 'This option will display the Extension name text, alongside its current version.',
   customSkin: 'Replace one of your owned skin assets locally with a saved direct i.imgur.com image. Only you see the custom image.',
+  hideAdminMd: 'Hide the built-in [MD] tag from extension ADMIN users in chat. This is enabled by default.',
 };
 
 const DEFAULT_VIDEO = {
@@ -111,6 +113,8 @@ export class MenuFeature {
     className = DEFAULT_CLASS_NAME,
     styleId = DEFAULT_STYLE_ID,
     storage = createBlobioStorage(document),
+    roleRegistry = null,
+    uidDetector = null,
     version = DEFAULT_EXTENSION_VERSION,
     frontPageUi = true,
   } = {}) {
@@ -120,6 +124,8 @@ export class MenuFeature {
     this.className = className;
     this.styleId = styleId;
     this.storage = storage;
+    this.roleRegistry = roleRegistry;
+    this.uidDetector = uidDetector;
     this.version = version;
     this.frontPageUi = frontPageUi;
     this.started = false;
@@ -140,6 +146,8 @@ export class MenuFeature {
     this.extensionTooltip = null;
     this.documentClickHandler = null;
     this.keydownHandler = null;
+    this.unsubscribeAdminRoles = null;
+    this.unsubscribeAdminUid = null;
   }
 
   start() {
@@ -165,6 +173,7 @@ export class MenuFeature {
     this.installPolicyDock();
     this.syncCustomSkinAvailability();
     this.installExtensionSettings();
+    this.installAdminSettingTracking();
     this.installCustomSkinUi();
     this.syncWatermark();
     this.syncUsernameAnimation();
@@ -214,6 +223,10 @@ export class MenuFeature {
     this.footerModalHost = null;
     this.panelBodies.clear();
     this.clearCustomSkinNoticeTimer();
+    this.unsubscribeAdminRoles?.();
+    this.unsubscribeAdminUid?.();
+    this.unsubscribeAdminRoles = null;
+    this.unsubscribeAdminUid = null;
     this.cleanupExtensionSettings();
     this.cleanupCustomSkinUi();
 
@@ -882,14 +895,28 @@ export class MenuFeature {
           }
         },
       }),
+      this.createExtensionSwitchRow({
+        id: 'config-switch-hide-admin-md',
+        label: 'Hide MD badge',
+        description: EXTENSION_OPTION_TOOLTIPS.hideAdminMd,
+        checked: isHideAdminMdEnabled(this.storage),
+        rowClass: 'blobio-admin-only-setting-row',
+        onChange: (enabled, checkbox) => {
+          checkbox.checked = setHideAdminMdEnabled(this.storage, enabled);
+        },
+      }),
     );
 
+    this.syncAdminSettingVisibility(panel);
     return panel;
   }
 
-  createExtensionSwitchRow({ id, label, description, checked, onChange }) {
+  createExtensionSwitchRow({ id, label, description, checked, onChange, rowClass = '' }) {
     const row = this.document.createElement('div');
     row.classList.add('grid-item', 'blobio-extension-setting-row');
+    if (rowClass) {
+      row.classList.add(rowClass);
+    }
     row.setAttribute('_ngcontent-c3', '');
     if (description) {
       row.dataset.blobioTooltip = description;
@@ -981,6 +1008,49 @@ export class MenuFeature {
     if (customSkin) {
       customSkin.checked = this.isCustomSkinEnabled();
     }
+
+    const hideAdminMd = panel.querySelector?.('#config-switch-hide-admin-md');
+    if (hideAdminMd) {
+      hideAdminMd.checked = isHideAdminMdEnabled(this.storage);
+    }
+
+    this.syncAdminSettingVisibility(panel);
+  }
+
+  installAdminSettingTracking() {
+    if (!this.unsubscribeAdminRoles) {
+      this.unsubscribeAdminRoles = this.roleRegistry?.subscribe?.(() => this.syncAdminSettings()) || null;
+    }
+    if (!this.unsubscribeAdminUid) {
+      this.unsubscribeAdminUid = this.uidDetector?.subscribe?.(() => this.syncAdminSettings()) || null;
+    }
+    this.syncAdminSettings();
+  }
+
+  syncAdminSettings() {
+    for (const panel of this.document.querySelectorAll?.('.blobio-extension-settings-panel') || []) {
+      this.syncExtensionSettingsCheckboxes(panel);
+    }
+  }
+
+  syncAdminSettingVisibility(panel) {
+    const row = panel?.querySelector?.('.blobio-admin-only-setting-row');
+    if (!row) {
+      return;
+    }
+
+    const visible = this.isCurrentUserAdmin();
+    row.hidden = !visible;
+    if (visible) {
+      row.classList.remove('is-hidden');
+    } else {
+      row.classList.add('is-hidden');
+    }
+  }
+
+  isCurrentUserAdmin() {
+    const uid = this.uidDetector?.getUid?.() || '';
+    return Boolean(uid && this.roleRegistry?.isAdmin?.(uid));
   }
 
   addSettingsListener(node, type, handler) {

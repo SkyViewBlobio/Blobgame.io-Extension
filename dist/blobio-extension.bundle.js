@@ -175,31 +175,34 @@ html.${this.className} body::before {
 .blobio-vip-plus-icon {
   display: block !important;
   width: auto !important;
-  height: var(--blobio-vip-plus-size, 188px) !important;
-  max-width: 320px !important;
+  height: var(--blobio-vip-plus-size, 132px) !important;
+  max-width: 250px !important;
   margin: 0 !important;
   object-fit: contain !important;
-  transform: scale(1) !important;
+  transform: rotate(-7deg) scale(1) !important;
   transform-origin: center;
-  transition: transform 170ms ease, filter 170ms ease !important;
+  transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1), filter 680ms ease !important;
   filter: drop-shadow(0 0 10px rgba(255, 196, 55, 0.34));
   cursor: pointer;
   pointer-events: auto !important;
 }
 
 .blobio-vip-plus-icon:hover {
-  transform: scale(1.06) !important;
-  filter: drop-shadow(0 0 15px rgba(255, 204, 72, 0.52));
+  transform: rotate(-7deg) scale(1.06) !important;
+  filter: drop-shadow(0 0 19px rgba(255, 204, 72, 0.68));
 }
 
 .blobio-vip-plus-time {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  max-width: 88%;
-  transform: translate(-50%, -50%);
+  left: 72%;
+  top: 79%;
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  max-width: 92%;
+  transform: translate(-50%, -50%) rotate(4deg);
   color: #f4fff6;
-  font-size: clamp(11px, calc(var(--blobio-vip-plus-size, 188px) * 0.09), 25px);
+  font-size: clamp(10px, calc(var(--blobio-vip-plus-size, 132px) * 0.085), 21px);
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -212,12 +215,24 @@ html.${this.className} body::before {
 .blobio-vip-plus-time.is-unlimited {
   color: #fff7cf;
   text-shadow: 0 0 5px rgba(255, 255, 255, 0.95), 0 0 11px rgba(255, 211, 73, 0.92), 0 0 23px rgba(255, 174, 30, 0.7);
-  animation: blobio-vip-unlimited-pulse 2400ms ease-in-out infinite;
+  animation: blobio-vip-unlimited-pulse 2800ms ease-in-out infinite;
+}
+
+.blobio-vip-plus-time-letter {
+  display: inline-block;
+  transform: translateY(var(--blobio-vip-letter-y, 0px)) rotate(var(--blobio-vip-letter-rotate, 0deg));
+  transform-origin: center bottom;
 }
 
 @keyframes blobio-vip-unlimited-pulse {
-  0%, 100% { opacity: 0.82; transform: translate(-50%, -50%) scale(0.97); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
+  0%, 100% {
+    opacity: 0.84;
+    transform: translate(-50%, -50%) rotate(4deg) scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(4deg) scale(1.04);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -247,15 +262,15 @@ html.${this.className} body::before {
 
 #chat .blobio-chat-admin-tag {
   color: rgb(0, 255, 0) !important;
-  text-decoration: underline !important;
-  text-underline-offset: 2px;
+  font-style: italic !important;
+  text-decoration: none !important;
   text-shadow: 0 0 7px rgba(0, 255, 0, 0.72);
 }
 
 #chat .blobio-chat-admin-username {
   font-weight: 800 !important;
-  text-decoration: underline !important;
-  text-underline-offset: 2px;
+  font-style: italic !important;
+  text-decoration: none !important;
 }
 
 #chat .blobio-chat-admin-message {
@@ -265,7 +280,8 @@ html.${this.className} body::before {
   text-underline-offset: 2px;
 }
 
-#chat .blobio-chat-built-in-vip-hidden {
+#chat .blobio-chat-built-in-vip-hidden,
+#chat .blobio-chat-built-in-md-hidden {
   display: none !important;
 }
 `;
@@ -674,16 +690,38 @@ html.${this.className} body::before {
     adminCache: ADMIN_CACHE_KEY
   };
 
+  // src/roles/RoleSettings.js
+  var HIDE_ADMIN_MD_STORAGE_KEY = "blobio.roles.hideAdminMd";
+  function isHideAdminMdEnabled(storage) {
+    try {
+      const value = storage?.getItem?.(HIDE_ADMIN_MD_STORAGE_KEY);
+      return value === null || value === void 0 ? true : value === "1";
+    } catch {
+      return true;
+    }
+  }
+  function setHideAdminMdEnabled(storage, enabled) {
+    try {
+      storage?.setItem?.(HIDE_ADMIN_MD_STORAGE_KEY, enabled ? "1" : "0");
+      return Boolean(enabled);
+    } catch {
+      return isHideAdminMdEnabled(storage);
+    }
+  }
+
   // src/features/ChatRoleFeature.js
   var EXTENSION_TAG_CLASS = "blobio-extension-chat-tag";
+  var MESSAGE_BODY_CLASS = "blobio-chat-message-body";
   var ChatRoleFeature = class {
     constructor({
       document = globalThis.document,
       roleRegistry,
+      storage = createBlobioStorage(document),
       logger = console
     } = {}) {
       this.document = document;
       this.roleRegistry = roleRegistry;
+      this.storage = storage;
       this.logger = logger;
       this.styleNode = null;
       this.pageObserver = null;
@@ -802,7 +840,8 @@ html.${this.className} body::before {
         vip: { active: false },
         admin: false
       };
-      const signature = `${uid}:${roles.admin ? 1 : 0}:${roles.vip.active ? 1 : 0}`;
+      const hideAdminMd = isHideAdminMdEnabled(this.storage);
+      const signature = `${uid}:${roles.admin ? 1 : 0}:${roles.vip.active ? 1 : 0}:${hideAdminMd ? 1 : 0}`;
       if (!force && message.dataset.blobioRoleSignature === signature) {
         return;
       }
@@ -816,12 +855,20 @@ html.${this.className} body::before {
       const messageIndex = spans.indexOf(messageSpan);
       const builtInTags = messageIndex > 1 ? spans.slice(1, messageIndex) : [];
       for (const tag of builtInTags) {
-        if (String(tag.textContent || "").trim() === "[VIP]") {
+        const text = String(tag.textContent || "").trim();
+        if (text === "[VIP]") {
           this.toggleClass(tag, "blobio-chat-built-in-vip-hidden", roles.vip.active);
+        }
+        if (text === "[MD]") {
+          this.toggleClass(tag, "blobio-chat-built-in-md-hidden", roles.admin && hideAdminMd);
         }
       }
       this.toggleClass(username, "blobio-chat-admin-username", roles.admin);
-      this.toggleClass(messageSpan, "blobio-chat-admin-message", roles.admin);
+      this.toggleClass(messageSpan, "blobio-chat-admin-message", false);
+      const messageBody = this.getMessageBody(messageSpan, roles.admin);
+      if (messageBody) {
+        this.toggleClass(messageBody, "blobio-chat-admin-message", roles.admin);
+      }
       if (roles.admin) {
         message.insertBefore(this.createTag(" [ADMIN]", "blobio-chat-admin-tag"), messageSpan);
       }
@@ -833,6 +880,45 @@ html.${this.className} body::before {
         message.insertBefore(vipTag, messageSpan);
       }
       message.dataset.blobioRoleSignature = signature;
+    }
+    getMessageBody(messageSpan, create) {
+      if (!messageSpan) {
+        return null;
+      }
+      const existing = Array.from(messageSpan.children || []).find((child) => child.classList?.contains?.(MESSAGE_BODY_CLASS));
+      if (existing || !create) {
+        return existing || null;
+      }
+      const body = this.document.createElement("span");
+      body.classList.add(MESSAGE_BODY_CLASS);
+      const childNodes = Array.from(messageSpan.childNodes || []);
+      for (let index = 0; index < childNodes.length; index += 1) {
+        const node = childNodes[index];
+        if (node?.nodeType !== 3) {
+          continue;
+        }
+        const match2 = String(node.nodeValue || "").match(/^(\s*:\s*)([\s\S]*)$/);
+        if (!match2) {
+          continue;
+        }
+        node.nodeValue = match2[1];
+        if (match2[2]) {
+          body.appendChild(this.document.createTextNode(match2[2]));
+        }
+        for (const following of childNodes.slice(index + 1)) {
+          body.appendChild(following);
+        }
+        messageSpan.appendChild(body);
+        return body;
+      }
+      const match = String(messageSpan.textContent || "").match(/^(\s*:\s*)([\s\S]*)$/);
+      if (!match) {
+        return null;
+      }
+      messageSpan.textContent = match[1];
+      body.textContent = match[2];
+      messageSpan.appendChild(body);
+      return body;
     }
     createTag(text, className) {
       const tag = this.document.createElement("span");
@@ -1615,6 +1701,10 @@ html.${className} app-settings .blobio-extension-setting-row {
   box-shadow: 0 0 14px rgba(79, 255, 130, 0.18), inset 0 0 10px rgba(79, 255, 130, 0.1);
 }
 
+html.${className} app-settings .blobio-admin-only-setting-row.is-hidden {
+  display: none !important;
+}
+
 html.${className} app-settings .blobio-extension-setting-row .slider {
   border: 1px solid rgba(214, 255, 224, 0.72);
   background-color: rgba(23, 96, 48, 0.86);
@@ -2050,7 +2140,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.49";
+  var DEFAULT_EXTENSION_VERSION = "0.1.50";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -2074,7 +2164,8 @@ html.${className} .blobio-watermark-extension::after {
   var MAIN_MENU_LAYERED_SELECT_CLASS = "blobio-menu-layered-select";
   var EXTENSION_OPTION_TOOLTIPS = {
     watermark: "This option will display the Extension name text, alongside its current version.",
-    customSkin: "Replace one of your owned skin assets locally with a saved direct i.imgur.com image. Only you see the custom image."
+    customSkin: "Replace one of your owned skin assets locally with a saved direct i.imgur.com image. Only you see the custom image.",
+    hideAdminMd: "Hide the built-in [MD] tag from extension ADMIN users in chat. This is enabled by default."
   };
   var DEFAULT_VIDEO = {
     title: "Featured Blob.io Video",
@@ -2152,6 +2243,8 @@ html.${className} .blobio-watermark-extension::after {
       className = DEFAULT_CLASS_NAME2,
       styleId = DEFAULT_STYLE_ID2,
       storage = createBlobioStorage(document),
+      roleRegistry = null,
+      uidDetector = null,
       version = DEFAULT_EXTENSION_VERSION,
       frontPageUi = true
     } = {}) {
@@ -2161,6 +2254,8 @@ html.${className} .blobio-watermark-extension::after {
       this.className = className;
       this.styleId = styleId;
       this.storage = storage;
+      this.roleRegistry = roleRegistry;
+      this.uidDetector = uidDetector;
       this.version = version;
       this.frontPageUi = frontPageUi;
       this.started = false;
@@ -2181,6 +2276,8 @@ html.${className} .blobio-watermark-extension::after {
       this.extensionTooltip = null;
       this.documentClickHandler = null;
       this.keydownHandler = null;
+      this.unsubscribeAdminRoles = null;
+      this.unsubscribeAdminUid = null;
     }
     start() {
       if (this.started) {
@@ -2202,6 +2299,7 @@ html.${className} .blobio-watermark-extension::after {
       this.installPolicyDock();
       this.syncCustomSkinAvailability();
       this.installExtensionSettings();
+      this.installAdminSettingTracking();
       this.installCustomSkinUi();
       this.syncWatermark();
       this.syncUsernameAnimation();
@@ -2242,6 +2340,10 @@ html.${className} .blobio-watermark-extension::after {
       this.footerModalHost = null;
       this.panelBodies.clear();
       this.clearCustomSkinNoticeTimer();
+      this.unsubscribeAdminRoles?.();
+      this.unsubscribeAdminUid?.();
+      this.unsubscribeAdminRoles = null;
+      this.unsubscribeAdminUid = null;
       this.cleanupExtensionSettings();
       this.cleanupCustomSkinUi();
       for (const node of this.hiddenOriginalNodes) {
@@ -2782,13 +2884,27 @@ html.${className} .blobio-watermark-extension::after {
               this.warnIfOwnedSkinIsMissing();
             }
           }
+        }),
+        this.createExtensionSwitchRow({
+          id: "config-switch-hide-admin-md",
+          label: "Hide MD badge",
+          description: EXTENSION_OPTION_TOOLTIPS.hideAdminMd,
+          checked: isHideAdminMdEnabled(this.storage),
+          rowClass: "blobio-admin-only-setting-row",
+          onChange: (enabled, checkbox) => {
+            checkbox.checked = setHideAdminMdEnabled(this.storage, enabled);
+          }
         })
       );
+      this.syncAdminSettingVisibility(panel);
       return panel;
     }
-    createExtensionSwitchRow({ id, label, description, checked, onChange }) {
+    createExtensionSwitchRow({ id, label, description, checked, onChange, rowClass = "" }) {
       const row = this.document.createElement("div");
       row.classList.add("grid-item", "blobio-extension-setting-row");
+      if (rowClass) {
+        row.classList.add(rowClass);
+      }
       row.setAttribute("_ngcontent-c3", "");
       if (description) {
         row.dataset.blobioTooltip = description;
@@ -2860,6 +2976,42 @@ html.${className} .blobio-watermark-extension::after {
       if (customSkin) {
         customSkin.checked = this.isCustomSkinEnabled();
       }
+      const hideAdminMd = panel.querySelector?.("#config-switch-hide-admin-md");
+      if (hideAdminMd) {
+        hideAdminMd.checked = isHideAdminMdEnabled(this.storage);
+      }
+      this.syncAdminSettingVisibility(panel);
+    }
+    installAdminSettingTracking() {
+      if (!this.unsubscribeAdminRoles) {
+        this.unsubscribeAdminRoles = this.roleRegistry?.subscribe?.(() => this.syncAdminSettings()) || null;
+      }
+      if (!this.unsubscribeAdminUid) {
+        this.unsubscribeAdminUid = this.uidDetector?.subscribe?.(() => this.syncAdminSettings()) || null;
+      }
+      this.syncAdminSettings();
+    }
+    syncAdminSettings() {
+      for (const panel of this.document.querySelectorAll?.(".blobio-extension-settings-panel") || []) {
+        this.syncExtensionSettingsCheckboxes(panel);
+      }
+    }
+    syncAdminSettingVisibility(panel) {
+      const row = panel?.querySelector?.(".blobio-admin-only-setting-row");
+      if (!row) {
+        return;
+      }
+      const visible = this.isCurrentUserAdmin();
+      row.hidden = !visible;
+      if (visible) {
+        row.classList.remove("is-hidden");
+      } else {
+        row.classList.add("is-hidden");
+      }
+    }
+    isCurrentUserAdmin() {
+      const uid = this.uidDetector?.getUid?.() || "";
+      return Boolean(uid && this.roleRegistry?.isAdmin?.(uid));
     }
     addSettingsListener(node, type, handler) {
       node.addEventListener?.(type, handler);
@@ -4020,7 +4172,8 @@ html.${className} .blobio-watermark-extension::after {
 
   // src/features/VipBadgeFeature.js
   var VIP_REFRESH_INTERVAL_MS = 3e4;
-  var VIP_SIZE_MULTIPLIER = 3.75;
+  var VIP_SIZE_MULTIPLIER = 2.625;
+  var UNLIMITED_TEXT = "UNLIMITED";
   function formatVipRemainingTime(remainingMs) {
     const totalMinutes = Math.max(0, Math.ceil(Number(remainingMs) / 6e4));
     const days = Math.floor(totalMinutes / 1440);
@@ -4203,15 +4356,48 @@ html.${className} .blobio-watermark-extension::after {
         this.setStyle(this.slot, "--blobio-vip-plus-left", `${Math.round(right + 10)}px`);
         this.setStyle(this.slot, "--blobio-vip-plus-top", `${Math.round(top + height / 2)}px`);
       }
-      const nextText = status.unlimited ? "UNLIMITED" : formatVipRemainingTime(status.remainingMs);
-      if (this.timeLabel.textContent !== nextText) {
-        this.timeLabel.textContent = nextText;
+      const nextText = status.unlimited ? UNLIMITED_TEXT : formatVipRemainingTime(status.remainingMs);
+      this.updateTimeLabel(nextText, status.unlimited);
+    }
+    updateTimeLabel(text, unlimited) {
+      if (!this.timeLabel) {
+        return;
       }
-      const hasUnlimitedClass = this.timeLabel.classList.contains?.("is-unlimited");
-      if (status.unlimited && !hasUnlimitedClass) {
+      const currentText = this.timeLabel.dataset.blobioTimeText || "";
+      const currentMode = this.timeLabel.dataset.blobioTimeMode || "";
+      const nextMode = unlimited ? "unlimited" : "timed";
+      if (currentText === text && currentMode === nextMode) {
+        return;
+      }
+      this.timeLabel.dataset.blobioTimeText = text;
+      this.timeLabel.dataset.blobioTimeMode = nextMode;
+      this.clearTimeLabel();
+      if (unlimited) {
         this.timeLabel.classList.add("is-unlimited");
-      } else if (!status.unlimited && hasUnlimitedClass) {
-        this.timeLabel.classList.remove("is-unlimited");
+        this.renderCurvedUnlimited(text);
+        return;
+      }
+      this.timeLabel.classList.remove("is-unlimited");
+      this.timeLabel.textContent = text;
+    }
+    clearTimeLabel() {
+      for (const child of Array.from(this.timeLabel?.children || [])) {
+        child.remove?.();
+      }
+      if (this.timeLabel) {
+        this.timeLabel.textContent = "";
+      }
+    }
+    renderCurvedUnlimited(text) {
+      const center = (text.length - 1) / 2;
+      for (let index = 0; index < text.length; index += 1) {
+        const distance = index - center;
+        const letter = this.document.createElement("span");
+        letter.classList.add("blobio-vip-plus-time-letter");
+        letter.textContent = text[index];
+        this.setStyle(letter, "--blobio-vip-letter-y", `${Math.round(distance * distance * 0.45)}px`);
+        this.setStyle(letter, "--blobio-vip-letter-rotate", `${(distance * 1.5).toFixed(1)}deg`);
+        this.timeLabel.appendChild(letter);
       }
     }
     findMassBooster() {
@@ -4324,25 +4510,47 @@ html.${className} .blobio-watermark-extension::after {
   // src/roles/ProfileUidDetector.js
   var PROFILE_MODAL_SELECTOR = "#profile-modal";
   var PROFILE_UID_CLASS = "profile-records-title-userid";
+  var ACCESS_TOKEN_KEY = "access-token";
+  var TOKEN_CHECK_INTERVAL_MS = 1e3;
   function parseProfileUid(value) {
     const match = String(value ?? "").match(/\bID\s*:\s*([\d\s]+)/i);
     return normalizeUid(match?.[1] || "");
+  }
+  function parseAccessTokenUid(token, decodeBase64 = globalThis.atob) {
+    const parts = String(token || "").split(".");
+    if (parts.length < 2 || typeof decodeBase64 !== "function") {
+      return "";
+    }
+    try {
+      const normalized = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+      const payload = JSON.parse(decodeBase64(padded));
+      return normalizeUid(payload?.userId ?? payload?.user_id ?? "");
+    } catch {
+      return "";
+    }
   }
   var ProfileUidDetector = class {
     constructor({
       document = globalThis.document,
       storage = createBlobioStorage(document),
-      logger = console
+      logger = console,
+      tokenCheckIntervalMs = TOKEN_CHECK_INTERVAL_MS
     } = {}) {
       this.document = document;
       this.storage = storage;
       this.logger = logger;
+      this.tokenCheckIntervalMs = tokenCheckIntervalMs;
       this.uid = normalizeUid(storage.getItem(ROLE_STORAGE_KEYS.ownUid));
+      this.uidSource = this.uid ? "cache" : "";
       this.listeners = /* @__PURE__ */ new Set();
       this.pageObserver = null;
       this.profileObserver = null;
       this.profileModal = null;
       this.clickHandler = null;
+      this.storageHandler = null;
+      this.tokenInterval = null;
+      this.lastAccessToken = null;
       this.started = false;
     }
     start() {
@@ -4350,8 +4558,10 @@ html.${className} .blobio-watermark-extension::after {
         return true;
       }
       this.started = true;
+      this.syncFromAccessToken(true);
       this.attachProfileModal(this.document.querySelector?.(PROFILE_MODAL_SELECTOR));
       this.observeForProfileModal();
+      this.installAccessTokenTracking();
       this.installSignOutHandler();
       return true;
     }
@@ -4370,13 +4580,79 @@ html.${className} .blobio-watermark-extension::after {
     captureFromProfile(root = this.profileModal || this.document) {
       const node = root?.classList?.contains?.(PROFILE_UID_CLASS) ? root : root?.querySelector?.(`.${PROFILE_UID_CLASS}`) || this.document.querySelector?.(`${PROFILE_MODAL_SELECTOR} .${PROFILE_UID_CLASS}`);
       const uid = parseProfileUid(node?.textContent);
-      if (!uid || uid === this.uid) {
+      if (!uid) {
         return false;
       }
-      this.uid = uid;
-      this.storage.setItem(ROLE_STORAGE_KEYS.ownUid, uid);
-      this.notify();
-      return true;
+      return this.updateUid(uid, "profile");
+    }
+    syncFromAccessToken(initial = false) {
+      let token = "";
+      try {
+        token = String(this.storage?.getItem?.(ACCESS_TOKEN_KEY) || "").trim();
+      } catch {
+        return false;
+      }
+      if (!initial && token === this.lastAccessToken) {
+        return false;
+      }
+      const previousToken = this.lastAccessToken;
+      this.lastAccessToken = token;
+      if (token) {
+        const win = this.document.defaultView || globalThis;
+        const uid = parseAccessTokenUid(token, win.atob || globalThis.atob);
+        return uid ? this.updateUid(uid, "token") : false;
+      }
+      if (initial && this.uidSource === "cache") {
+        return this.clearUid();
+      }
+      if (previousToken) {
+        return this.clearUid();
+      }
+      return false;
+    }
+    installAccessTokenTracking() {
+      const win = this.document.defaultView || globalThis;
+      if (typeof win.setInterval === "function") {
+        this.tokenInterval = win.setInterval(
+          () => this.syncFromAccessToken(),
+          this.tokenCheckIntervalMs
+        );
+      }
+      if (typeof win.addEventListener === "function") {
+        this.storageHandler = (event) => {
+          if (!event || event.key === ACCESS_TOKEN_KEY) {
+            this.syncFromAccessToken();
+          }
+        };
+        win.addEventListener("storage", this.storageHandler);
+      }
+    }
+    updateUid(uid, source) {
+      const normalized = normalizeUid(uid);
+      if (!normalized) {
+        return false;
+      }
+      const changed = normalized !== this.uid;
+      this.uid = normalized;
+      this.uidSource = source;
+      this.storage.setItem(ROLE_STORAGE_KEYS.ownUid, normalized);
+      if (changed) {
+        this.notify();
+      }
+      return changed;
+    }
+    clearUid() {
+      if (!this.uid && !this.uidSource) {
+        return false;
+      }
+      const changed = Boolean(this.uid);
+      this.uid = "";
+      this.uidSource = "";
+      this.storage.removeItem(ROLE_STORAGE_KEYS.ownUid);
+      if (changed) {
+        this.notify();
+      }
+      return changed;
     }
     observeForProfileModal() {
       const MutationObserver = this.document.defaultView?.MutationObserver || globalThis.MutationObserver;
@@ -4447,9 +4723,8 @@ html.${className} .blobio-watermark-extension::after {
         if (!target?.classList?.contains?.("sign-out-link")) {
           return;
         }
-        this.uid = "";
-        this.storage.removeItem(ROLE_STORAGE_KEYS.ownUid);
-        this.notify();
+        this.lastAccessToken = "";
+        this.clearUid();
       };
       this.document.addEventListener?.("click", this.clickHandler);
     }
@@ -4468,6 +4743,15 @@ html.${className} .blobio-watermark-extension::after {
       this.pageObserver = null;
       this.profileObserver = null;
       this.profileModal = null;
+      const win = this.document.defaultView || globalThis;
+      if (this.tokenInterval !== null) {
+        win.clearInterval?.(this.tokenInterval);
+        this.tokenInterval = null;
+      }
+      if (this.storageHandler) {
+        win.removeEventListener?.("storage", this.storageHandler);
+        this.storageHandler = null;
+      }
       if (this.clickHandler) {
         this.document.removeEventListener?.("click", this.clickHandler);
         this.clickHandler = null;
@@ -4520,8 +4804,15 @@ html.${className} .blobio-watermark-extension::after {
         const uidDetector = new ProfileUidDetector({ document, logger });
         this.features.push(
           new BackgroundFeature({ document, backgroundUrl: background_default, logger }),
-          new MenuFeature({ document, logger, assets: menuAssets, frontPageUi: true }),
           uidDetector,
+          new MenuFeature({
+            document,
+            logger,
+            assets: menuAssets,
+            frontPageUi: true,
+            roleRegistry: this.roleRegistry,
+            uidDetector
+          }),
           new VipBadgeFeature({
             document,
             logger,

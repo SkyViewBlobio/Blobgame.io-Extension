@@ -3,10 +3,28 @@ import { normalizeUid, ROLE_STORAGE_KEYS } from './RoleRegistry.js';
 
 const PROFILE_MODAL_SELECTOR = '#profile-modal';
 const PROFILE_UID_CLASS = 'profile-records-title-userid';
+const ACCESS_TOKEN_KEY = 'access-token';
+const TOKEN_CHECK_INTERVAL_MS = 1000;
 
 export function parseProfileUid(value) {
   const match = String(value ?? '').match(/\bID\s*:\s*([\d\s]+)/i);
   return normalizeUid(match?.[1] || '');
+}
+
+export function parseAccessTokenUid(token, decodeBase64 = globalThis.atob) {
+  const parts = String(token || '').split('.');
+  if (parts.length < 2 || typeof decodeBase64 !== 'function') {
+    return '';
+  }
+
+  try {
+    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const payload = JSON.parse(decodeBase64(padded));
+    return normalizeUid(payload?.userId ?? payload?.user_id ?? '');
+  } catch {
+    return '';
+  }
 }
 
 export class ProfileUidDetector {
@@ -14,16 +32,22 @@ export class ProfileUidDetector {
     document = globalThis.document,
     storage = createBlobioStorage(document),
     logger = console,
+    tokenCheckIntervalMs = TOKEN_CHECK_INTERVAL_MS,
   } = {}) {
     this.document = document;
     this.storage = storage;
     this.logger = logger;
+    this.tokenCheckIntervalMs = tokenCheckIntervalMs;
     this.uid = normalizeUid(storage.getItem(ROLE_STORAGE_KEYS.ownUid));
+    this.uidSource = this.uid ? 'cache' : '';
     this.listeners = new Set();
     this.pageObserver = null;
     this.profileObserver = null;
     this.profileModal = null;
     this.clickHandler = null;
+    this.storageHandler = null;
+    this.tokenInterval = null;
+    this.lastAccessToken = null;
     this.started = false;
   }
 
@@ -33,8 +57,10 @@ export class ProfileUidDetector {
     }
 
     this.started = true;
+    this.syncFromAccessToken(true);
     this.attachProfileModal(this.document.querySelector?.(PROFILE_MODAL_SELECTOR));
     this.observeForProfileModal();
+    this.installAccessTokenTracking();
     this.installSignOutHandler();
     return true;
   }
@@ -59,14 +85,98 @@ export class ProfileUidDetector {
       : root?.querySelector?.(`.${PROFILE_UID_CLASS}`)
         || this.document.querySelector?.(`${PROFILE_MODAL_SELECTOR} .${PROFILE_UID_CLASS}`);
     const uid = parseProfileUid(node?.textContent);
-    if (!uid || uid === this.uid) {
+    if (!uid) {
       return false;
     }
 
-    this.uid = uid;
-    this.storage.setItem(ROLE_STORAGE_KEYS.ownUid, uid);
-    this.notify();
-    return true;
+    return this.updateUid(uid, 'profile');
+  }
+
+  syncFromAccessToken(initial = false) {
+    let token = '';
+    try {
+      token = String(this.storage?.getItem?.(ACCESS_TOKEN_KEY) || '').trim();
+    } catch {
+      return false;
+    }
+
+    if (!initial && token === this.lastAccessToken) {
+      return false;
+    }
+
+    const previousToken = this.lastAccessToken;
+    this.lastAccessToken = token;
+
+    if (token) {
+      const win = this.document.defaultView || globalThis;
+      const uid = parseAccessTokenUid(token, win.atob || globalThis.atob);
+      return uid ? this.updateUid(uid, 'token') : false;
+    }
+
+    if (initial && this.uidSource === 'cache') {
+      return this.clearUid();
+    }
+
+    if (previousToken) {
+      return this.clearUid();
+    }
+
+    return false;
+  }
+
+  installAccessTokenTracking() {
+    const win = this.document.defaultView || globalThis;
+
+    if (typeof win.setInterval === 'function') {
+      this.tokenInterval = win.setInterval(
+        () => this.syncFromAccessToken(),
+        this.tokenCheckIntervalMs,
+      );
+    }
+
+    if (typeof win.addEventListener === 'function') {
+      this.storageHandler = (event) => {
+        if (!event || event.key === ACCESS_TOKEN_KEY) {
+          this.syncFromAccessToken();
+        }
+      };
+      win.addEventListener('storage', this.storageHandler);
+    }
+  }
+
+  updateUid(uid, source) {
+    const normalized = normalizeUid(uid);
+    if (!normalized) {
+      return false;
+    }
+
+    const changed = normalized !== this.uid;
+    this.uid = normalized;
+    this.uidSource = source;
+    this.storage.setItem(ROLE_STORAGE_KEYS.ownUid, normalized);
+
+    if (changed) {
+      this.notify();
+    }
+
+    return changed;
+  }
+
+  clearUid() {
+    if (!this.uid && !this.uidSource) {
+      return false;
+    }
+
+    const changed = Boolean(this.uid);
+    this.uid = '';
+    this.uidSource = '';
+    this.storage.removeItem(ROLE_STORAGE_KEYS.ownUid);
+
+    if (changed) {
+      this.notify();
+    }
+
+    return changed;
   }
 
   observeForProfileModal() {
@@ -155,9 +265,8 @@ export class ProfileUidDetector {
         return;
       }
 
-      this.uid = '';
-      this.storage.removeItem(ROLE_STORAGE_KEYS.ownUid);
-      this.notify();
+      this.lastAccessToken = '';
+      this.clearUid();
     };
 
     this.document.addEventListener?.('click', this.clickHandler);
@@ -179,6 +288,16 @@ export class ProfileUidDetector {
     this.pageObserver = null;
     this.profileObserver = null;
     this.profileModal = null;
+
+    const win = this.document.defaultView || globalThis;
+    if (this.tokenInterval !== null) {
+      win.clearInterval?.(this.tokenInterval);
+      this.tokenInterval = null;
+    }
+    if (this.storageHandler) {
+      win.removeEventListener?.('storage', this.storageHandler);
+      this.storageHandler = null;
+    }
 
     if (this.clickHandler) {
       this.document.removeEventListener?.('click', this.clickHandler);

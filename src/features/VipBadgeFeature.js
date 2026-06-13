@@ -1,7 +1,8 @@
 import { VIP_BADGE_CSS, VIP_BADGE_STYLE_ID } from '../css/RoleFeatureStyles.js';
 
 const VIP_REFRESH_INTERVAL_MS = 30000;
-const VIP_SIZE_MULTIPLIER = 3.75;
+const VIP_SIZE_MULTIPLIER = 2.625;
+const UNLIMITED_TEXT = 'UNLIMITED';
 
 export function formatVipRemainingTime(remainingMs) {
   const totalMinutes = Math.max(0, Math.ceil(Number(remainingMs) / 60000));
@@ -221,16 +222,56 @@ export class VipBadgeFeature {
       this.setStyle(this.slot, '--blobio-vip-plus-top', `${Math.round(top + height / 2)}px`);
     }
 
-    const nextText = status.unlimited ? 'UNLIMITED' : formatVipRemainingTime(status.remainingMs);
-    if (this.timeLabel.textContent !== nextText) {
-      this.timeLabel.textContent = nextText;
+    const nextText = status.unlimited ? UNLIMITED_TEXT : formatVipRemainingTime(status.remainingMs);
+    this.updateTimeLabel(nextText, status.unlimited);
+  }
+
+  updateTimeLabel(text, unlimited) {
+    if (!this.timeLabel) {
+      return;
     }
 
-    const hasUnlimitedClass = this.timeLabel.classList.contains?.('is-unlimited');
-    if (status.unlimited && !hasUnlimitedClass) {
+    const currentText = this.timeLabel.dataset.blobioTimeText || '';
+    const currentMode = this.timeLabel.dataset.blobioTimeMode || '';
+    const nextMode = unlimited ? 'unlimited' : 'timed';
+    if (currentText === text && currentMode === nextMode) {
+      return;
+    }
+
+    this.timeLabel.dataset.blobioTimeText = text;
+    this.timeLabel.dataset.blobioTimeMode = nextMode;
+    this.clearTimeLabel();
+
+    if (unlimited) {
       this.timeLabel.classList.add('is-unlimited');
-    } else if (!status.unlimited && hasUnlimitedClass) {
-      this.timeLabel.classList.remove('is-unlimited');
+      this.renderCurvedUnlimited(text);
+      return;
+    }
+
+    this.timeLabel.classList.remove('is-unlimited');
+    this.timeLabel.textContent = text;
+  }
+
+  clearTimeLabel() {
+    for (const child of Array.from(this.timeLabel?.children || [])) {
+      child.remove?.();
+    }
+    if (this.timeLabel) {
+      this.timeLabel.textContent = '';
+    }
+  }
+
+  renderCurvedUnlimited(text) {
+    const center = (text.length - 1) / 2;
+
+    for (let index = 0; index < text.length; index += 1) {
+      const distance = index - center;
+      const letter = this.document.createElement('span');
+      letter.classList.add('blobio-vip-plus-time-letter');
+      letter.textContent = text[index];
+      this.setStyle(letter, '--blobio-vip-letter-y', `${Math.round(distance * distance * 0.45)}px`);
+      this.setStyle(letter, '--blobio-vip-letter-rotate', `${(distance * 1.5).toFixed(1)}deg`);
+      this.timeLabel.appendChild(letter);
     }
   }
 
