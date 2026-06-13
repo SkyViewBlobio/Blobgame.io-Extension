@@ -83,7 +83,7 @@ export class CustomSkinOverlayFeature {
   injectPageOverlayRefresh(nextState) {
     const script = this.document.createElement('script');
     script.dataset.blobioCustomSkinOverlayRefresh = 'true';
-    script.textContent = `;(() => {\n  const state = ${JSON.stringify(nextState)};\n  window.__blobioCustomSkinOverlayV16?.refresh?.(state);\n})();`;
+    script.textContent = `;(() => {\n  const state = ${JSON.stringify(nextState)};\n  window.__blobioCustomSkinOverlayV17?.refresh?.(state);\n})();`;
     (this.document.documentElement || this.document.head || this.document.body)?.appendChild?.(script);
     script.remove();
   }
@@ -274,7 +274,7 @@ function pageOverlayMain(initialState) {
   const DEBUG_LIMIT = 700;
   const SCREEN_CIRCLE_LIMIT = 300;
   const SCREEN_CIRCLE_MAX_AGE_MS = 180;
-  const CELL_BORDER_OVERDRAW = 1.08;
+  const CELL_BORDER_OVERDRAW = 1.02;
   const MIN_CELL_SCREEN_RADIUS = 6;
   const OWN_CLUSTER_MAX_AGE_MS = 650;
   const OWN_CLUSTER_LIMIT = 32;
@@ -285,12 +285,15 @@ function pageOverlayMain(initialState) {
   const SIBLING_MAX_DISTANCE_FACTOR = 34;
   const WEBGL_MATRIX_MAX_AGE_MS = 500;
   const WEBGL_MATRIX_LIMIT = 96;
-  const ZOOM_FACTOR_STORAGE_KEY = 'blobio.customSkin.overlayZoomFactorV16';
+  const SHORT_MODE_LOCK_THRESHOLD = 3;
+  const RENDER_SMOOTHING_MS = 55;
+  const RENDER_SNAP_DISTANCE = 1400;
+  const ZOOM_FACTOR_STORAGE_KEY = 'blobio.customSkin.overlayZoomFactorV17';
   const ZOOM_FACTOR_MIN = 0.25;
   const ZOOM_FACTOR_MAX = 4;
 
-  if (window.__blobioCustomSkinOverlayV16) {
-    window.__blobioCustomSkinOverlayV16.refresh?.(initialState);
+  if (window.__blobioCustomSkinOverlayV17) {
+    window.__blobioCustomSkinOverlayV17.refresh?.(initialState);
     return;
   }
 
@@ -359,6 +362,11 @@ function pageOverlayMain(initialState) {
     webglHookCount: 0,
     siblingOwnCandidates: [],
     siblingOwnMatches: [],
+    packetMode: 'auto',
+    shortModeConfidence: 0,
+    ignoredNonShortPackets: 0,
+    rejectedUpdateRecords: 0,
+    visualNodes: new Map(),
     };
 
   function refresh(nextState) {
@@ -859,13 +867,18 @@ function pageOverlayMain(initialState) {
     }));
     state.siblingOwnMatches = state.ownClusterMatches;
 
-    state.ownRenderNodes = renderNodes.map((node) => ({
+    const smoothedNodes = renderNodes.map((node) => smoothRenderNode(node, now));
+
+    state.ownRenderNodes = smoothedNodes.map((node) => ({
       id: node.id,
       rawId: node.rawId ?? null,
       ownership: node.ownership || 'confirmed',
       x: Math.round(node.x),
       y: Math.round(node.y),
       size: Math.round(node.size),
+      targetX: Math.round(node.targetX ?? node.x),
+      targetY: Math.round(node.targetY ?? node.y),
+      targetSize: Math.round(node.targetSize ?? node.size),
       flags: node.flags || 0,
       extra: Number.isFinite(node.extra) ? node.extra : null,
       name: node.name || '',
@@ -873,7 +886,7 @@ function pageOverlayMain(initialState) {
       inferScore: node.inferScore ?? null,
     }));
 
-    return renderNodes;
+    return smoothedNodes;
   }
 
   function updateSiblingOwnershipCandidates(records, protocol) {
@@ -977,6 +990,46 @@ function pageOverlayMain(initialState) {
         state.siblingOwnIds.delete(id);
       }
     }
+  }
+
+  function smoothRenderNode(node, now = performance.now()) {
+    const targetX = Number(node.x);
+    const targetY = Number(node.y);
+    const targetSize = Number(node.size);
+    let visual = state.visualNodes.get(node.id);
+
+    if (!visual || !Number.isFinite(visual.x) || !Number.isFinite(visual.y) || !Number.isFinite(visual.size)) {
+      visual = { x: targetX, y: targetY, size: targetSize, t: now };
+      state.visualNodes.set(node.id, visual);
+      return { ...node, targetX, targetY, targetSize };
+    }
+
+    const elapsed = now - visual.t;
+    const dt = Math.max(0, Math.min(80, elapsed));
+    const distance = Math.hypot(targetX - visual.x, targetY - visual.y);
+    const snapDistance = Math.max(RENDER_SNAP_DISTANCE, targetSize * 18);
+
+    if (distance > snapDistance || elapsed > 500) {
+      visual.x = targetX;
+      visual.y = targetY;
+      visual.size = targetSize;
+    } else {
+      const alpha = 1 - Math.exp(-dt / RENDER_SMOOTHING_MS);
+      visual.x += (targetX - visual.x) * alpha;
+      visual.y += (targetY - visual.y) * alpha;
+      visual.size += (targetSize - visual.size) * alpha;
+    }
+
+    visual.t = now;
+    return {
+      ...node,
+      x: visual.x,
+      y: visual.y,
+      size: visual.size,
+      targetX,
+      targetY,
+      targetSize,
+    };
   }
 
   function weightedNodeCenter(nodes) {
@@ -1093,12 +1146,12 @@ function pageOverlayMain(initialState) {
     for (const contextName of ['WebGLRenderingContext', 'WebGL2RenderingContext']) {
       const Context = win[contextName];
       const proto = Context?.prototype;
-      if (!proto || proto.__blobioSkinWebglCameraTrackerV16) continue;
+      if (!proto || proto.__blobioSkinWebglCameraTrackerV17) continue;
 
       const nativeUniformMatrix4fv = proto.uniformMatrix4fv;
       if (typeof nativeUniformMatrix4fv !== 'function') continue;
 
-      proto.__blobioSkinWebglCameraTrackerV16 = true;
+      proto.__blobioSkinWebglCameraTrackerV17 = true;
       proto.uniformMatrix4fv = function blobioTrackedUniformMatrix4fv(location, transpose, value, ...rest) {
         try {
           recordWebglMatrix(this, value, rest, label, contextName);
@@ -1289,8 +1342,8 @@ function pageOverlayMain(initialState) {
   function installCanvasCircleTracker() {
     if (state.canvasHooked) return;
     const proto = window.CanvasRenderingContext2D && window.CanvasRenderingContext2D.prototype;
-    if (!proto || proto.__blobioSkinCircleTrackerV16) return;
-    proto.__blobioSkinCircleTrackerV16 = true;
+    if (!proto || proto.__blobioSkinCircleTrackerV17) return;
+    proto.__blobioSkinCircleTrackerV17 = true;
     state.canvasHooked = true;
 
     const originalArc = proto.arc;
@@ -1885,6 +1938,8 @@ function pageOverlayMain(initialState) {
     for (const record of records) {
       const rawId = record.rawId >>> 0;
       if (!rawId) continue;
+      if (!Number.isFinite(record.x) || !Number.isFinite(record.y) || !Number.isFinite(record.size)) continue;
+      if (Math.abs(record.x) > 100000 || Math.abs(record.y) > 100000 || record.size <= 0 || record.size > 10000) continue;
 
       for (const ownId of state.ownIds) {
         const candidate = (rawId ^ (ownId >>> 0)) >>> 0;
@@ -1909,19 +1964,75 @@ function pageOverlayMain(initialState) {
   }
 
   function parseUpdateNodes(packet, meta) {
-    const candidates = [parseUpdateNodesProtocol6(packet), parseUpdateNodesProtocol5(packet), parseUpdateNodesProtocol4(packet), parseUpdateNodesShort(packet)]
-      .filter((item) => item && item.ok);
+    const candidates = [
+      parseUpdateNodesProtocol6(packet),
+      parseUpdateNodesProtocol5(packet),
+      parseUpdateNodesProtocol4(packet),
+      parseUpdateNodesShort(packet),
+    ].filter((item) => item && item.ok);
 
-    for (const candidate of candidates) {
-      learnScrambleIdFromParsedRecords(candidate.records);
-      applyDecodedIds(candidate.records);
+    const shortCandidate = candidates.find((candidate) => candidate.protocol === 'short') || null;
+    const shortOwnRecords = shortCandidate
+      ? shortCandidate.records.filter((record) => state.ownIds.has((record.rawId ?? record.id) >>> 0))
+      : [];
+
+    if (shortCandidate) {
+      state.shortModeConfidence = Math.min(
+        20,
+        state.shortModeConfidence + (shortOwnRecords.length ? 2 : 1),
+      );
+      if (state.shortModeConfidence >= SHORT_MODE_LOCK_THRESHOLD) {
+        state.packetMode = 'short';
+        state.scrambleId = 0;
+      }
     }
 
-    const parsed = candidates.sort((a, b) => scoreParse(b) - scoreParse(a))[0];
+    let parsed = null;
+
+    if (state.packetMode === 'short') {
+      parsed = shortCandidate;
+    } else if (shortOwnRecords.length) {
+      parsed = shortCandidate;
+      state.packetMode = 'short';
+      state.shortModeConfidence = SHORT_MODE_LOCK_THRESHOLD;
+      state.scrambleId = 0;
+    } else {
+      parsed = candidates.sort((a, b) => scoreParse(b) - scoreParse(a))[0] || null;
+      if (parsed && parsed.protocol !== 'short') {
+        learnScrambleIdFromParsedRecords(parsed.records);
+        applyDecodedIds(parsed.records);
+      }
+    }
+
+    if (parsed?.protocol === 'short') {
+      for (const record of parsed.records) {
+        record.id = (record.rawId ?? record.id) >>> 0;
+      }
+    }
+
     const sample = buildUpdateNodeSample(packet, meta, candidates, parsed);
     rememberUpdateNodeSample(sample);
 
     if (!parsed) {
+      if (state.packetMode === 'short' && candidates.length) {
+        state.ignoredNonShortPackets += 1;
+        state.lastPacketSummary = {
+          protocol: 'ignored-non-short',
+          records: 0,
+          removed: 0,
+          ownRecords: 0,
+          shortOwnUpdates: 0,
+          length: packet.length,
+        };
+        if (sample) {
+          sample.ignored = {
+            reason: 'short-mode-locked',
+            candidateProtocols: candidates.map((candidate) => candidate.protocol),
+          };
+        }
+        return;
+      }
+
       state.updateParseErrors += 1;
       if (sample) sample.failed = true;
       if (state.debug) log('update packet parse failed', { length: packet.length, meta, sample }, 'packet-error');
@@ -1929,10 +2040,11 @@ function pageOverlayMain(initialState) {
     }
 
     applyUpdateParse(parsed);
-    const shortOwnUpdates = applyShortOwnRecordFallback(packet, meta);
+    const shortOwnUpdates = parsed.protocol === 'short' ? 0 : applyShortOwnRecordFallback(packet, meta);
     state.updatePackets += 1;
     state.lastPacketSummary = {
       protocol: parsed.protocol,
+      packetMode: state.packetMode,
       records: parsed.records.length,
       removed: parsed.removed.length,
       ownRecords: parsed.records.filter((record) => state.ownIds.has(record.id)).length,
@@ -1943,6 +2055,7 @@ function pageOverlayMain(initialState) {
     if (sample) {
       sample.applied = {
         shortOwnUpdates,
+        packetMode: state.packetMode,
         ownIdsAfter: Array.from(state.ownIds),
         siblingOwnIdsAfter: Array.from(state.siblingOwnIds),
         ownRenderNodeIdsAfter: state.ownRenderNodes.map((node) => node.id),
@@ -2169,8 +2282,32 @@ function pageOverlayMain(initialState) {
     const now = performance.now();
     const configuredName = getLocalPlayerName();
 
+    if (state.packetMode === 'short' && parsed.protocol !== 'short') {
+      state.ignoredNonShortPackets += 1;
+      return;
+    }
+
     for (const record of parsed.records) {
       if (!record.id) continue;
+      if (!Number.isFinite(record.x) || !Number.isFinite(record.y) || !Number.isFinite(record.size)) {
+        state.rejectedUpdateRecords += 1;
+        continue;
+      }
+      if (Math.abs(record.x) > 100000 || Math.abs(record.y) > 100000 || record.size <= 0 || record.size > 10000) {
+        state.rejectedUpdateRecords += 1;
+        continue;
+      }
+
+      const previousNode = state.nodes.get(record.id);
+      if (state.ownIds.has(record.id) && previousNode) {
+        const jump = Math.hypot(record.x - previousNode.x, record.y - previousNode.y);
+        const maxJump = Math.max(2200, (previousNode.size || record.size || 1) * 45);
+        const sizeRatio = record.size / Math.max(previousNode.size || 1, 1);
+        if (jump > maxJump || sizeRatio < 0.04 || sizeRatio > 24) {
+          state.rejectedUpdateRecords += 1;
+          continue;
+        }
+      }
 
       rememberPacketName(record.name, record.id, parsed.protocol);
 
@@ -2200,7 +2337,9 @@ function pageOverlayMain(initialState) {
         while (state.rawOwnRecords.length > 80) state.rawOwnRecords.shift();
       }
 
+      const previous = state.nodes.get(record.id);
       state.nodes.set(record.id, {
+        ...previous,
         id: record.id,
         rawId: record.rawId ?? record.id,
         x: record.x,
@@ -2220,6 +2359,7 @@ function pageOverlayMain(initialState) {
     const removed = parsed.removed.map((id) => decodeNodeId(id));
     for (const id of removed) {
       state.nodes.delete(id);
+      state.visualNodes.delete(id);
       state.ownIds.delete(id);
     }
 
@@ -2300,7 +2440,7 @@ function pageOverlayMain(initialState) {
     const now = performance.now();
 
     for (const id of state.ownIds) {
-      for (let offset = 3; offset + 8 <= packet.length; offset += 1) {
+      for (let offset = 3; offset + 13 <= packet.length; offset += 1) {
         if ((view.getUint16(offset, true) >>> 0) !== id) {
           continue;
         }
@@ -2308,6 +2448,8 @@ function pageOverlayMain(initialState) {
         const x = view.getInt16(offset + 2, true);
         const y = view.getInt16(offset + 4, true);
         const size = view.getUint16(offset + 6, true);
+        const flags = view.getUint8(offset + 8);
+        const extra = view.getUint32(offset + 9, true) >>> 0;
 
         if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(size)) {
           continue;
@@ -2316,17 +2458,23 @@ function pageOverlayMain(initialState) {
         if (size <= 0 || size > 10000 || Math.abs(x) > 32768 || Math.abs(y) > 32768) {
           continue;
         }
+        if ((flags & 0x02) === 0 || (flags & 0x21) !== 0) {
+          continue;
+        }
 
         const previous = state.nodes.get(id);
         state.nodes.set(id, {
           ...previous,
           id,
+          rawId: id,
           x,
           y,
           size,
-          color: previous?.color || null,
-          flags: previous?.flags || 0,
-          extra: Number.isFinite(previous?.extra) ? previous.extra : null,
+          color: null,
+          flags,
+          extra,
+          name: '',
+          skin: '',
           updatedAt: now,
           source: 'short-own-fallback',
         });
@@ -2536,7 +2684,7 @@ function pageOverlayMain(initialState) {
   function downloadDebugDump() {
     const dump = {
       meta: {
-        version: 'packet-overlay-v16',
+        version: 'packet-overlay-v17',
         createdAt: new Date().toISOString(),
         href: location.href,
       },
@@ -2557,6 +2705,11 @@ function pageOverlayMain(initialState) {
         viewport: state.lastViewport,
         canvasRect: state.lastCanvasRect,
         webglHookCount: state.webglHookCount,
+        packetMode: state.packetMode,
+        shortModeConfidence: state.shortModeConfidence,
+        ignoredNonShortPackets: state.ignoredNonShortPackets,
+        rejectedUpdateRecords: state.rejectedUpdateRecords,
+        renderSmoothingMs: RENDER_SMOOTHING_MS,
         activeWebglTransform: state.activeWebglTransform,
         webglMatrixMatches: state.webglMatrixMatches,
         drawn: state.drawn,
@@ -2614,7 +2767,7 @@ function pageOverlayMain(initialState) {
     }, 1000);
   }
 
-  window.__blobioCustomSkinOverlayV16 = {
+  window.__blobioCustomSkinOverlayV17 = {
     state,
     refresh,
     dump: () => ({
@@ -2654,6 +2807,11 @@ function pageOverlayMain(initialState) {
       viewport: state.lastViewport,
       canvasRect: state.lastCanvasRect,
       webglHookCount: state.webglHookCount,
+      packetMode: state.packetMode,
+      shortModeConfidence: state.shortModeConfidence,
+      ignoredNonShortPackets: state.ignoredNonShortPackets,
+      rejectedUpdateRecords: state.rejectedUpdateRecords,
+      renderSmoothingMs: RENDER_SMOOTHING_MS,
       activeWebglTransform: state.activeWebglTransform,
       webglMatrixMatches: state.webglMatrixMatches,
       lastPacketSummary: state.lastPacketSummary,
