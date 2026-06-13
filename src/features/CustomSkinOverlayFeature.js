@@ -1977,18 +1977,19 @@ function pageOverlayMain(initialState) {
       const size = view.getUint16(offset, true); offset += 2;
       const flags = view.getUint8(offset); offset += 1;
       let color = null;
+      let extra = 0;
 
-      if (flags & 0x02) {
-        if (offset + 3 > packet.length) return null;
-        color = { r: packet[offset], g: packet[offset + 1], b: packet[offset + 2] };
-        offset += 3;
-      }
+      // Blobgame shortPackets/shortNamesPackets does not use the normal Agar flag layout here.
+      // The v13 logs showed every live-cell record as 13 bytes:
+      //   u16 id, i16 x, i16 y, u16 size, u8 flags, u32 extra
+      // Example after split: e3 05 86 17 af fe 45 00 02 f0 0f 00 00 fa 05 ...
+      // The previous parser treated flags bit 0x02 as RGB and became misaligned, so it never
+      // parsed sibling cells like 0x05fa/0x05fb/0x05fc as real records.
+      if (offset + 4 > packet.length) return null;
+      extra = view.getUint32(offset, true) >>> 0;
+      offset += 4;
 
-      if (flags & 0x04) offset = skipUtf8Zero(packet, offset);
-      if (flags & 0x08) offset = skipUtf8Zero(packet, offset);
-      if (offset < 0) return null;
-
-      records.push({ rawId: id, id, x, y, size, flags, color, name: '', skin: '' });
+      records.push({ rawId: id, id, x, y, size, flags, color, name: '', skin: '', extra });
     }
 
     const removed = readRemoveRecordsShort(packet, offset);
@@ -2258,7 +2259,7 @@ function pageOverlayMain(initialState) {
   function downloadDebugDump() {
     const dump = {
       meta: {
-        version: 'packet-overlay-v13',
+        version: 'packet-overlay-v14',
         createdAt: new Date().toISOString(),
         href: location.href,
       },

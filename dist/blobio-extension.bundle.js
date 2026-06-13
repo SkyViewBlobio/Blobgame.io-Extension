@@ -5677,15 +5677,11 @@ html.${className} .blobio-watermark-extension::after {
         const flags = view.getUint8(offset);
         offset += 1;
         let color = null;
-        if (flags & 2) {
-          if (offset + 3 > packet.length) return null;
-          color = { r: packet[offset], g: packet[offset + 1], b: packet[offset + 2] };
-          offset += 3;
-        }
-        if (flags & 4) offset = skipUtf8Zero(packet, offset);
-        if (flags & 8) offset = skipUtf8Zero(packet, offset);
-        if (offset < 0) return null;
-        records.push({ rawId: id, id, x, y, size, flags, color, name: "", skin: "" });
+        let extra = 0;
+        if (offset + 4 > packet.length) return null;
+        extra = view.getUint32(offset, true) >>> 0;
+        offset += 4;
+        records.push({ rawId: id, id, x, y, size, flags, color, name: "", skin: "", extra });
       }
       const removed = readRemoveRecordsShort(packet, offset);
       if (!removed) return null;
@@ -5942,7 +5938,7 @@ html.${className} .blobio-watermark-extension::after {
     function downloadDebugDump() {
       const dump = {
         meta: {
-          version: "packet-overlay-v13",
+          version: "packet-overlay-v14",
           createdAt: (/* @__PURE__ */ new Date()).toISOString(),
           href: location.href
         },
