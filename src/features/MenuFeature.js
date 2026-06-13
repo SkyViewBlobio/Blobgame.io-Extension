@@ -4,7 +4,7 @@ import { createBlobioStorage } from '../storage/BlobioStorage.js';
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
 const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
-const DEFAULT_EXTENSION_VERSION = '0.1.44';
+const DEFAULT_EXTENSION_VERSION = '0.1.45';
 const HIDDEN_CLASS = 'blobio-original-hidden';
 const PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
 const FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -1870,7 +1870,7 @@ export class MenuFeature {
     this.vipPlusTarget = target;
     const height = Number(target.getBoundingClientRect?.().height) || Number(target.clientHeight) || Number(target.height) || 0;
     if (height >= 18 && height <= 120) {
-      this.setStyleProperty(icon, '--blobio-vip-plus-size', `${Math.round(height)}px`);
+      this.setStyleProperty(icon, '--blobio-vip-plus-size', `${Math.round(height * 1.18)}px`);
     }
   }
 

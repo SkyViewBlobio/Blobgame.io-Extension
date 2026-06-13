@@ -1165,9 +1165,9 @@ html.${className} .blobio-custom-skin-notice.is-error {
 html.${className} .blobio-vip-plus-icon {
   display: inline-block !important;
   width: auto !important;
-  height: var(--blobio-vip-plus-size, 42px) !important;
-  max-width: 74px !important;
-  margin-left: 8px !important;
+  height: var(--blobio-vip-plus-size, 50px) !important;
+  max-width: 88px !important;
+  margin-left: 10px !important;
   vertical-align: middle !important;
   object-fit: contain !important;
   transform: scale(1);
@@ -1175,6 +1175,13 @@ html.${className} .blobio-vip-plus-icon {
   transition: transform 170ms ease, filter 170ms ease;
   filter: drop-shadow(0 0 7px rgba(255, 196, 55, 0.28));
   cursor: pointer;
+}
+
+html.${className} img[src*="mass_booster_web_trans.png"] {
+  transform: none !important;
+  scale: 1 !important;
+  transition: none !important;
+  animation: none !important;
 }
 
 html.${className} .blobio-vip-plus-icon:hover {
@@ -1436,7 +1443,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.44";
+  var DEFAULT_EXTENSION_VERSION = "0.1.45";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -2966,7 +2973,7 @@ html.${className} .blobio-watermark-extension::after {
       this.vipPlusTarget = target;
       const height = Number(target.getBoundingClientRect?.().height) || Number(target.clientHeight) || Number(target.height) || 0;
       if (height >= 18 && height <= 120) {
-        this.setStyleProperty(icon, "--blobio-vip-plus-size", `${Math.round(height)}px`);
+        this.setStyleProperty(icon, "--blobio-vip-plus-size", `${Math.round(height * 1.18)}px`);
       }
     }
     isMassBoosterImage(image) {
