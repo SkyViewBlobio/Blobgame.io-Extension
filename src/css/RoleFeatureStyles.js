@@ -41,12 +41,12 @@ export const VIP_BADGE_CSS = `
 
 .blobio-vip-plus-time {
   position: absolute;
-  left: 68%;
-  top: 72%;
+  left: 12%;
+  top: 65%;
   display: inline-flex;
   align-items: flex-end;
   justify-content: center;
-  max-width: 92%;
+  max-width: 982%;
   transform: translate(-50%, -50%) rotate(-7deg);
   color: #f4fff6;
   font-size: clamp(9px, calc(var(--blobio-vip-plus-size, 106px) * 0.09), 18px);
@@ -55,13 +55,13 @@ export const VIP_BADGE_CSS = `
   letter-spacing: 0.02em;
   text-align: center;
   white-space: nowrap;
-  text-shadow: 0 0 5px rgba(255, 255, 255, 0.9), 0 0 11px rgba(87, 255, 134, 0.88), 0 0 20px rgba(52, 255, 112, 0.55);
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 1px rgba(0, 0, 0, 0.95), 0 0 5px rgba(255, 255, 255, 0.9), 0 0 11px rgba(87, 255, 134, 0.88), 0 0 20px rgba(52, 255, 112, 0.55);
   pointer-events: none;
 }
 
 .blobio-vip-plus-time.is-unlimited {
   color: #fff7cf;
-  text-shadow: 0 0 5px rgba(255, 255, 255, 0.95), 0 0 11px rgba(255, 211, 73, 0.92), 0 0 23px rgba(255, 174, 30, 0.7);
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 1px rgba(0, 0, 0, 0.95), 0 0 5px rgba(255, 255, 255, 0.95), 0 0 11px rgba(255, 211, 73, 0.92), 0 0 23px rgba(255, 174, 30, 0.7);
   animation: blobio-vip-unlimited-pulse 2800ms ease-in-out infinite;
 }
 
@@ -69,6 +69,7 @@ export const VIP_BADGE_CSS = `
   display: inline-block;
   transform: translateY(var(--blobio-vip-letter-y, 0px)) rotate(var(--blobio-vip-letter-rotate, 0deg));
   transform-origin: center bottom;
+  text-shadow: inherit;
 }
 
 @keyframes blobio-vip-unlimited-pulse {

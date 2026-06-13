@@ -2,6 +2,7 @@ import { VIP_BADGE_CSS, VIP_BADGE_STYLE_ID } from '../css/RoleFeatureStyles.js';
 
 const VIP_REFRESH_INTERVAL_MS = 30000;
 const VIP_SIZE_MULTIPLIER = 2.1;
+const VIP_VERTICAL_OFFSET_PX = 4;
 const UNLIMITED_TEXT = 'UNLIMITED';
 
 export function formatVipRemainingTime(remainingMs) {
@@ -219,7 +220,7 @@ export class VipBadgeFeature {
     const top = Number(rect?.top);
     if (Number.isFinite(right) && Number.isFinite(top) && height > 0) {
       this.setStyle(this.slot, '--blobio-vip-plus-left', `${Math.round(right + 10)}px`);
-      this.setStyle(this.slot, '--blobio-vip-plus-top', `${Math.round(top + height / 2)}px`);
+      this.setStyle(this.slot, '--blobio-vip-plus-top', `${Math.round(top + height / 2 + VIP_VERTICAL_OFFSET_PX)}px`);
     }
 
     const nextText = status.unlimited ? UNLIMITED_TEXT : formatVipRemainingTime(status.remainingMs);
