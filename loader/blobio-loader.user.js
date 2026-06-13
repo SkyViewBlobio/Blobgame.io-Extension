@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Blobio Web Script Loader
 // @namespace    https://github.com/SkyViewBlobio/Blobgame.io-Web-Script
-// @version      0.1.54
+// @version      0.1.55
 // @description  Loads the Blobio modular extension bundle from GitHub.
 // @match        *://blobgame.io/*
 // @match        *://custom.client.blobgame.io/*
@@ -23,12 +23,13 @@
   'use strict';
 
   const LOG_PREFIX = '[Blobio]';
-  const VERSION = '0.1.54';
+  const VERSION = '0.1.55';
   const CUSTOM_CLIENT_HOST = 'custom.client.blobgame.io';
   const STORAGE_BRIDGE_SOURCE = 'BlobioExtensionStorageBridge';
   const CUSTOM_SKIN_ENABLED_KEY = 'blobio.customSkin.enabled';
   const CUSTOM_SKIN_ACTIVE_KEY = 'blobio.customSkin.activeUrl';
   const CUSTOM_SKIN_CARRIER_ASSET_KEY = 'blobio.customSkin.carrierAsset';
+  const FPS_UNCAP_STORAGE_KEY = 'blobio.settings.fpsUncap';
   const DIRECT_IMGUR_IMAGE_MATCH = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|webp)(?:\?.*)?$/i;
 
   globalThis.__blobioLoaderVersion = VERSION;
@@ -96,7 +97,10 @@
 
   function isSharedStorageKey(key) {
     const value = String(key || '');
-    return value.startsWith('blobio.customSkin.') || value.startsWith('blobio.roles.');
+    return value.startsWith('blobio.customSkin.')
+      || value.startsWith('blobio.roles.')
+      || value.startsWith('blobio.settings.')
+      || value.startsWith('blobio.chat.');
   }
 
   function installSharedStorageBridge() {
@@ -500,6 +504,144 @@
     });
   }
 
+  function pageFpsUncapBootstrap(initialEnabled, pageWindow) {
+    'use strict';
+
+    const rootWindow = pageWindow || globalThis;
+    const state = rootWindow.__blobioFpsUncapState || { enabled: false };
+    state.enabled = Boolean(initialEnabled);
+    rootWindow.__blobioFpsUncapState = state;
+
+    function installIntoWindow(win) {
+      if (!win || win.__blobioFpsUncapInstalled) {
+        return;
+      }
+
+      const nativeRequestAnimationFrame = typeof win.requestAnimationFrame === 'function'
+        ? win.requestAnimationFrame.bind(win)
+        : (callback) => win.setTimeout(() => callback(win.performance?.now?.() ?? Date.now()), 16);
+      const nativeCancelAnimationFrame = typeof win.cancelAnimationFrame === 'function'
+        ? win.cancelAnimationFrame.bind(win)
+        : win.clearTimeout.bind(win);
+      const timers = new Map();
+      let nextTimerId = 0x80000000;
+
+      win.requestAnimationFrame = function blobioRequestAnimationFrame(callback) {
+        if (!state.enabled) {
+          return nativeRequestAnimationFrame(callback);
+        }
+
+        const id = nextTimerId;
+        nextTimerId = nextTimerId >= 0xfffffffe ? 0x80000000 : nextTimerId + 1;
+        const timer = win.setTimeout(() => {
+          timers.delete(id);
+          callback(win.performance?.now?.() ?? Date.now());
+        }, 0);
+        timers.set(id, timer);
+        return id;
+      };
+
+      win.cancelAnimationFrame = function blobioCancelAnimationFrame(id) {
+        if (timers.has(id)) {
+          win.clearTimeout(timers.get(id));
+          timers.delete(id);
+          return;
+        }
+
+        nativeCancelAnimationFrame(id);
+      };
+
+      Object.defineProperty(win, '__blobioFpsUncapInstalled', {
+        value: true,
+        configurable: true,
+      });
+    }
+
+    function installIntoFrame(frame) {
+      try {
+        installIntoWindow(frame?.contentWindow);
+      } catch {
+        // Cross-origin frames are unrelated to the game loop.
+      }
+    }
+
+    function watchFrames(win) {
+      const start = () => {
+        const root = win.document?.documentElement || win.document?.body;
+        if (!root || !win.MutationObserver) {
+          return;
+        }
+
+        const observer = new win.MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            for (const node of mutation.addedNodes || []) {
+              if (String(node?.tagName || '').toUpperCase() === 'IFRAME') {
+                installIntoFrame(node);
+              }
+              node?.querySelectorAll?.('iframe')?.forEach(installIntoFrame);
+            }
+          }
+        });
+        observer.observe(root, { childList: true, subtree: true });
+      };
+
+      if (win.document?.documentElement || win.document?.body) {
+        start();
+      } else {
+        win.document?.addEventListener?.('DOMContentLoaded', start, { once: true });
+      }
+    }
+
+    rootWindow.__blobioFpsUncapRefresh = (enabled) => {
+      state.enabled = Boolean(enabled);
+    };
+    rootWindow.__blobioFpsUncapStatus = () => ({
+      enabled: state.enabled,
+      installed: Boolean(rootWindow.__blobioFpsUncapInstalled),
+    });
+
+    installIntoWindow(rootWindow);
+    rootWindow.document?.querySelectorAll?.('iframe')?.forEach(installIntoFrame);
+    watchFrames(rootWindow);
+  }
+
+  function installFpsUncapRuntime() {
+    if (location.hostname !== CUSTOM_CLIENT_HOST) {
+      return;
+    }
+
+    const pageWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+    const readEnabled = () => getSharedValue(FPS_UNCAP_STORAGE_KEY) === '1';
+
+    try {
+      pageFpsUncapBootstrap(readEnabled(), pageWindow);
+    } catch (error) {
+      logError('Failed to install FPS-uncap runtime.', error);
+      return;
+    }
+
+    const refresh = () => {
+      try {
+        pageWindow.__blobioFpsUncapRefresh?.(readEnabled());
+      } catch (error) {
+        logError('Failed to refresh FPS-uncap state.', error);
+      }
+    };
+
+    if (typeof GM_addValueChangeListener === 'function') {
+      try {
+        GM_addValueChangeListener(FPS_UNCAP_STORAGE_KEY, refresh);
+      } catch {}
+    }
+
+    window.addEventListener?.('message', (event) => {
+      const message = event.data;
+      if (message?.source === STORAGE_BRIDGE_SOURCE && message.key === FPS_UNCAP_STORAGE_KEY) {
+        refresh();
+      }
+    });
+  }
+
   function runBundle(source) {
     try {
       const run = new Function(`${source}\n//# sourceURL=blobio-extension.bundle.js`);
@@ -542,6 +684,7 @@
   }
 
   installSharedStorageBridge();
+  installFpsUncapRuntime();
   installCarrierSkinRuntime();
   fetchBundle();
 })();

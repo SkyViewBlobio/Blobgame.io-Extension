@@ -1,11 +1,12 @@
 import { buildMenuCss } from '../css/MenuFeatureStyles.js';
 import { createBlobioStorage } from '../storage/BlobioStorage.js';
 import { isHideAdminMdEnabled, setHideAdminMdEnabled } from '../roles/RoleSettings.js';
+import { isFpsUncapEnabled, setFpsUncapEnabled } from '../settings/RuntimeSettings.js';
 
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
 const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
-const DEFAULT_EXTENSION_VERSION = '0.1.54';
+const DEFAULT_EXTENSION_VERSION = '0.1.55';
 const HIDDEN_CLASS = 'blobio-original-hidden';
 const PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
 const FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -32,6 +33,7 @@ const EXTENSION_OPTION_TOOLTIPS = {
   watermark: 'This option will display the Extension name text, alongside its current version.',
   customSkin: 'Replace one of your owned skin assets locally with a saved direct i.imgur.com image. Only you see the custom image.',
   hideAdminMd: 'Hide the built-in [MD] tag from extension ADMIN users in chat. This is enabled by default.',
+  fpsUncap: 'Run the in-game update loop without the normal display-refresh requestAnimationFrame cap. Off by default; reload the game client after changing it.',
 };
 
 const DEFAULT_VIDEO = {
@@ -896,6 +898,15 @@ export class MenuFeature {
         },
       }),
       this.createExtensionSwitchRow({
+        id: 'config-switch-fps-uncap',
+        label: 'FPS-uncap',
+        description: EXTENSION_OPTION_TOOLTIPS.fpsUncap,
+        checked: isFpsUncapEnabled(this.storage),
+        onChange: (enabled, checkbox) => {
+          checkbox.checked = setFpsUncapEnabled(this.storage, enabled);
+        },
+      }),
+      this.createExtensionSwitchRow({
         id: 'config-switch-hide-admin-md',
         label: 'Hide MD badge',
         description: EXTENSION_OPTION_TOOLTIPS.hideAdminMd,
@@ -982,20 +993,38 @@ export class MenuFeature {
       return;
     }
 
-    const inner = settings.querySelector?.('.right > .inner-container')
+    const right = settings.querySelector?.('.right');
+    const inner = right?.querySelector?.(':scope > .inner-container')
+      || settings.querySelector?.('.right > .inner-container')
       || settings.querySelector?.('.right .inner-container');
-    if (!inner) {
+    if (!right || !inner) {
       return;
     }
 
-    const rectHeight = Number(inner.getBoundingClientRect?.().height) || 0;
-    const height = Math.max(rectHeight, Number(inner.clientHeight) || 0, Number(inner.offsetHeight) || 0);
+    const rightRect = right.getBoundingClientRect?.() || {};
+    const innerRect = inner.getBoundingClientRect?.() || {};
+    const rightHeight = Math.max(
+      Number(rightRect.height) || 0,
+      Number(right.clientHeight) || 0,
+      Number(right.offsetHeight) || 0,
+    );
+    const rightBottom = Number(rightRect.bottom) || ((Number(rightRect.top) || 0) + rightHeight);
+    const innerTop = Number(innerRect.top) || Number(rightRect.top) || 0;
+    const availableHeight = rightBottom > innerTop
+      ? rightBottom - innerTop - 8
+      : rightHeight - 8;
+    const fallbackHeight = Math.max(
+      Number(innerRect.height) || 0,
+      Number(inner.clientHeight) || 0,
+      Number(inner.offsetHeight) || 0,
+    );
+    const height = Math.max(availableHeight, fallbackHeight);
 
     if (height < 100) {
       return;
     }
 
-    this.setStyleProperty(settings, '--blobio-extension-settings-panel-height', `${Math.ceil(height)}px`);
+    this.setStyleProperty(settings, '--blobio-extension-settings-panel-height', `${Math.floor(height)}px`);
   }
 
   syncExtensionSettingsCheckboxes(panel) {
@@ -1007,6 +1036,11 @@ export class MenuFeature {
     const customSkin = panel.querySelector?.('#config-switch-custom-imgur-skin');
     if (customSkin) {
       customSkin.checked = this.isCustomSkinEnabled();
+    }
+
+    const fpsUncap = panel.querySelector?.('#config-switch-fps-uncap');
+    if (fpsUncap) {
+      fpsUncap.checked = isFpsUncapEnabled(this.storage);
     }
 
     const hideAdminMd = panel.querySelector?.('#config-switch-hide-admin-md');

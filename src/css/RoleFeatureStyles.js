@@ -28,15 +28,15 @@ export const VIP_BADGE_CSS = `
   object-fit: contain !important;
   transform: rotate(-7deg) scale(1) !important;
   transform-origin: center;
-  transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1), filter 680ms ease !important;
-  filter: drop-shadow(0 0 10px rgba(255, 196, 55, 0.34));
+  transition: transform 880ms cubic-bezier(0.22, 1, 0.36, 1), filter 940ms ease !important;
+  filter: drop-shadow(0 0 7px rgba(255, 235, 158, 0.38)) drop-shadow(0 0 16px rgba(255, 184, 42, 0.58));
   cursor: pointer;
   pointer-events: auto !important;
 }
 
 .blobio-vip-plus-icon:hover {
   transform: rotate(-7deg) scale(1.06) !important;
-  filter: drop-shadow(0 0 19px rgba(255, 204, 72, 0.68));
+  filter: drop-shadow(0 0 9px rgba(255, 244, 194, 0.58)) drop-shadow(0 0 24px rgba(255, 187, 42, 0.82));
 }
 
 .blobio-vip-plus-time {

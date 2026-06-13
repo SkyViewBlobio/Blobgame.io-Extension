@@ -8,6 +8,7 @@ import youtubeIconUrl from '../assets/youtube_icon.png';
 import recommendedButtonUrl from '../assets/yt_recommended_n.png';
 import { BackgroundFeature } from './features/BackgroundFeature.js';
 import { ChatRoleFeature } from './features/ChatRoleFeature.js';
+import { ChatSettingsFeature } from './features/ChatSettingsFeature.js';
 import { MenuFeature } from './features/MenuFeature.js';
 import { VipBadgeFeature } from './features/VipBadgeFeature.js';
 import { getBlobioHostMode } from './hostRules.js';
@@ -85,6 +86,7 @@ class BlobioExtension {
     } else if (hostMode === 'runtime') {
       this.features.push(
         new ChatRoleFeature({ document, logger, roleRegistry: this.roleRegistry }),
+        new ChatSettingsFeature({ document, logger }),
       );
     }
 

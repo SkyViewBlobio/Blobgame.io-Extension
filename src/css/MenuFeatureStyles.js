@@ -670,12 +670,13 @@ html.${className} app-settings.blobio-extension-settings-active .right {
 html.${className} app-settings.blobio-extension-settings-active .right > .inner-container,
 html.${className} app-settings.blobio-extension-settings-active .inner-container.zero-top-left-border {
   display: flex !important;
-  flex: 0 1 auto !important;
+  flex: 0 0 auto !important;
   flex-direction: column !important;
   align-self: stretch !important;
   min-height: 0 !important;
   height: var(--blobio-extension-settings-panel-height, auto) !important;
   max-height: var(--blobio-extension-settings-panel-height, 100%) !important;
+  margin-bottom: 6px !important;
   overflow: hidden !important;
   box-sizing: border-box !important;
 }
@@ -729,6 +730,7 @@ html.${className} app-settings.blobio-extension-settings-active .blobio-extensio
   display: grid;
   align-content: start;
   min-height: 100%;
+  padding-bottom: 10px;
   box-sizing: border-box;
 }
 
@@ -774,15 +776,15 @@ html.${className} app-settings .blobio-extension-setting-row label[for="config-s
 .blobio-extension-tooltip {
   position: fixed;
   z-index: 2147483600;
-  max-width: 280px;
-  padding: 8px 10px;
+  max-width: 364px;
+  padding: 11px 13px;
   border: 1px solid rgba(142, 255, 174, 0.5);
-  border-radius: 8px;
+  border-radius: 10px;
   background: rgba(2, 28, 16, 0.96);
   color: #eaffee;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.35;
   text-shadow: 0 0 6px rgba(118, 255, 154, 0.46);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38), 0 0 16px rgba(79, 255, 130, 0.24);
   pointer-events: none;
