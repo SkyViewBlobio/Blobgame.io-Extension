@@ -4,7 +4,7 @@ import { createBlobioStorage } from '../storage/BlobioStorage.js';
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
 const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
-const DEFAULT_EXTENSION_VERSION = '0.1.45';
+const DEFAULT_EXTENSION_VERSION = '0.1.46';
 const HIDDEN_CLASS = 'blobio-original-hidden';
 const PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
 const FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -141,7 +141,9 @@ export class MenuFeature {
     this.documentClickHandler = null;
     this.keydownHandler = null;
     this.vipPlusIcon = null;
+    this.vipPlusSlot = null;
     this.vipPlusTarget = null;
+    this.vipPlusViewportHandler = null;
   }
 
   start() {
@@ -171,6 +173,7 @@ export class MenuFeature {
     this.syncWatermark();
     this.syncUsernameAnimation();
     this.syncVipPlusIcon();
+    this.installVipPlusPositionTracking();
     this.watchPage();
 
     this.documentClickHandler = (event) => {
@@ -219,6 +222,7 @@ export class MenuFeature {
     this.clearCustomSkinNoticeTimer();
     this.cleanupExtensionSettings();
     this.cleanupCustomSkinUi();
+    this.removeVipPlusPositionTracking();
     this.removeVipPlusIcon();
 
     for (const node of this.hiddenOriginalNodes) {
@@ -820,6 +824,7 @@ export class MenuFeature {
       }
 
       this.syncExtensionSettingsCheckboxes(panel);
+      this.syncExtensionSettingsPanelHeight(settings);
 
       if (tab.dataset.blobioExtensionListener !== 'true') {
         tab.dataset.blobioExtensionListener = 'true';
@@ -944,6 +949,7 @@ export class MenuFeature {
       item.classList?.remove('active');
     }
 
+    this.syncExtensionSettingsPanelHeight(settings);
     settings.classList.add('blobio-extension-settings-active');
     extensionTab?.classList.add('active');
   }
@@ -951,6 +957,27 @@ export class MenuFeature {
   deactivateExtensionSettings(settings) {
     settings.classList.remove('blobio-extension-settings-active');
     settings.querySelector?.('.blobio-extension-settings-tab')?.classList.remove('active');
+  }
+
+  syncExtensionSettingsPanelHeight(settings) {
+    if (!settings) {
+      return;
+    }
+
+    const right = settings.querySelector?.('.right');
+    const inner = right?.querySelector?.('.inner-container');
+    const content = inner?.querySelector?.('.content-container');
+    const candidates = [right, inner, content].filter(Boolean);
+    const height = Math.max(0, ...candidates.map((node) => {
+      const rectHeight = Number(node.getBoundingClientRect?.().height) || 0;
+      return Math.max(rectHeight, Number(node.clientHeight) || 0, Number(node.offsetHeight) || 0);
+    }));
+
+    if (height < 100) {
+      return;
+    }
+
+    this.setStyleProperty(settings, '--blobio-extension-settings-panel-height', `${Math.ceil(height)}px`);
   }
 
   syncExtensionSettingsCheckboxes(panel) {
@@ -1845,10 +1872,18 @@ export class MenuFeature {
 
     const target = Array.from(this.document.querySelectorAll?.('img') || [])
       .find((image) => this.isMassBoosterImage(image));
+    const host = this.document.body;
 
-    if (!target?.parentNode) {
+    if (!target || !host) {
       this.removeVipPlusIcon();
       return;
+    }
+
+    let slot = this.vipPlusSlot;
+    if (!slot) {
+      slot = this.document.createElement('span');
+      slot.classList.add('blobio-vip-plus-slot');
+      this.vipPlusSlot = slot;
     }
 
     let icon = this.vipPlusIcon;
@@ -1862,16 +1897,54 @@ export class MenuFeature {
       this.vipPlusIcon = icon;
     }
 
-    const parent = target.parentNode;
-    if (icon.parentNode !== parent || target.nextSibling !== icon) {
-      parent.insertBefore(icon, target.nextSibling || null);
+    if (icon.parentNode !== slot) {
+      slot.appendChild(icon);
+    }
+
+    if (slot.parentNode !== host) {
+      host.appendChild(slot);
     }
 
     this.vipPlusTarget = target;
-    const height = Number(target.getBoundingClientRect?.().height) || Number(target.clientHeight) || Number(target.height) || 0;
+    const rect = target.getBoundingClientRect?.();
+    const height = Number(rect?.height) || Number(target.clientHeight) || Number(target.height) || 0;
+
     if (height >= 18 && height <= 120) {
-      this.setStyleProperty(icon, '--blobio-vip-plus-size', `${Math.round(height * 1.18)}px`);
+      this.setStyleProperty(icon, '--blobio-vip-plus-size', `${Math.round(height * 1.3)}px`);
     }
+
+    const right = Number(rect?.right);
+    const top = Number(rect?.top);
+    if (Number.isFinite(right) && Number.isFinite(top) && height > 0) {
+      this.setStyleProperty(slot, '--blobio-vip-plus-left', `${Math.round(right + 10)}px`);
+      this.setStyleProperty(slot, '--blobio-vip-plus-top', `${Math.round(top + height / 2)}px`);
+    }
+  }
+
+  installVipPlusPositionTracking() {
+    if (this.vipPlusViewportHandler) {
+      return;
+    }
+
+    const win = this.document.defaultView;
+    if (!win?.addEventListener) {
+      return;
+    }
+
+    this.vipPlusViewportHandler = () => this.syncVipPlusIcon();
+    win.addEventListener('resize', this.vipPlusViewportHandler);
+    win.addEventListener('scroll', this.vipPlusViewportHandler, true);
+  }
+
+  removeVipPlusPositionTracking() {
+    if (!this.vipPlusViewportHandler) {
+      return;
+    }
+
+    const win = this.document.defaultView;
+    win?.removeEventListener?.('resize', this.vipPlusViewportHandler);
+    win?.removeEventListener?.('scroll', this.vipPlusViewportHandler, true);
+    this.vipPlusViewportHandler = null;
   }
 
   isMassBoosterImage(image) {
@@ -1884,7 +1957,9 @@ export class MenuFeature {
   }
 
   removeVipPlusIcon() {
+    this.vipPlusSlot?.remove();
     this.vipPlusIcon?.remove();
+    this.vipPlusSlot = null;
     this.vipPlusIcon = null;
     this.vipPlusTarget = null;
   }
@@ -2443,6 +2518,7 @@ export class MenuFeature {
         classList?.contains('blobio-custom-skin-tab') ||
         classList?.contains('blobio-custom-skin-panel') ||
         classList?.contains('blobio-custom-skin') ||
+        classList?.contains('blobio-vip-plus-slot') ||
         classList?.contains('blobio-vip-plus-icon')
       ) {
         return true;

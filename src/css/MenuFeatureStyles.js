@@ -161,17 +161,26 @@ html.${className} app-shop .custom-select-options {
 
 html.${className} #profile-modal {
   z-index: 900 !important;
-}
-
-html.${className} #profile-modal app-profile {
   box-sizing: border-box !important;
-  min-width: min(700px, calc(100vw - 32px)) !important;
-  border: 2px solid rgba(142, 255, 174, 0.58) !important;
-  outline: 1px solid rgba(213, 255, 224, 0.3) !important;
+  overflow: visible !important;
+  border: 2px solid rgba(142, 255, 174, 0.64) !important;
+  outline: 1px solid rgba(213, 255, 224, 0.36) !important;
   outline-offset: 2px !important;
   border-radius: 12px !important;
   background: linear-gradient(145deg, rgba(3, 31, 19, 0.94), rgba(1, 10, 7, 0.94)) !important;
-  box-shadow: inset 0 0 24px rgba(79, 255, 130, 0.13), 0 0 22px rgba(79, 255, 130, 0.28), 0 0 5px rgba(194, 255, 210, 0.34) !important;
+  box-shadow: inset 0 0 24px rgba(79, 255, 130, 0.14), 0 0 25px rgba(79, 255, 130, 0.36), 0 0 7px rgba(194, 255, 210, 0.42) !important;
+}
+
+html.${className} #profile-modal app-profile {
+  display: flex !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: min(700px, calc(100vw - 32px)) !important;
+  border: 0 !important;
+  outline: 0 !important;
+  border-radius: inherit !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 html.${className} #profile-modal .profile-records {
@@ -646,6 +655,36 @@ html.${className} app-settings .right > .inner-container {
   box-shadow: inset 0 0 22px rgba(79, 255, 130, 0.12), 0 0 20px rgba(79, 255, 130, 0.24), 0 0 4px rgba(194, 255, 210, 0.28) !important;
 }
 
+html.${className} app-settings.blobio-extension-settings-active .body {
+  align-items: stretch !important;
+}
+
+html.${className} app-settings.blobio-extension-settings-active .right {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+  align-self: stretch !important;
+  min-height: 0 !important;
+}
+
+html.${className} app-settings.blobio-extension-settings-active .right > .inner-container,
+html.${className} app-settings.blobio-extension-settings-active .inner-container.zero-top-left-border {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+  align-self: stretch !important;
+  min-height: var(--blobio-extension-settings-panel-height, 525px) !important;
+  height: 100% !important;
+}
+
+html.${className} app-settings.blobio-extension-settings-active .content-container {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+  box-sizing: border-box !important;
+}
+
 html.${className} app-settings.blobio-extension-settings-active .content-container > :not(.blobio-extension-settings-panel) {
   display: none !important;
 }
@@ -1005,36 +1044,50 @@ html.${className} .blobio-custom-skin-notice.is-error {
   box-shadow: 0 0 16px rgba(255, 49, 49, 0.3), inset 0 0 9px rgba(255, 89, 89, 0.18);
 }
 
-html.${className} .blobio-vip-plus-icon {
-  display: inline-block !important;
-  width: auto !important;
-  height: var(--blobio-vip-plus-size, 50px) !important;
-  max-width: 88px !important;
-  margin-left: 10px !important;
-  vertical-align: middle !important;
-  object-fit: contain !important;
-  transform: scale(1);
-  transform-origin: center;
-  transition: transform 170ms ease, filter 170ms ease;
-  filter: drop-shadow(0 0 7px rgba(255, 196, 55, 0.28));
-  cursor: pointer;
-}
-
-html.${className} img[src*="mass_booster_web_trans.png"] {
-  transform: none !important;
-  scale: 1 !important;
+html.${className} .blobio-vip-plus-slot {
+  position: fixed !important;
+  left: var(--blobio-vip-plus-left, -9999px) !important;
+  top: var(--blobio-vip-plus-top, -9999px) !important;
+  z-index: 2147482500 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: max-content !important;
+  height: max-content !important;
+  margin: 0 !important;
+  line-height: 0 !important;
+  transform: translateY(-50%) !important;
   transition: none !important;
   animation: none !important;
+  pointer-events: none !important;
+  isolation: isolate;
+}
+
+html.${className} .blobio-vip-plus-icon {
+  display: block !important;
+  width: auto !important;
+  height: var(--blobio-vip-plus-size, 65px) !important;
+  max-width: 112px !important;
+  margin: 0 !important;
+  object-fit: contain !important;
+  transform: scale(1) !important;
+  scale: 1 !important;
+  transform-origin: center;
+  transition: transform 170ms ease, filter 170ms ease !important;
+  animation: none !important;
+  filter: drop-shadow(0 0 7px rgba(255, 196, 55, 0.28));
+  cursor: pointer;
+  pointer-events: auto !important;
 }
 
 html.${className} .blobio-vip-plus-icon:hover {
-  transform: scale(1.09);
+  transform: scale(1.09) !important;
   filter: drop-shadow(0 0 11px rgba(255, 204, 72, 0.48));
 }
 
 @media (prefers-reduced-motion: reduce) {
   html.${className} .blobio-vip-plus-icon {
-    transition: none;
+    transition: none !important;
   }
 }
 
