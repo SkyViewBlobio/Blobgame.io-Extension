@@ -245,12 +245,12 @@ export class VipBadgeFeature {
 
     if (unlimited) {
       this.timeLabel.classList.add('is-unlimited');
-      this.renderCurvedUnlimited(text);
+      this.renderCurvedText(text);
       return;
     }
 
     this.timeLabel.classList.remove('is-unlimited');
-    this.timeLabel.textContent = text;
+    this.renderCurvedText(text);
   }
 
   clearTimeLabel() {
@@ -262,16 +262,21 @@ export class VipBadgeFeature {
     }
   }
 
-  renderCurvedUnlimited(text) {
+  renderCurvedText(text) {
     const center = (text.length - 1) / 2;
+    const curveScale = text.length > 9 ? 0.22 : 0.35;
+    const rotationScale = text.length > 9 ? 0.75 : 1.1;
 
     for (let index = 0; index < text.length; index += 1) {
       const distance = index - center;
       const letter = this.document.createElement('span');
       letter.classList.add('blobio-vip-plus-time-letter');
       letter.textContent = text[index];
-      this.setStyle(letter, '--blobio-vip-letter-y', `${Math.round(distance * distance * 0.45)}px`);
-      this.setStyle(letter, '--blobio-vip-letter-rotate', `${(distance * 1.5).toFixed(1)}deg`);
+      if (text[index] === ' ') {
+        letter.classList.add('is-space');
+      }
+      this.setStyle(letter, '--blobio-vip-letter-y', `${-Math.round(distance * distance * curveScale)}px`);
+      this.setStyle(letter, '--blobio-vip-letter-rotate', `${(-distance * rotationScale).toFixed(1)}deg`);
       this.timeLabel.appendChild(letter);
     }
   }

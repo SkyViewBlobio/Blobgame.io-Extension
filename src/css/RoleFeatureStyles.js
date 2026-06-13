@@ -41,15 +41,15 @@ export const VIP_BADGE_CSS = `
 
 .blobio-vip-plus-time {
   position: absolute;
-  left: 53%;
-  top: 65%;
+  left: 50%;
+  top: 79%;
   display: inline-flex;
   align-items: flex-end;
   justify-content: center;
-  max-width: 982%;
+  max-width: 96%;
   transform: translate(-50%, -50%) rotate(-7deg);
   color: #f4fff6;
-  font-size: clamp(9px, calc(var(--blobio-vip-plus-size, 195px) * 0.09), 20px);
+  font-size: clamp(9px, calc(var(--blobio-vip-plus-size, 106px) * 0.09), 18px);
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -70,6 +70,10 @@ export const VIP_BADGE_CSS = `
   transform: translateY(var(--blobio-vip-letter-y, 0px)) rotate(var(--blobio-vip-letter-rotate, 0deg));
   transform-origin: center bottom;
   text-shadow: inherit;
+}
+
+.blobio-vip-plus-time-letter.is-space {
+  width: 0.35em;
 }
 
 @keyframes blobio-vip-unlimited-pulse {

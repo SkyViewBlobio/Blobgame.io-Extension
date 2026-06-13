@@ -194,12 +194,12 @@ html.${this.className} body::before {
 
 .blobio-vip-plus-time {
   position: absolute;
-  left: 12%;
-  top: 65%;
+  left: 50%;
+  top: 79%;
   display: inline-flex;
   align-items: flex-end;
   justify-content: center;
-  max-width: 982%;
+  max-width: 96%;
   transform: translate(-50%, -50%) rotate(-7deg);
   color: #f4fff6;
   font-size: clamp(9px, calc(var(--blobio-vip-plus-size, 106px) * 0.09), 18px);
@@ -223,6 +223,10 @@ html.${this.className} body::before {
   transform: translateY(var(--blobio-vip-letter-y, 0px)) rotate(var(--blobio-vip-letter-rotate, 0deg));
   transform-origin: center bottom;
   text-shadow: inherit;
+}
+
+.blobio-vip-plus-time-letter.is-space {
+  width: 0.35em;
 }
 
 @keyframes blobio-vip-unlimited-pulse {
@@ -2141,7 +2145,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.52";
+  var DEFAULT_EXTENSION_VERSION = "0.1.53";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -4376,11 +4380,11 @@ html.${className} .blobio-watermark-extension::after {
       this.clearTimeLabel();
       if (unlimited) {
         this.timeLabel.classList.add("is-unlimited");
-        this.renderCurvedUnlimited(text);
+        this.renderCurvedText(text);
         return;
       }
       this.timeLabel.classList.remove("is-unlimited");
-      this.timeLabel.textContent = text;
+      this.renderCurvedText(text);
     }
     clearTimeLabel() {
       for (const child of Array.from(this.timeLabel?.children || [])) {
@@ -4390,15 +4394,20 @@ html.${className} .blobio-watermark-extension::after {
         this.timeLabel.textContent = "";
       }
     }
-    renderCurvedUnlimited(text) {
+    renderCurvedText(text) {
       const center = (text.length - 1) / 2;
+      const curveScale = text.length > 9 ? 0.22 : 0.35;
+      const rotationScale = text.length > 9 ? 0.75 : 1.1;
       for (let index = 0; index < text.length; index += 1) {
         const distance = index - center;
         const letter = this.document.createElement("span");
         letter.classList.add("blobio-vip-plus-time-letter");
         letter.textContent = text[index];
-        this.setStyle(letter, "--blobio-vip-letter-y", `${Math.round(distance * distance * 0.45)}px`);
-        this.setStyle(letter, "--blobio-vip-letter-rotate", `${(distance * 1.5).toFixed(1)}deg`);
+        if (text[index] === " ") {
+          letter.classList.add("is-space");
+        }
+        this.setStyle(letter, "--blobio-vip-letter-y", `${-Math.round(distance * distance * curveScale)}px`);
+        this.setStyle(letter, "--blobio-vip-letter-rotate", `${(-distance * rotationScale).toFixed(1)}deg`);
         this.timeLabel.appendChild(letter);
       }
     }
