@@ -2048,6 +2048,7 @@ html.${this.className} body::before {
       this.hotkeyContextMenuHandler = null;
       this.suppressHotkeyContextMenu = false;
       this.suppressHotkeyBindClickUntil = 0;
+      this.keyboardShield = null;
       this.started = false;
     }
     start() {
@@ -2100,6 +2101,7 @@ html.${this.className} body::before {
       const mutedCategory = this.createMutedPlayersCategory();
       const hotkeyCategory = this.createHotkeyCategory();
       root.append(toggle, panel, chatCategory, mutedCategory, hotkeyCategory);
+      this.installKeyboardShield(root);
       (this.document.body || this.document.documentElement).appendChild(root);
       const notificationHost = this.document.createElement("div");
       notificationHost.classList.add("blobio-chat-notification-host");
@@ -2247,6 +2249,52 @@ html.${this.className} body::before {
         }
       };
       this.document.addEventListener?.("pointerdown", this.outsidePointerHandler, true);
+    }
+    installKeyboardShield(root) {
+      if (!root || this.keyboardShield) {
+        return;
+      }
+      const stop = (event) => event.stopPropagation?.();
+      const keydown = (event) => {
+        if (this.isProtectedTextInput(event.target) && (event.key === "Backspace" || event.key === "Delete")) {
+          this.deleteTextAtSelection(event.target, event.key);
+          event.preventDefault?.();
+        }
+        event.stopPropagation?.();
+      };
+      root.addEventListener("keydown", keydown);
+      root.addEventListener("keypress", stop);
+      root.addEventListener("keyup", stop);
+      this.keyboardShield = { root, keydown, keypress: stop, keyup: stop };
+    }
+    isProtectedTextInput(element) {
+      if (!element || element.disabled || element.readOnly) {
+        return false;
+      }
+      return element.classList?.contains("blobio-hotkey-text-input") || element.classList?.contains("blobio-muted-player-name-input");
+    }
+    deleteTextAtSelection(input, key) {
+      const value = String(input?.value ?? "");
+      let start = Number.isInteger(input?.selectionStart) ? input.selectionStart : value.length;
+      let end = Number.isInteger(input?.selectionEnd) ? input.selectionEnd : start;
+      start = Math.max(0, Math.min(value.length, start));
+      end = Math.max(start, Math.min(value.length, end));
+      if (start === end) {
+        if (key === "Backspace" && start > 0) {
+          start -= 1;
+        } else if (key === "Delete" && end < value.length) {
+          end += 1;
+        } else {
+          return false;
+        }
+      }
+      input.value = `${value.slice(0, start)}${value.slice(end)}`;
+      input.setSelectionRange?.(start, start);
+      const win = this.document.defaultView || globalThis;
+      const EventCtor = win.Event || globalThis.Event;
+      const event = EventCtor ? new EventCtor("input", { bubbles: true }) : { type: "input", bubbles: true };
+      input.dispatchEvent?.(event);
+      return true;
     }
     createCategoryButton(label, category) {
       const button = this.document.createElement("button");
@@ -2947,6 +2995,13 @@ html.${this.className} body::before {
         this.document.removeEventListener?.("pointerdown", this.outsidePointerHandler, true);
         this.outsidePointerHandler = null;
       }
+      if (this.keyboardShield) {
+        const { root, keydown, keypress, keyup } = this.keyboardShield;
+        root.removeEventListener?.("keydown", keydown);
+        root.removeEventListener?.("keypress", keypress);
+        root.removeEventListener?.("keyup", keyup);
+        this.keyboardShield = null;
+      }
       if (this.positionFrame !== null) {
         win.cancelAnimationFrame?.(this.positionFrame);
         this.positionFrame = null;
@@ -3213,6 +3268,7 @@ html.${this.className} body::before {
       this.started = false;
       this.keydownHandler = null;
       this.mousedownHandler = null;
+      this.usingKeyboardBridge = false;
     }
     start() {
       if (this.started || !this.document || !this.hotkeyStore) {
@@ -3222,7 +3278,13 @@ html.${this.className} body::before {
       const win = this.document.defaultView || globalThis;
       this.keydownHandler = (event) => this.handleKeydown(event);
       this.mousedownHandler = (event) => this.handleMousedown(event);
-      win.addEventListener?.("keydown", this.keydownHandler, true);
+      const keyboardBridge = win.__blobioEarlyHotkeyBridge;
+      if (keyboardBridge?.setHandler) {
+        keyboardBridge.setHandler(this.keydownHandler);
+        this.usingKeyboardBridge = true;
+      } else {
+        win.addEventListener?.("keydown", this.keydownHandler, true);
+      }
       win.addEventListener?.("mousedown", this.mousedownHandler, true);
       this.started = true;
       return true;
@@ -3236,6 +3298,7 @@ html.${this.className} body::before {
         return false;
       }
       event.preventDefault?.();
+      event.stopImmediatePropagation?.();
       event.stopPropagation?.();
       this.trigger(hotkey);
       return true;
@@ -3283,7 +3346,7 @@ html.${this.className} body::before {
       if (isTextEntryElement(activeElement) || isTextEntryElement(event?.target)) {
         return false;
       }
-      return !this.isChatInputOpen() && !this.hasBlockingOverlay();
+      return !this.isChatInputOpen();
     }
     canUseMouseHotkey(event) {
       if (!this.isRuntimeReady() || this.isExtensionMenuOpen() || this.isChatInputOpen()) {
@@ -3312,17 +3375,6 @@ html.${this.className} body::before {
         return true;
       }
       return target === this.document.body || target === this.document.documentElement;
-    }
-    hasBlockingOverlay() {
-      const selectors = ["app-settings", "app-skins", "app-modal", "#modal", ".modal", ".profile-modal"];
-      for (const selector of selectors) {
-        for (const element of this.document.querySelectorAll?.(selector) || []) {
-          if (this.isElementVisible(element)) {
-            return true;
-          }
-        }
-      }
-      return false;
     }
     isRuntimeReady() {
       return Boolean(this.document.getElementById?.("message") || this.document.querySelector?.("#chat"));
@@ -3359,17 +3411,6 @@ html.${this.className} body::before {
       await this.nextFrame();
       this.dispatchEnter(input);
       return true;
-    }
-    isElementVisible(element) {
-      if (!element || element.hidden || element.getAttribute?.("aria-hidden") === "true") {
-        return false;
-      }
-      if (String(element.style?.display || "").toLowerCase() === "none") {
-        return false;
-      }
-      const win = this.document.defaultView || globalThis;
-      const display = win.getComputedStyle?.(element)?.display;
-      return display ? display !== "none" : true;
     }
     setInputValue(input, value) {
       const win = this.document.defaultView || globalThis;
@@ -3453,8 +3494,13 @@ html.${this.className} body::before {
     destroy() {
       const win = this.document.defaultView || globalThis;
       if (this.keydownHandler) {
-        win.removeEventListener?.("keydown", this.keydownHandler, true);
+        if (this.usingKeyboardBridge) {
+          win.__blobioEarlyHotkeyBridge?.clearHandler?.(this.keydownHandler);
+        } else {
+          win.removeEventListener?.("keydown", this.keydownHandler, true);
+        }
         this.keydownHandler = null;
+        this.usingKeyboardBridge = false;
       }
       if (this.mousedownHandler) {
         win.removeEventListener?.("mousedown", this.mousedownHandler, true);
@@ -4655,7 +4701,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.71";
+  var DEFAULT_EXTENSION_VERSION = "0.1.72";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -8491,7 +8537,7 @@ html.${className} .blobio-watermark-extension::after {
 
   // src/main.js
   var INSTANCE_KEY = "__blobioExtension";
-  var EXTENSION_VERSION = "0.1.71";
+  var EXTENSION_VERSION = "0.1.72";
   var VIP_BADGE_URL = "https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/main/assets/VIP_icon_plus.png";
   var BlobioExtension = class {
     constructor(windowRef = globalThis) {

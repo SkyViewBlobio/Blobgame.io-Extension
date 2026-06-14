@@ -23,7 +23,7 @@ import { ProfileUidDetector } from './roles/ProfileUidDetector.js';
 import { RoleRegistry } from './roles/RoleRegistry.js';
 
 const INSTANCE_KEY = '__blobioExtension';
-const EXTENSION_VERSION = '0.1.71';
+const EXTENSION_VERSION = '0.1.72';
 const VIP_BADGE_URL = 'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/main/assets/VIP_icon_plus.png';
 
 class BlobioExtension {

@@ -77,6 +77,7 @@ export class HotkeyFeature {
     this.started = false;
     this.keydownHandler = null;
     this.mousedownHandler = null;
+    this.usingKeyboardBridge = false;
   }
 
   start() {
@@ -89,7 +90,15 @@ export class HotkeyFeature {
 
     this.keydownHandler = (event) => this.handleKeydown(event);
     this.mousedownHandler = (event) => this.handleMousedown(event);
-    win.addEventListener?.('keydown', this.keydownHandler, true);
+
+    const keyboardBridge = win.__blobioEarlyHotkeyBridge;
+    if (keyboardBridge?.setHandler) {
+      keyboardBridge.setHandler(this.keydownHandler);
+      this.usingKeyboardBridge = true;
+    } else {
+      win.addEventListener?.('keydown', this.keydownHandler, true);
+    }
+
     win.addEventListener?.('mousedown', this.mousedownHandler, true);
     this.started = true;
     return true;
@@ -106,6 +115,7 @@ export class HotkeyFeature {
     }
 
     event.preventDefault?.();
+    event.stopImmediatePropagation?.();
     event.stopPropagation?.();
     this.trigger(hotkey);
     return true;
@@ -162,7 +172,7 @@ export class HotkeyFeature {
       return false;
     }
 
-    return !this.isChatInputOpen() && !this.hasBlockingOverlay();
+    return !this.isChatInputOpen();
   }
 
   canUseMouseHotkey(event) {
@@ -197,18 +207,6 @@ export class HotkeyFeature {
     }
 
     return target === this.document.body || target === this.document.documentElement;
-  }
-
-  hasBlockingOverlay() {
-    const selectors = ['app-settings', 'app-skins', 'app-modal', '#modal', '.modal', '.profile-modal'];
-    for (const selector of selectors) {
-      for (const element of this.document.querySelectorAll?.(selector) || []) {
-        if (this.isElementVisible(element)) {
-          return true;
-        }
-      }
-    }
-    return false;
   }
 
   isRuntimeReady() {
@@ -255,20 +253,6 @@ export class HotkeyFeature {
     await this.nextFrame();
     this.dispatchEnter(input);
     return true;
-  }
-
-  isElementVisible(element) {
-    if (!element || element.hidden || element.getAttribute?.('aria-hidden') === 'true') {
-      return false;
-    }
-
-    if (String(element.style?.display || '').toLowerCase() === 'none') {
-      return false;
-    }
-
-    const win = this.document.defaultView || globalThis;
-    const display = win.getComputedStyle?.(element)?.display;
-    return display ? display !== 'none' : true;
   }
 
   setInputValue(input, value) {
@@ -369,8 +353,13 @@ export class HotkeyFeature {
   destroy() {
     const win = this.document.defaultView || globalThis;
     if (this.keydownHandler) {
-      win.removeEventListener?.('keydown', this.keydownHandler, true);
+      if (this.usingKeyboardBridge) {
+        win.__blobioEarlyHotkeyBridge?.clearHandler?.(this.keydownHandler);
+      } else {
+        win.removeEventListener?.('keydown', this.keydownHandler, true);
+      }
       this.keydownHandler = null;
+      this.usingKeyboardBridge = false;
     }
     if (this.mousedownHandler) {
       win.removeEventListener?.('mousedown', this.mousedownHandler, true);

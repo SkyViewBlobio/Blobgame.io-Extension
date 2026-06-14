@@ -53,6 +53,7 @@ export class ChatSettingsFeature {
     this.hotkeyContextMenuHandler = null;
     this.suppressHotkeyContextMenu = false;
     this.suppressHotkeyBindClickUntil = 0;
+    this.keyboardShield = null;
     this.started = false;
   }
 
@@ -115,6 +116,7 @@ export class ChatSettingsFeature {
     const mutedCategory = this.createMutedPlayersCategory();
     const hotkeyCategory = this.createHotkeyCategory();
     root.append(toggle, panel, chatCategory, mutedCategory, hotkeyCategory);
+    this.installKeyboardShield(root);
     (this.document.body || this.document.documentElement).appendChild(root);
 
     const notificationHost = this.document.createElement('div');
@@ -292,6 +294,65 @@ export class ChatSettingsFeature {
       }
     };
     this.document.addEventListener?.('pointerdown', this.outsidePointerHandler, true);
+  }
+
+  installKeyboardShield(root) {
+    if (!root || this.keyboardShield) {
+      return;
+    }
+
+    const stop = (event) => event.stopPropagation?.();
+    const keydown = (event) => {
+      if (this.isProtectedTextInput(event.target) && (event.key === 'Backspace' || event.key === 'Delete')) {
+        this.deleteTextAtSelection(event.target, event.key);
+        event.preventDefault?.();
+      }
+      event.stopPropagation?.();
+    };
+
+    root.addEventListener('keydown', keydown);
+    root.addEventListener('keypress', stop);
+    root.addEventListener('keyup', stop);
+    this.keyboardShield = { root, keydown, keypress: stop, keyup: stop };
+  }
+
+  isProtectedTextInput(element) {
+    if (!element || element.disabled || element.readOnly) {
+      return false;
+    }
+
+    return element.classList?.contains('blobio-hotkey-text-input')
+      || element.classList?.contains('blobio-muted-player-name-input');
+  }
+
+  deleteTextAtSelection(input, key) {
+    const value = String(input?.value ?? '');
+    let start = Number.isInteger(input?.selectionStart) ? input.selectionStart : value.length;
+    let end = Number.isInteger(input?.selectionEnd) ? input.selectionEnd : start;
+
+    start = Math.max(0, Math.min(value.length, start));
+    end = Math.max(start, Math.min(value.length, end));
+
+    if (start === end) {
+      if (key === 'Backspace' && start > 0) {
+        start -= 1;
+      } else if (key === 'Delete' && end < value.length) {
+        end += 1;
+      } else {
+        return false;
+      }
+    }
+
+    input.value = `${value.slice(0, start)}${value.slice(end)}`;
+    input.setSelectionRange?.(start, start);
+
+    const win = this.document.defaultView || globalThis;
+    const EventCtor = win.Event || globalThis.Event;
+    const event = EventCtor
+      ? new EventCtor('input', { bubbles: true })
+      : { type: 'input', bubbles: true };
+    input.dispatchEvent?.(event);
+    return true;
   }
 
   createCategoryButton(label, category) {
@@ -1108,6 +1169,14 @@ export class ChatSettingsFeature {
     if (this.outsidePointerHandler) {
       this.document.removeEventListener?.('pointerdown', this.outsidePointerHandler, true);
       this.outsidePointerHandler = null;
+    }
+
+    if (this.keyboardShield) {
+      const { root, keydown, keypress, keyup } = this.keyboardShield;
+      root.removeEventListener?.('keydown', keydown);
+      root.removeEventListener?.('keypress', keypress);
+      root.removeEventListener?.('keyup', keyup);
+      this.keyboardShield = null;
     }
 
     if (this.positionFrame !== null) {

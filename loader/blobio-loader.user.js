@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Blobio Web Script Loader
 // @namespace    https://github.com/SkyViewBlobio/Blobgame.io-Extension
-// @version      0.1.71
+// @version      0.1.72
 // @description  Loads the Blobio modular extension bundle from GitHub.
 // @match        *://blobgame.io/*
 // @match        *://custom.client.blobgame.io/*
@@ -24,13 +24,14 @@
   'use strict';
 
   const LOG_PREFIX = '[Blobio]';
-  const VERSION = '0.1.71';
+  const VERSION = '0.1.72';
   const CUSTOM_CLIENT_HOST = 'custom.client.blobgame.io';
   const STORAGE_BRIDGE_SOURCE = 'BlobioExtensionStorageBridge';
   const CUSTOM_SKIN_ENABLED_KEY = 'blobio.customSkin.enabled';
   const CUSTOM_SKIN_ACTIVE_KEY = 'blobio.customSkin.activeUrl';
   const CUSTOM_SKIN_CARRIER_ASSET_KEY = 'blobio.customSkin.carrierAsset';
   const FPS_UNCAP_STORAGE_KEY = 'blobio.settings.fpsUncap';
+  const EARLY_HOTKEY_BRIDGE_KEY = '__blobioEarlyHotkeyBridge';
   const DIRECT_IMGUR_IMAGE_MATCH = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|webp)(?:\?.*)?$/i;
 
   globalThis.__blobioLoaderVersion = VERSION;
@@ -102,6 +103,48 @@
       || value.startsWith('blobio.roles.')
       || value.startsWith('blobio.settings.')
       || value.startsWith('blobio.chat.');
+  }
+
+  function installEarlyKeyboardRuntime() {
+    if (!globalThis[EARLY_HOTKEY_BRIDGE_KEY]) {
+      let handler = null;
+      const listener = (event) => {
+        try {
+          handler?.(event);
+        } catch (error) {
+          logError('Early keyboard hotkey handler failed.', error);
+        }
+      };
+
+      window.addEventListener?.('keydown', listener, true);
+      globalThis[EARLY_HOTKEY_BRIDGE_KEY] = {
+        setHandler(nextHandler) {
+          handler = typeof nextHandler === 'function' ? nextHandler : null;
+        },
+        clearHandler(currentHandler) {
+          if (!currentHandler || handler === currentHandler) {
+            handler = null;
+          }
+        },
+      };
+    }
+
+    if (!globalThis.__blobioExtensionKeyboardShieldInstalled) {
+      const blockGameKeybindings = (event) => {
+        const target = event.target;
+        if (!target?.closest?.('.blobio-chat-settings-root')) {
+          return;
+        }
+
+        event.stopImmediatePropagation?.();
+        event.stopPropagation?.();
+      };
+
+      for (const eventName of ['keydown', 'keypress', 'keyup']) {
+        document.addEventListener?.(eventName, blockGameKeybindings, false);
+      }
+      globalThis.__blobioExtensionKeyboardShieldInstalled = true;
+    }
   }
 
   function installSharedStorageBridge() {
@@ -995,6 +1038,7 @@
     });
   }
 
+  installEarlyKeyboardRuntime();
   installSharedStorageBridge();
   installFpsUncapRuntime();
   installCarrierSkinRuntime();
