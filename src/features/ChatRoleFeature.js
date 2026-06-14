@@ -10,11 +10,13 @@ export class ChatRoleFeature {
   constructor({
     document = globalThis.document,
     roleRegistry,
+    mutedPlayersStore = null,
     storage = createBlobioStorage(document),
     logger = console,
   } = {}) {
     this.document = document;
     this.roleRegistry = roleRegistry;
+    this.mutedPlayersStore = mutedPlayersStore;
     this.storage = storage;
     this.logger = logger;
     this.styleNode = null;
@@ -22,6 +24,7 @@ export class ChatRoleFeature {
     this.chatObserver = null;
     this.chatList = null;
     this.unsubscribeRoles = null;
+    this.unsubscribeMutedPlayers = null;
     this.started = false;
   }
 
@@ -33,6 +36,7 @@ export class ChatRoleFeature {
     this.started = true;
     this.ensureStyle();
     this.unsubscribeRoles = this.roleRegistry?.subscribe?.(() => this.reprocessExistingMessages());
+    this.unsubscribeMutedPlayers = this.mutedPlayersStore?.subscribe?.(() => this.reprocessExistingMessages());
     this.attachChatObserver();
     this.observeForChat();
     return true;
@@ -159,9 +163,32 @@ export class ChatRoleFeature {
       vip: { active: false },
       admin: false,
     };
+    const currentSpans = Array.from(message.children || [])
+      .filter((child) => String(child.tagName).toUpperCase() === 'SPAN');
+    const hasBuiltInMd = currentSpans.some((span) => (
+      !span.classList?.contains?.(EXTENSION_TAG_CLASS)
+      && String(span.textContent || '').trim() === '[MD]'
+    ));
+    const protectedPlayer = roles.admin || hasBuiltInMd;
+    if (protectedPlayer && this.mutedPlayersStore?.isMuted?.(uid)) {
+      this.mutedPlayersStore.remove(uid);
+    }
+
     const hideAdminMd = isHideAdminMdEnabled(this.storage);
-    const signature = `${uid}:${roles.admin ? 1 : 0}:${roles.vip.active ? 1 : 0}:${hideAdminMd ? 1 : 0}`;
+    const muted = !protectedPlayer && (this.mutedPlayersStore?.isMuted?.(uid) || false);
+    const signature = `${uid}:${roles.admin ? 1 : 0}:${roles.vip.active ? 1 : 0}:${hideAdminMd ? 1 : 0}:${muted ? 1 : 0}`;
     if (!force && message.dataset.blobioRoleSignature === signature) {
+      return;
+    }
+
+    this.toggleClass(message, 'blobio-chat-muted-message', muted);
+    if (muted) {
+      message.setAttribute?.('aria-hidden', 'true');
+    } else {
+      message.removeAttribute?.('aria-hidden');
+    }
+    message.dataset.blobioRoleSignature = signature;
+    if (muted) {
       return;
     }
 
@@ -287,7 +314,14 @@ export class ChatRoleFeature {
     this.chatObserver = null;
     this.chatList = null;
     this.unsubscribeRoles?.();
+    this.unsubscribeMutedPlayers?.();
     this.unsubscribeRoles = null;
+    this.unsubscribeMutedPlayers = null;
+    for (const message of this.document.querySelectorAll?.('#chat li.blobio-chat-muted-message') || []) {
+      message.classList.remove('blobio-chat-muted-message');
+      message.removeAttribute?.('aria-hidden');
+    }
+
     this.styleNode?.remove();
     this.styleNode = null;
     this.started = false;

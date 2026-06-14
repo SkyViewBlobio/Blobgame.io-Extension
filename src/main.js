@@ -6,23 +6,26 @@ import socialsButtonUrl from '../assets/socal_icon_n.png';
 import updatesButtonUrl from '../assets/update_notes_n_.png';
 import youtubeIconUrl from '../assets/youtube_icon.png';
 import recommendedButtonUrl from '../assets/yt_recommended_n.png';
+import { MutedPlayersStore } from './chat/MutedPlayersStore.js';
 import { BackgroundFeature } from './features/BackgroundFeature.js';
 import { ChatRoleFeature } from './features/ChatRoleFeature.js';
 import { ChatSettingsFeature } from './features/ChatSettingsFeature.js';
 import { MenuFeature } from './features/MenuFeature.js';
+import { PlayerMuteFeature } from './features/PlayerMuteFeature.js';
 import { VipBadgeFeature } from './features/VipBadgeFeature.js';
 import { getBlobioHostMode } from './hostRules.js';
 import { ProfileUidDetector } from './roles/ProfileUidDetector.js';
 import { RoleRegistry } from './roles/RoleRegistry.js';
 
 const INSTANCE_KEY = '__blobioExtension';
-const VIP_BADGE_URL = 'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Web-Script/main/assets/VIP_icon_plus.png';
+const VIP_BADGE_URL = 'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/main/assets/VIP_icon_plus.png';
 
 class BlobioExtension {
   constructor(windowRef = globalThis) {
     this.window = windowRef;
     this.features = [];
     this.roleRegistry = null;
+    this.mutedPlayersStore = null;
     this.started = false;
   }
 
@@ -84,9 +87,28 @@ class BlobioExtension {
         }),
       );
     } else if (hostMode === 'runtime') {
+      this.mutedPlayersStore = new MutedPlayersStore({ document, logger });
+      const chatSettings = new ChatSettingsFeature({
+        document,
+        logger,
+        mutedPlayersStore: this.mutedPlayersStore,
+      });
+
       this.features.push(
-        new ChatRoleFeature({ document, logger, roleRegistry: this.roleRegistry }),
-        new ChatSettingsFeature({ document, logger }),
+        new ChatRoleFeature({
+          document,
+          logger,
+          roleRegistry: this.roleRegistry,
+          mutedPlayersStore: this.mutedPlayersStore,
+        }),
+        chatSettings,
+        new PlayerMuteFeature({
+          document,
+          logger,
+          roleRegistry: this.roleRegistry,
+          mutedPlayersStore: this.mutedPlayersStore,
+          notifications: chatSettings,
+        }),
       );
     }
 
@@ -106,6 +128,8 @@ class BlobioExtension {
     this.features = [];
     this.roleRegistry?.destroy();
     this.roleRegistry = null;
+    this.mutedPlayersStore?.destroy();
+    this.mutedPlayersStore = null;
     this.started = false;
   }
 }
