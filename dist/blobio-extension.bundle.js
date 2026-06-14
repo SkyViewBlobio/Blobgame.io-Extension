@@ -3450,7 +3450,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.65";
+  var DEFAULT_EXTENSION_VERSION = "0.1.66";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -5741,6 +5741,42 @@ html.${className} .blobio-watermark-extension::after {
     }
     return "";
   }
+  function acceptedListUidFromRecord(record, rawOwnUid = "") {
+    if (!record || typeof record !== "object") {
+      return "";
+    }
+    const ownUid = normalizeUid(rawOwnUid);
+    for (const key of ["id", "uid", "u_id", "user_id", "target_id", "targetId", "accountId"]) {
+      const uid = normalizeUid(record[key]);
+      if (uid && uid !== ownUid) {
+        return uid;
+      }
+    }
+    for (const key of ["friend", "target", "otherUser", "relatedUser", "profile", "user"]) {
+      const uid = directUidFromRecord(record[key]);
+      if (uid && uid !== ownUid) {
+        return uid;
+      }
+    }
+    const firstUid = normalizeUid(record.user_id1);
+    const secondUid = normalizeUid(record.user_id2);
+    if (ownUid) {
+      if (firstUid === ownUid && secondUid) {
+        return secondUid;
+      }
+      if (secondUid === ownUid && firstUid) {
+        return firstUid;
+      }
+    }
+    const actionUid = normalizeUid(record.action_user_id);
+    if (actionUid === firstUid && secondUid) {
+      return secondUid;
+    }
+    if (actionUid === secondUid && firstUid) {
+      return firstUid;
+    }
+    return "";
+  }
   function friendUidFromRecord(record, rawOwnUid = "") {
     if (!record || typeof record !== "object") {
       return "";
@@ -5782,8 +5818,8 @@ html.${className} .blobio-watermark-extension::after {
     const ownUid = normalizeUid(rawOwnUid);
     const uids = /* @__PURE__ */ new Set();
     for (const record of records) {
-      const uid = friendUidFromRecord(record, ownUid);
-      if (uid && uid !== ownUid) {
+      const uid = acceptedListUidFromRecord(record, ownUid);
+      if (uid) {
         uids.add(uid);
       }
     }

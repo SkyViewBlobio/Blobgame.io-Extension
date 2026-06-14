@@ -84,6 +84,51 @@ function directUidFromRecord(record) {
   return '';
 }
 
+function acceptedListUidFromRecord(record, rawOwnUid = '') {
+  if (!record || typeof record !== 'object') {
+    return '';
+  }
+
+  const ownUid = normalizeUid(rawOwnUid);
+
+  // getRelations?status=1 already limits the response to accepted friends.
+  // A record-level status can describe the returned user rather than the relation.
+  for (const key of ['id', 'uid', 'u_id', 'user_id', 'target_id', 'targetId', 'accountId']) {
+    const uid = normalizeUid(record[key]);
+    if (uid && uid !== ownUid) {
+      return uid;
+    }
+  }
+
+  for (const key of ['friend', 'target', 'otherUser', 'relatedUser', 'profile', 'user']) {
+    const uid = directUidFromRecord(record[key]);
+    if (uid && uid !== ownUid) {
+      return uid;
+    }
+  }
+
+  const firstUid = normalizeUid(record.user_id1);
+  const secondUid = normalizeUid(record.user_id2);
+  if (ownUid) {
+    if (firstUid === ownUid && secondUid) {
+      return secondUid;
+    }
+    if (secondUid === ownUid && firstUid) {
+      return firstUid;
+    }
+  }
+
+  const actionUid = normalizeUid(record.action_user_id);
+  if (actionUid === firstUid && secondUid) {
+    return secondUid;
+  }
+  if (actionUid === secondUid && firstUid) {
+    return firstUid;
+  }
+
+  return '';
+}
+
 export function friendUidFromRecord(record, rawOwnUid = '') {
   if (!record || typeof record !== 'object') {
     return '';
@@ -137,8 +182,8 @@ export function extractAcceptedFriendUids(payload, rawOwnUid = '') {
   const uids = new Set();
 
   for (const record of records) {
-    const uid = friendUidFromRecord(record, ownUid);
-    if (uid && uid !== ownUid) {
+    const uid = acceptedListUidFromRecord(record, ownUid);
+    if (uid) {
       uids.add(uid);
     }
   }
