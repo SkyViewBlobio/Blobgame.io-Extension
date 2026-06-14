@@ -23,11 +23,13 @@ import { ProfileUidDetector } from './roles/ProfileUidDetector.js';
 import { RoleRegistry } from './roles/RoleRegistry.js';
 
 const INSTANCE_KEY = '__blobioExtension';
+const EXTENSION_VERSION = '0.1.70';
 const VIP_BADGE_URL = 'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/main/assets/VIP_icon_plus.png';
 
 class BlobioExtension {
   constructor(windowRef = globalThis) {
     this.window = windowRef;
+    this.version = EXTENSION_VERSION;
     this.features = [];
     this.roleRegistry = null;
     this.mutedPlayersStore = null;
@@ -169,12 +171,22 @@ class BlobioExtension {
 }
 
 export function startBlobioExtension(windowRef = globalThis) {
-  if (windowRef[INSTANCE_KEY]) {
-    return windowRef[INSTANCE_KEY];
+  const existing = windowRef[INSTANCE_KEY];
+  if (existing?.version === EXTENSION_VERSION) {
+    return existing;
+  }
+
+  if (existing) {
+    try {
+      existing.destroy?.();
+    } catch (error) {
+      windowRef.console?.warn?.('[Blobio] Previous extension instance could not be cleaned up.', error);
+    }
   }
 
   const extension = new BlobioExtension(windowRef);
   windowRef[INSTANCE_KEY] = extension;
+  windowRef.__blobioExtensionVersion = EXTENSION_VERSION;
 
   if (!extension.start()) {
     const tryStart = () => {

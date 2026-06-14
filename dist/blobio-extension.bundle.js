@@ -2093,6 +2093,7 @@ html.${this.className} body::before {
     }
     ensureUi() {
       if (this.root?.parentNode) {
+        this.ensureHotkeyLauncher();
         this.syncChatWrapper();
         this.positionUi();
         return;
@@ -2123,9 +2124,9 @@ html.${this.className} body::before {
       toggle.addEventListener("click", () => {
         this.setOpen(!root.classList.contains("is-open"));
       });
-      chatButton.addEventListener("click", () => this.toggleCategory("chat"));
-      mutedButton.addEventListener("click", () => this.toggleCategory("muted"));
-      hotkeyButton.addEventListener("click", () => this.toggleCategory("hotkey"));
+      this.bindCategoryButton(chatButton);
+      this.bindCategoryButton(mutedButton);
+      this.bindCategoryButton(hotkeyButton);
       const enabledButton = chatCategory.querySelector(".blobio-chat-font-toggle");
       const range = chatCategory.querySelector(".blobio-chat-font-range");
       const number = chatCategory.querySelector(".blobio-chat-font-number");
@@ -2231,6 +2232,7 @@ html.${this.className} body::before {
       this.installHotkeyCaptureListeners();
       this.root = root;
       this.notificationHost = notificationHost;
+      this.ensureHotkeyLauncher();
       this.syncControls();
       this.syncMutedPlayersUi();
       this.syncHotkeyUi();
@@ -2265,6 +2267,27 @@ html.${this.className} body::before {
       const text = this.document.createElement("span");
       text.textContent = label;
       button.appendChild(text);
+      return button;
+    }
+    bindCategoryButton(button) {
+      if (!button || button.dataset.blobioCategoryBound === "1") {
+        return button;
+      }
+      button.dataset.blobioCategoryBound = "1";
+      button.addEventListener("click", () => this.toggleCategory(button.dataset.category));
+      return button;
+    }
+    ensureHotkeyLauncher() {
+      const panel = this.root?.querySelector?.(".blobio-chat-settings-panel");
+      if (!panel) {
+        return null;
+      }
+      let button = Array.from(panel.querySelectorAll?.(".blobio-chat-settings-category-button") || []).find((item) => item.dataset.category === "hotkey");
+      if (!button) {
+        button = this.createCategoryButton("HotKey", "hotkey");
+        panel.appendChild(button);
+      }
+      this.bindCategoryButton(button);
       return button;
     }
     createChatCategory() {
@@ -2352,6 +2375,9 @@ html.${this.className} body::before {
     setOpen(open) {
       if (!this.root) {
         return;
+      }
+      if (open) {
+        this.ensureHotkeyLauncher();
       }
       const toggle = this.root.querySelector(".blobio-chat-settings-toggle");
       if (open) {
@@ -4637,7 +4663,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.69";
+  var DEFAULT_EXTENSION_VERSION = "0.1.70";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -8574,10 +8600,12 @@ html.${className} .blobio-watermark-extension::after {
 
   // src/main.js
   var INSTANCE_KEY = "__blobioExtension";
+  var EXTENSION_VERSION = "0.1.70";
   var VIP_BADGE_URL = "https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/main/assets/VIP_icon_plus.png";
   var BlobioExtension = class {
     constructor(windowRef = globalThis) {
       this.window = windowRef;
+      this.version = EXTENSION_VERSION;
       this.features = [];
       this.roleRegistry = null;
       this.mutedPlayersStore = null;
@@ -8705,11 +8733,20 @@ html.${className} .blobio-watermark-extension::after {
     }
   };
   function startBlobioExtension(windowRef = globalThis) {
-    if (windowRef[INSTANCE_KEY]) {
-      return windowRef[INSTANCE_KEY];
+    const existing = windowRef[INSTANCE_KEY];
+    if (existing?.version === EXTENSION_VERSION) {
+      return existing;
+    }
+    if (existing) {
+      try {
+        existing.destroy?.();
+      } catch (error) {
+        windowRef.console?.warn?.("[Blobio] Previous extension instance could not be cleaned up.", error);
+      }
     }
     const extension = new BlobioExtension(windowRef);
     windowRef[INSTANCE_KEY] = extension;
+    windowRef.__blobioExtensionVersion = EXTENSION_VERSION;
     if (!extension.start()) {
       const tryStart = () => {
         if (!extension.started) {
@@ -8723,3 +8760,4 @@ html.${className} .blobio-watermark-extension::after {
   }
   startBlobioExtension(globalThis);
 })();
+

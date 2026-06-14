@@ -86,6 +86,7 @@ export class ChatSettingsFeature {
 
   ensureUi() {
     if (this.root?.parentNode) {
+      this.ensureHotkeyLauncher();
       this.syncChatWrapper();
       this.positionUi();
       return;
@@ -124,9 +125,9 @@ export class ChatSettingsFeature {
       this.setOpen(!root.classList.contains('is-open'));
     });
 
-    chatButton.addEventListener('click', () => this.toggleCategory('chat'));
-    mutedButton.addEventListener('click', () => this.toggleCategory('muted'));
-    hotkeyButton.addEventListener('click', () => this.toggleCategory('hotkey'));
+    this.bindCategoryButton(chatButton);
+    this.bindCategoryButton(mutedButton);
+    this.bindCategoryButton(hotkeyButton);
 
     const enabledButton = chatCategory.querySelector('.blobio-chat-font-toggle');
     const range = chatCategory.querySelector('.blobio-chat-font-range');
@@ -251,6 +252,7 @@ export class ChatSettingsFeature {
 
     this.root = root;
     this.notificationHost = notificationHost;
+    this.ensureHotkeyLauncher();
     this.syncControls();
     this.syncMutedPlayersUi();
     this.syncHotkeyUi();
@@ -294,6 +296,33 @@ export class ChatSettingsFeature {
     const text = this.document.createElement('span');
     text.textContent = label;
     button.appendChild(text);
+    return button;
+  }
+
+  bindCategoryButton(button) {
+    if (!button || button.dataset.blobioCategoryBound === '1') {
+      return button;
+    }
+
+    button.dataset.blobioCategoryBound = '1';
+    button.addEventListener('click', () => this.toggleCategory(button.dataset.category));
+    return button;
+  }
+
+  ensureHotkeyLauncher() {
+    const panel = this.root?.querySelector?.('.blobio-chat-settings-panel');
+    if (!panel) {
+      return null;
+    }
+
+    let button = Array.from(panel.querySelectorAll?.('.blobio-chat-settings-category-button') || [])
+      .find((item) => item.dataset.category === 'hotkey');
+    if (!button) {
+      button = this.createCategoryButton('HotKey', 'hotkey');
+      panel.appendChild(button);
+    }
+
+    this.bindCategoryButton(button);
     return button;
   }
 
@@ -404,6 +433,10 @@ export class ChatSettingsFeature {
   setOpen(open) {
     if (!this.root) {
       return;
+    }
+
+    if (open) {
+      this.ensureHotkeyLauncher();
     }
 
     const toggle = this.root.querySelector('.blobio-chat-settings-toggle');
