@@ -153,10 +153,7 @@ export const CHAT_ROLE_CSS = `
      0 0 7px rgba(0, 255, 0, 0.72) !important;
 }
 
-#chat .blobio-chat-friend-username:not(.blobio-chat-admin-username) {
-  color: rgb(0, 255, 0) !important;
-}
-
+#chat .blobio-chat-friend-username:not(.blobio-chat-admin-username),
 #chat .blobio-chat-friend-message:not(.blobio-chat-admin-message) {
   color: rgb(0, 255, 0) !important;
   text-shadow:
@@ -172,6 +169,11 @@ export const CHAT_ROLE_CSS = `
      2px 0 0 #000,
      0 -2px 0 #000,
      0 2px 0 #000 !important;
+}
+
+#chat .blobio-chat-friend-message:not(.blobio-chat-admin-message) * {
+  color: inherit !important;
+  text-shadow: inherit !important;
 }
 
 #chat .blobio-chat-admin-username {

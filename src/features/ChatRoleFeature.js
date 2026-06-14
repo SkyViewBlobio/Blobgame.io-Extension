@@ -229,12 +229,12 @@ export class ChatRoleFeature {
 
     this.toggleClass(username, 'blobio-chat-admin-username', roles.admin);
     this.toggleClass(username, 'blobio-chat-friend-username', friendHighlighted);
-    this.toggleClass(messageSpan, 'blobio-chat-friend-message', false);
+    this.toggleClass(messageSpan, 'blobio-chat-friend-message', friendHighlighted);
     this.toggleClass(messageSpan, 'blobio-chat-admin-message', false);
 
-    const messageBody = this.getMessageBody(messageSpan, roles.admin || friendHighlighted);
+    const messageBody = this.getMessageBody(messageSpan, roles.admin);
     if (messageBody) {
-      this.toggleClass(messageBody, 'blobio-chat-friend-message', friendHighlighted);
+      this.toggleClass(messageBody, 'blobio-chat-friend-message', false);
       this.toggleClass(messageBody, 'blobio-chat-admin-message', roles.admin);
     }
 

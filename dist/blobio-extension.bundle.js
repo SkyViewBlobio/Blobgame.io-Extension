@@ -851,10 +851,7 @@ html.${this.className} body::before {
      0 0 7px rgba(0, 255, 0, 0.72) !important;
 }
 
-#chat .blobio-chat-friend-username:not(.blobio-chat-admin-username) {
-  color: rgb(0, 255, 0) !important;
-}
-
+#chat .blobio-chat-friend-username:not(.blobio-chat-admin-username),
 #chat .blobio-chat-friend-message:not(.blobio-chat-admin-message) {
   color: rgb(0, 255, 0) !important;
   text-shadow:
@@ -870,6 +867,11 @@ html.${this.className} body::before {
      2px 0 0 #000,
      0 -2px 0 #000,
      0 2px 0 #000 !important;
+}
+
+#chat .blobio-chat-friend-message:not(.blobio-chat-admin-message) * {
+  color: inherit !important;
+  text-shadow: inherit !important;
 }
 
 #chat .blobio-chat-admin-username {
@@ -1111,11 +1113,11 @@ html.${this.className} body::before {
       }
       this.toggleClass(username, "blobio-chat-admin-username", roles.admin);
       this.toggleClass(username, "blobio-chat-friend-username", friendHighlighted);
-      this.toggleClass(messageSpan, "blobio-chat-friend-message", false);
+      this.toggleClass(messageSpan, "blobio-chat-friend-message", friendHighlighted);
       this.toggleClass(messageSpan, "blobio-chat-admin-message", false);
-      const messageBody = this.getMessageBody(messageSpan, roles.admin || friendHighlighted);
+      const messageBody = this.getMessageBody(messageSpan, roles.admin);
       if (messageBody) {
-        this.toggleClass(messageBody, "blobio-chat-friend-message", friendHighlighted);
+        this.toggleClass(messageBody, "blobio-chat-friend-message", false);
         this.toggleClass(messageBody, "blobio-chat-admin-message", roles.admin);
       }
       if (roles.admin) {
