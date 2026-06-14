@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Blobio Web Script Loader
 // @namespace    https://github.com/SkyViewBlobio/Blobgame.io-Web-Script
-// @version      0.1.56
+// @version      0.1.57
 // @description  Loads the Blobio modular extension bundle from GitHub.
 // @match        *://blobgame.io/*
 // @match        *://custom.client.blobgame.io/*
 // @run-at       document-start
-// @sandbox      JavaScript
+// @sandbox      raw
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
@@ -23,7 +23,7 @@
   'use strict';
 
   const LOG_PREFIX = '[Blobio]';
-  const VERSION = '0.1.56';
+  const VERSION = '0.1.57';
   const CUSTOM_CLIENT_HOST = 'custom.client.blobgame.io';
   const STORAGE_BRIDGE_SOURCE = 'BlobioExtensionStorageBridge';
   const CUSTOM_SKIN_ENABLED_KEY = 'blobio.customSkin.enabled';
@@ -508,53 +508,178 @@
     'use strict';
 
     const rootWindow = pageWindow || globalThis;
-    const state = rootWindow.__blobioFpsUncapState || { enabled: false };
-    state.enabled = Boolean(initialEnabled);
+    const requestNames = [
+      'requestAnimationFrame',
+      'webkitRequestAnimationFrame',
+      'mozRequestAnimationFrame',
+      'msRequestAnimationFrame',
+      'oRequestAnimationFrame',
+    ];
+    const cancelNames = [
+      'cancelAnimationFrame',
+      'webkitCancelAnimationFrame',
+      'webkitCancelRequestAnimationFrame',
+      'mozCancelAnimationFrame',
+      'mozCancelRequestAnimationFrame',
+      'msCancelAnimationFrame',
+      'oCancelAnimationFrame',
+    ];
+    const state = rootWindow.__blobioFpsUncapState || {};
+
+    Object.assign(state, {
+      enabled: Boolean(initialEnabled),
+      windowsInstalled: Number(state.windowsInstalled) || 0,
+      callbacksScheduled: Number(state.callbacksScheduled) || 0,
+      callbacksRun: Number(state.callbacksRun) || 0,
+      aliasesPatched: Array.isArray(state.aliasesPatched) ? state.aliasesPatched : [],
+      schedulers: Array.isArray(state.schedulers) ? state.schedulers : [],
+      lastError: String(state.lastError || ''),
+    });
     rootWindow.__blobioFpsUncapState = state;
+
+    function now(win) {
+      return win.performance?.now?.() ?? Date.now();
+    }
+
+    function replaceWindowFunction(win, name, value) {
+      try {
+        Object.defineProperty(win, name, {
+          configurable: true,
+          writable: true,
+          value,
+        });
+        return win[name] === value;
+      } catch {
+        try {
+          win[name] = value;
+          return win[name] === value;
+        } catch {
+          return false;
+        }
+      }
+    }
+
+    function createUncappedScheduler(win) {
+      const callbacks = new Map();
+      let nextId = 0x40000000;
+      let scheduleTask;
+      let schedulerName;
+
+      const runNext = () => {
+        const next = callbacks.entries().next();
+        if (next.done) {
+          return;
+        }
+
+        const [id, callback] = next.value;
+        callbacks.delete(id);
+        state.callbacksRun += 1;
+        callback.call(win, now(win));
+      };
+
+      if (typeof win.MessageChannel === 'function') {
+        const channel = new win.MessageChannel();
+        channel.port1.onmessage = runNext;
+        scheduleTask = () => channel.port2.postMessage(0);
+        schedulerName = 'MessageChannel';
+      } else {
+        scheduleTask = () => win.setTimeout(runNext, 0);
+        schedulerName = 'setTimeout';
+      }
+
+      return {
+        name: schedulerName,
+        request(callback) {
+          if (typeof callback !== 'function') {
+            throw new TypeError('requestAnimationFrame callback must be a function');
+          }
+
+          const id = nextId;
+          nextId = nextId >= 0x7ffffffe ? 0x40000000 : nextId + 1;
+          callbacks.set(id, callback);
+          state.callbacksScheduled += 1;
+          scheduleTask();
+          return id;
+        },
+        cancel(id) {
+          return callbacks.delete(id);
+        },
+      };
+    }
 
     function installIntoWindow(win) {
       if (!win || win.__blobioFpsUncapInstalled) {
         return;
       }
 
-      const nativeRequestAnimationFrame = typeof win.requestAnimationFrame === 'function'
-        ? win.requestAnimationFrame.bind(win)
-        : (callback) => win.setTimeout(() => callback(win.performance?.now?.() ?? Date.now()), 16);
-      const nativeCancelAnimationFrame = typeof win.cancelAnimationFrame === 'function'
-        ? win.cancelAnimationFrame.bind(win)
-        : win.clearTimeout.bind(win);
-      const timers = new Map();
-      let nextTimerId = 0x80000000;
+      const nativeRequests = new Map();
+      const nativeCancels = new Map();
+      const scheduler = createUncappedScheduler(win);
+      const nativeRequestFallback = requestNames
+        .map((name) => typeof win[name] === 'function' ? win[name].bind(win) : null)
+        .find(Boolean)
+        || ((callback) => win.setTimeout(() => callback(now(win)), 16));
+      const nativeCancelFallback = cancelNames
+        .map((name) => typeof win[name] === 'function' ? win[name].bind(win) : null)
+        .find(Boolean)
+        || win.clearTimeout.bind(win);
 
-      win.requestAnimationFrame = function blobioRequestAnimationFrame(callback) {
-        if (!state.enabled) {
-          return nativeRequestAnimationFrame(callback);
+      for (const name of requestNames) {
+        if (typeof win[name] === 'function') {
+          nativeRequests.set(name, win[name].bind(win));
+        }
+      }
+      for (const name of cancelNames) {
+        if (typeof win[name] === 'function') {
+          nativeCancels.set(name, win[name].bind(win));
+        }
+      }
+
+      const patchedAliases = [];
+      for (const name of requestNames) {
+        if (name !== 'requestAnimationFrame' && !nativeRequests.has(name)) {
+          continue;
         }
 
-        const id = nextTimerId;
-        nextTimerId = nextTimerId >= 0xfffffffe ? 0x80000000 : nextTimerId + 1;
-        const timer = win.setTimeout(() => {
-          timers.delete(id);
-          callback(win.performance?.now?.() ?? Date.now());
-        }, 0);
-        timers.set(id, timer);
-        return id;
-      };
+        const nativeRequest = nativeRequests.get(name) || nativeRequestFallback;
+        const replacement = function blobioRequestAnimationFrame(callback, ...args) {
+          if (!state.enabled) {
+            return nativeRequest(callback, ...args);
+          }
+          return scheduler.request(callback);
+        };
 
-      win.cancelAnimationFrame = function blobioCancelAnimationFrame(id) {
-        if (timers.has(id)) {
-          win.clearTimeout(timers.get(id));
-          timers.delete(id);
-          return;
+        if (replaceWindowFunction(win, name, replacement)) {
+          patchedAliases.push(name);
+        }
+      }
+
+      for (const name of cancelNames) {
+        if (name !== 'cancelAnimationFrame' && !nativeCancels.has(name)) {
+          continue;
         }
 
-        nativeCancelAnimationFrame(id);
-      };
+        const nativeCancel = nativeCancels.get(name) || nativeCancelFallback;
+        const replacement = function blobioCancelAnimationFrame(id) {
+          if (!scheduler.cancel(id)) {
+            nativeCancel(id);
+          }
+        };
+        replaceWindowFunction(win, name, replacement);
+      }
 
       Object.defineProperty(win, '__blobioFpsUncapInstalled', {
         value: true,
         configurable: true,
       });
+
+      state.windowsInstalled += 1;
+      state.schedulers.push(scheduler.name);
+      for (const name of patchedAliases) {
+        if (!state.aliasesPatched.includes(name)) {
+          state.aliasesPatched.push(name);
+        }
+      }
     }
 
     function installIntoFrame(frame) {
@@ -598,11 +723,22 @@
     rootWindow.__blobioFpsUncapStatus = () => ({
       enabled: state.enabled,
       installed: Boolean(rootWindow.__blobioFpsUncapInstalled),
+      windowsInstalled: state.windowsInstalled,
+      callbacksScheduled: state.callbacksScheduled,
+      callbacksRun: state.callbacksRun,
+      aliasesPatched: [...state.aliasesPatched],
+      schedulers: [...state.schedulers],
+      lastError: state.lastError,
     });
 
-    installIntoWindow(rootWindow);
-    rootWindow.document?.querySelectorAll?.('iframe')?.forEach(installIntoFrame);
-    watchFrames(rootWindow);
+    try {
+      installIntoWindow(rootWindow);
+      rootWindow.document?.querySelectorAll?.('iframe')?.forEach(installIntoFrame);
+      watchFrames(rootWindow);
+    } catch (error) {
+      state.lastError = error?.message || String(error);
+      rootWindow.console?.error?.('[Blobio] Failed to patch the game frame scheduler.', error);
+    }
   }
 
   function installFpsUncapRuntime() {

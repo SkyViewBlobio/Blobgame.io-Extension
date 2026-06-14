@@ -2759,7 +2759,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.56";
+  var DEFAULT_EXTENSION_VERSION = "0.1.57";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -2785,7 +2785,7 @@ html.${className} .blobio-watermark-extension::after {
     watermark: "This option will display the Extension name text, alongside its current version.",
     customSkin: "Replace one of your owned skin assets locally with a saved direct i.imgur.com image. Only you see the custom image.",
     hideAdminMd: "Hide the built-in [MD] tag from extension ADMIN users in chat. This is enabled by default.",
-    fpsUncap: "Run the in-game update loop without the normal display-refresh requestAnimationFrame cap. Off by default; reload the game client after changing it."
+    fpsUncap: "Run the custom game client frame loop without the normal display-refresh requestAnimationFrame cap. Off by default and applies immediately."
   };
   var DEFAULT_VIDEO = {
     title: "Featured Blob.io Video",
