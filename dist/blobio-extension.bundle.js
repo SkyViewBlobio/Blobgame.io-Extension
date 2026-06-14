@@ -823,7 +823,8 @@ html.${this.className} body::before {
   text-shadow: 0 0 7px rgba(0, 255, 0, 0.72);
 }
 
-#chat .blobio-chat-friend-username:not(.blobio-chat-admin-username) {
+#chat .blobio-chat-friend-username:not(.blobio-chat-admin-username),
+#chat .blobio-chat-friend-message:not(.blobio-chat-admin-message) {
   color: rgb(0, 255, 0) !important;
   text-shadow: -1px 0 1px rgba(0, 0, 0, 0.88), 1px 0 1px rgba(0, 0, 0, 0.88), 0 1px 2px rgba(0, 0, 0, 0.94) !important;
 }
@@ -875,6 +876,7 @@ html.${this.className} body::before {
       roleRegistry,
       mutedPlayersStore = null,
       friendHighlightStore = null,
+      friendRelationService = null,
       storage = createBlobioStorage(document),
       logger = console
     } = {}) {
@@ -882,6 +884,7 @@ html.${this.className} body::before {
       this.roleRegistry = roleRegistry;
       this.mutedPlayersStore = mutedPlayersStore;
       this.friendHighlightStore = friendHighlightStore;
+      this.friendRelationService = friendRelationService;
       this.storage = storage;
       this.logger = logger;
       this.styleNode = null;
@@ -891,6 +894,7 @@ html.${this.className} body::before {
       this.unsubscribeRoles = null;
       this.unsubscribeMutedPlayers = null;
       this.unsubscribeFriendHighlight = null;
+      this.unsubscribeFriendRelations = null;
       this.started = false;
     }
     start() {
@@ -902,6 +906,7 @@ html.${this.className} body::before {
       this.unsubscribeRoles = this.roleRegistry?.subscribe?.(() => this.reprocessExistingMessages());
       this.unsubscribeMutedPlayers = this.mutedPlayersStore?.subscribe?.(() => this.reprocessExistingMessages());
       this.unsubscribeFriendHighlight = this.friendHighlightStore?.subscribe?.(() => this.reprocessExistingMessages());
+      this.unsubscribeFriendRelations = this.friendRelationService?.subscribe?.(() => this.reprocessExistingMessages());
       this.attachChatObserver();
       this.observeForChat();
       return true;
@@ -1013,7 +1018,13 @@ html.${this.className} body::before {
       }
       const hideAdminMd = isHideAdminMdEnabled(this.storage);
       const muted = !protectedPlayer && (this.mutedPlayersStore?.isMuted?.(uid) || false);
-      const friendHighlighted = !roles.admin && Boolean(this.friendHighlightStore?.isEnabled?.()) && Boolean(this.friendHighlightStore?.has?.(uid));
+      const friendHighlightEnabled = Boolean(this.friendHighlightStore?.isEnabled?.());
+      if (!roles.admin && friendHighlightEnabled) {
+        this.friendRelationService?.ensureChecked?.(uid);
+      }
+      const friendHighlighted = !roles.admin && friendHighlightEnabled && Boolean(
+        this.friendRelationService ? this.friendRelationService.isFriend?.(uid) : this.friendHighlightStore?.has?.(uid)
+      );
       const signature = `${uid}:${roles.admin ? 1 : 0}:${roles.vip.active ? 1 : 0}:${hideAdminMd ? 1 : 0}:${muted ? 1 : 0}:${friendHighlighted ? 1 : 0}`;
       if (!force && message.dataset.blobioRoleSignature === signature) {
         return;
@@ -1049,6 +1060,7 @@ html.${this.className} body::before {
       }
       this.toggleClass(username, "blobio-chat-admin-username", roles.admin);
       this.toggleClass(username, "blobio-chat-friend-username", friendHighlighted);
+      this.toggleClass(messageSpan, "blobio-chat-friend-message", friendHighlighted);
       this.toggleClass(messageSpan, "blobio-chat-admin-message", false);
       const messageBody = this.getMessageBody(messageSpan, roles.admin);
       if (messageBody) {
@@ -1132,9 +1144,11 @@ html.${this.className} body::before {
       this.unsubscribeRoles?.();
       this.unsubscribeMutedPlayers?.();
       this.unsubscribeFriendHighlight?.();
+      this.unsubscribeFriendRelations?.();
       this.unsubscribeRoles = null;
       this.unsubscribeMutedPlayers = null;
       this.unsubscribeFriendHighlight = null;
+      this.unsubscribeFriendRelations = null;
       for (const message of this.document.querySelectorAll?.("#chat li.blobio-chat-muted-message") || []) {
         message.classList.remove("blobio-chat-muted-message");
         message.removeAttribute?.("aria-hidden");
@@ -2190,383 +2204,6 @@ html.${this.className} body::before {
       this.selectedMutedUids.clear();
       this.editingUid = "";
       this.editingNameDraft = "";
-      this.started = false;
-    }
-  };
-
-  // src/roles/UidReader.js
-  var UID_ATTRIBUTES = [
-    "uid",
-    "data-uid",
-    "user-id",
-    "data-user-id",
-    "userid",
-    "data-userid",
-    "player-uid",
-    "data-player-uid",
-    "player-id",
-    "data-player-id"
-  ];
-  var UID_KEYS = ["uid", "userId", "userID", "user_id", "playerUid", "playerUID", "playerId", "playerID"];
-  var NAME_KEYS = [
-    "name",
-    "username",
-    "userName",
-    "user_name",
-    "displayName",
-    "display_name",
-    "playerName",
-    "player_name",
-    "nickname",
-    "nickName",
-    "nick"
-  ];
-  function normalizeName(value) {
-    return String(value ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
-  }
-  function readUidAttribute(element) {
-    for (const attribute of UID_ATTRIBUTES) {
-      const uid = normalizeUid(element?.getAttribute?.(attribute));
-      if (uid) {
-        return uid;
-      }
-    }
-    for (const attribute of Array.from(element?.attributes || [])) {
-      if (!/(?:uid|user.*id|player.*id)/i.test(attribute?.name || "")) {
-        continue;
-      }
-      const uid = normalizeUid(attribute.value);
-      if (uid) {
-        return uid;
-      }
-    }
-    return "";
-  }
-  function extractUidFromElement(element, includeDescendants = true) {
-    if (!element) {
-      return "";
-    }
-    const ownUid = readUidAttribute(element);
-    if (ownUid) {
-      return ownUid;
-    }
-    if (!includeDescendants) {
-      return "";
-    }
-    for (const node of element.querySelectorAll?.("*") || []) {
-      const uid = readUidAttribute(node);
-      if (uid) {
-        return uid;
-      }
-    }
-    const text = String(element.textContent || "");
-    const match = text.match(/(?:UID|User\s*ID|Player\s*ID)\s*[:#-]?\s*(\d{1,20})/i);
-    return normalizeUid(match?.[1]);
-  }
-  function objectNameMatches(value, preferredName) {
-    if (!preferredName) {
-      return false;
-    }
-    for (const key of NAME_KEYS) {
-      try {
-        if (normalizeName(value[key]) === preferredName) {
-          return true;
-        }
-      } catch {
-      }
-    }
-    return false;
-  }
-  function getUidCandidate(value, preferredName) {
-    for (const key of UID_KEYS) {
-      try {
-        const uid = normalizeUid(value[key]);
-        if (uid) {
-          return { uid, key, nameMatch: objectNameMatches(value, preferredName) };
-        }
-      } catch {
-      }
-    }
-    if (preferredName && objectNameMatches(value, preferredName)) {
-      try {
-        const uid = normalizeUid(value.id);
-        if (uid) {
-          return { uid, key: "id", nameMatch: true };
-        }
-      } catch {
-      }
-    }
-    return null;
-  }
-  function findAngularUid(element, {
-    preferredName = "",
-    maxDepth = 6,
-    maxObjects = 600,
-    maxDescendants = 80
-  } = {}) {
-    if (!element) {
-      return { uid: "", value: null };
-    }
-    const normalizedPreferredName = normalizeName(preferredName);
-    const nodes = [element, ...Array.from(element.querySelectorAll?.("*") || []).slice(0, maxDescendants)];
-    const queue = [];
-    for (const node of nodes) {
-      for (const key of Object.getOwnPropertyNames(node || {})) {
-        if (!/^__ng|player|target|selected|friend|profile|user/i.test(key)) {
-          continue;
-        }
-        try {
-          queue.push({ value: node[key], depth: 0, pathScore: /friend|profile|user|player/i.test(key) ? 8 : 0 });
-        } catch {
-        }
-      }
-    }
-    const seen = /* @__PURE__ */ new Set();
-    let inspected = 0;
-    let best = null;
-    while (queue.length > 0 && inspected < maxObjects) {
-      const { value, depth, pathScore } = queue.shift();
-      if (!value || typeof value !== "object" && !Array.isArray(value) || seen.has(value)) {
-        continue;
-      }
-      seen.add(value);
-      inspected += 1;
-      const candidate = getUidCandidate(value, normalizedPreferredName);
-      if (candidate) {
-        const score = 100 - depth * 4 + pathScore + (candidate.nameMatch ? 50 : 0) + (candidate.key === "id" ? -20 : 0);
-        if (!best || score > best.score) {
-          best = { uid: candidate.uid, value, score };
-        }
-        if (!normalizedPreferredName || candidate.nameMatch) {
-          return { uid: candidate.uid, value };
-        }
-      }
-      if (depth >= maxDepth) {
-        continue;
-      }
-      let entries;
-      try {
-        entries = Array.isArray(value) ? value.entries() : Object.entries(value);
-      } catch {
-        continue;
-      }
-      for (const [key, child] of entries) {
-        if (!child || typeof child !== "object" || child.nodeType || child === element.ownerDocument?.defaultView) {
-          continue;
-        }
-        const keyText = String(key);
-        const isRowContext = /^\$implicit$/i.test(keyText);
-        const isRelevantPath = /friend|profile|user|player|target|selected|data|context|component|item|row|model|entry|implicit/i.test(keyText);
-        const nextPathScore = pathScore + (isRowContext ? 16 : isRelevantPath ? 4 : 0);
-        if (Array.isArray(value) || isRelevantPath || depth < 1) {
-          const next = { value: child, depth: depth + 1, pathScore: nextPathScore };
-          if (isRowContext) {
-            queue.unshift(next);
-          } else {
-            queue.push(next);
-          }
-        }
-      }
-    }
-    return best ? { uid: best.uid, value: best.value } : { uid: "", value: null };
-  }
-
-  // src/features/FriendListFeature.js
-  var FRIEND_ROW_CLASS = "friend-row";
-  var ACCEPTED_ACTION_CLASS = "btn-unfriend";
-  var SCAN_DELAY_MS = 120;
-  var RETRY_DELAY_MS = 520;
-  function hasClass(node, className) {
-    return Boolean(node?.classList?.contains?.(className));
-  }
-  function findClassAncestor(node, className) {
-    let current = node;
-    while (current) {
-      if (hasClass(current, className)) {
-        return current;
-      }
-      current = current.parentElement;
-    }
-    return null;
-  }
-  function extractAcceptedFriendUid(row) {
-    if (!row?.querySelector?.(`.${ACCEPTED_ACTION_CLASS}`)) {
-      return "";
-    }
-    const directUid = extractUidFromElement(row);
-    if (directUid) {
-      return directUid;
-    }
-    const name = row.querySelector?.(".friend-name .name-text")?.textContent || row.querySelector?.(".name-text")?.textContent || "";
-    return findAngularUid(row, { preferredName: name }).uid;
-  }
-  var FriendListFeature = class {
-    constructor({
-      document = globalThis.document,
-      friendHighlightStore,
-      logger = console
-    } = {}) {
-      this.document = document;
-      this.friendHighlightStore = friendHighlightStore;
-      this.logger = logger;
-      this.pageObserver = null;
-      this.clickHandler = null;
-      this.scanTimer = null;
-      this.retryTimer = null;
-      this.removalTimers = /* @__PURE__ */ new Set();
-      this.lastFailureSignature = "";
-      this.started = false;
-    }
-    start() {
-      if (this.started || !this.document?.documentElement) {
-        return Boolean(this.started);
-      }
-      this.started = true;
-      this.clickHandler = (event) => this.handleClick(event);
-      this.document.addEventListener?.("click", this.clickHandler, true);
-      this.observeFriendList();
-      this.scheduleScan(0);
-      return true;
-    }
-    observeFriendList() {
-      const MutationObserver = this.document.defaultView?.MutationObserver || globalThis.MutationObserver;
-      if (!MutationObserver) {
-        return;
-      }
-      this.pageObserver = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-          const touchedNodes = [
-            ...Array.from(mutation.addedNodes || []),
-            ...Array.from(mutation.removedNodes || [])
-          ];
-          if (touchedNodes.some((node) => this.containsFriendListContent(node))) {
-            this.scheduleScan();
-            return;
-          }
-        }
-      });
-      this.pageObserver.observe(this.document.documentElement, { childList: true, subtree: true });
-    }
-    containsFriendListContent(node) {
-      if (node?.nodeType !== 1) {
-        return false;
-      }
-      if (hasClass(node, FRIEND_ROW_CLASS) || hasClass(node, ACCEPTED_ACTION_CLASS)) {
-        return true;
-      }
-      return Boolean(node.querySelector?.(`.${FRIEND_ROW_CLASS}, .${ACCEPTED_ACTION_CLASS}`));
-    }
-    scheduleScan(delay = SCAN_DELAY_MS) {
-      const win = this.document.defaultView || globalThis;
-      if (this.scanTimer !== null) {
-        win.clearTimeout?.(this.scanTimer);
-      }
-      this.scanTimer = win.setTimeout?.(() => {
-        this.scanTimer = null;
-        const complete = this.scanAcceptedFriends();
-        if (!complete) {
-          this.scheduleRetry();
-        }
-      }, delay) ?? null;
-    }
-    scheduleRetry() {
-      if (this.retryTimer !== null) {
-        return;
-      }
-      const win = this.document.defaultView || globalThis;
-      this.retryTimer = win.setTimeout?.(() => {
-        this.retryTimer = null;
-        this.scanAcceptedFriends();
-      }, RETRY_DELAY_MS) ?? null;
-    }
-    scanAcceptedFriends() {
-      const rows = Array.from(this.document.querySelectorAll?.(`.${FRIEND_ROW_CLASS}`) || []).filter((row) => row.querySelector?.(`.${ACCEPTED_ACTION_CLASS}`));
-      if (rows.length === 0) {
-        return true;
-      }
-      const uids = [];
-      const unresolvedNames = [];
-      for (const row of rows) {
-        const uid = extractAcceptedFriendUid(row);
-        if (uid) {
-          uids.push(uid);
-          continue;
-        }
-        unresolvedNames.push(String(row.querySelector?.(".name-text")?.textContent || "").trim() || "?");
-      }
-      if (unresolvedNames.length > 0) {
-        for (const uid of uids) {
-          this.friendHighlightStore?.addUid?.(uid);
-        }
-        const signature = unresolvedNames.join("|");
-        if (signature !== this.lastFailureSignature) {
-          this.lastFailureSignature = signature;
-          this.logger.warn?.(
-            `[Blobio] Friends-highlight could not read ${unresolvedNames.length} accepted friend UID(s).`,
-            unresolvedNames
-          );
-        }
-        return false;
-      }
-      this.lastFailureSignature = "";
-      this.friendHighlightStore?.replaceUids?.(uids);
-      return true;
-    }
-    handleClick(event) {
-      const unfriendButton = findClassAncestor(event?.target, ACCEPTED_ACTION_CLASS);
-      if (!unfriendButton) {
-        return;
-      }
-      const row = findClassAncestor(unfriendButton, FRIEND_ROW_CLASS);
-      const uid = extractAcceptedFriendUid(row);
-      if (!uid) {
-        return;
-      }
-      this.scheduleRemovalCheck(uid, row, 350);
-      this.scheduleRemovalCheck(uid, row, 1200);
-    }
-    scheduleRemovalCheck(uid, row, delay) {
-      const win = this.document.defaultView || globalThis;
-      const timer = win.setTimeout?.(() => {
-        this.removalTimers.delete(timer);
-        if (!this.isConnected(row) || !row.querySelector?.(`.${ACCEPTED_ACTION_CLASS}`)) {
-          this.friendHighlightStore?.removeUid?.(uid);
-        }
-      }, delay);
-      if (timer !== void 0 && timer !== null) {
-        this.removalTimers.add(timer);
-      }
-    }
-    isConnected(node) {
-      if (!node) {
-        return false;
-      }
-      if (typeof node.isConnected === "boolean") {
-        return node.isConnected;
-      }
-      return Boolean(this.document.documentElement?.contains?.(node));
-    }
-    destroy() {
-      this.pageObserver?.disconnect();
-      this.pageObserver = null;
-      if (this.clickHandler) {
-        this.document.removeEventListener?.("click", this.clickHandler, true);
-        this.clickHandler = null;
-      }
-      const win = this.document.defaultView || globalThis;
-      if (this.scanTimer !== null) {
-        win.clearTimeout?.(this.scanTimer);
-        this.scanTimer = null;
-      }
-      if (this.retryTimer !== null) {
-        win.clearTimeout?.(this.retryTimer);
-        this.retryTimer = null;
-      }
-      for (const timer of this.removalTimers) {
-        win.clearTimeout?.(timer);
-      }
-      this.removalTimers.clear();
-      this.lastFailureSignature = "";
       this.started = false;
     }
   };
@@ -3761,7 +3398,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.63";
+  var DEFAULT_EXTENSION_VERSION = "0.1.64";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -6071,6 +5708,325 @@ html.${className} .blobio-watermark-extension::after {
     }
   };
 
+  // src/friends/FriendRelationService.js
+  var RELATION_ENDPOINT = "https://api.blobgame.io:988/api/users/checkRelation";
+  var ACCESS_TOKEN_KEY = "access-token";
+  var PLATFORM = "3";
+  var API_VERSION = "4.7";
+  var MAX_CONCURRENT_REQUESTS = 3;
+  function isAcceptedFriendRelation(payload, rawTargetUid) {
+    const targetUid = normalizeUid(rawTargetUid);
+    const relations = Array.isArray(payload?.result) ? payload.result : [];
+    if (!targetUid) {
+      return false;
+    }
+    return relations.some((relation) => {
+      if (Number(relation?.status) !== 1) {
+        return false;
+      }
+      const firstUid = normalizeUid(relation?.user_id1);
+      const secondUid = normalizeUid(relation?.user_id2);
+      return firstUid === targetUid || secondUid === targetUid;
+    });
+  }
+  var FriendRelationService = class {
+    constructor({
+      document = globalThis.document,
+      friendHighlightStore,
+      fetchFn,
+      logger = console
+    } = {}) {
+      this.document = document;
+      this.friendHighlightStore = friendHighlightStore;
+      this.fetchFn = fetchFn || document?.defaultView?.fetch?.bind(document.defaultView) || globalThis.fetch?.bind(globalThis);
+      this.logger = logger;
+      this.states = /* @__PURE__ */ new Map();
+      this.queue = [];
+      this.activeRequests = 0;
+      this.listeners = /* @__PURE__ */ new Set();
+      this.unsubscribeSetting = null;
+      this.started = false;
+    }
+    start() {
+      if (this.started) {
+        return true;
+      }
+      this.started = true;
+      this.unsubscribeSetting = this.friendHighlightStore?.subscribe?.((_snapshot, source) => {
+        if (source !== "current") {
+          this.notify("", "setting");
+        }
+      });
+      return true;
+    }
+    isFriend(rawUid) {
+      const uid = normalizeUid(rawUid);
+      return Boolean(uid && this.states.get(uid) === "friend");
+    }
+    ensureChecked(rawUid) {
+      const uid = normalizeUid(rawUid);
+      if (!uid || !this.friendHighlightStore?.isEnabled?.()) {
+        return false;
+      }
+      if (this.states.has(uid)) {
+        return false;
+      }
+      const token = this.readAccessToken();
+      if (!token) {
+        return false;
+      }
+      this.states.set(uid, "pending");
+      this.queue.push({ uid, token });
+      this.processQueue();
+      return true;
+    }
+    readAccessToken() {
+      try {
+        return String(this.document?.defaultView?.localStorage?.getItem?.(ACCESS_TOKEN_KEY) || "").trim();
+      } catch {
+        return "";
+      }
+    }
+    processQueue() {
+      while (this.activeRequests < MAX_CONCURRENT_REQUESTS && this.queue.length > 0) {
+        const request = this.queue.shift();
+        this.activeRequests += 1;
+        this.checkRelation(request).catch((error) => {
+          this.states.set(request.uid, "error");
+          this.logger.warn?.(`[Blobio] Could not check friend relation for UID ${request.uid}.`, error);
+        }).finally(() => {
+          this.activeRequests -= 1;
+          this.processQueue();
+        });
+      }
+    }
+    async checkRelation({ uid, token }) {
+      if (typeof this.fetchFn !== "function") {
+        throw new Error("fetch is unavailable");
+      }
+      const url = new URL(RELATION_ENDPOINT);
+      url.searchParams.set("target_id", uid);
+      url.searchParams.set("pl", PLATFORM);
+      url.searchParams.set("api_ver", API_VERSION);
+      url.searchParams.set("token", token);
+      const response = await this.fetchFn(url.toString(), {
+        method: "GET",
+        cache: "no-store",
+        credentials: "omit"
+      });
+      if (!response?.ok) {
+        throw new Error(`relation request failed with HTTP ${response?.status || 0}`);
+      }
+      const payload = await response.json();
+      const isFriend = isAcceptedFriendRelation(payload, uid);
+      this.states.set(uid, isFriend ? "friend" : "not-friend");
+      this.notify(uid, isFriend ? "friend" : "not-friend");
+      return isFriend;
+    }
+    subscribe(listener) {
+      if (typeof listener !== "function") {
+        return () => {
+        };
+      }
+      this.listeners.add(listener);
+      return () => this.listeners.delete(listener);
+    }
+    notify(uid, source) {
+      for (const listener of this.listeners) {
+        try {
+          listener({ uid, friend: uid ? this.isFriend(uid) : false }, source);
+        } catch (error) {
+          this.logger.warn?.("[Blobio] Friend relation listener failed.", error);
+        }
+      }
+    }
+    destroy() {
+      this.unsubscribeSetting?.();
+      this.unsubscribeSetting = null;
+      this.queue.length = 0;
+      this.states.clear();
+      this.listeners.clear();
+      this.started = false;
+    }
+  };
+
+  // src/roles/UidReader.js
+  var UID_ATTRIBUTES = [
+    "uid",
+    "data-uid",
+    "user-id",
+    "data-user-id",
+    "userid",
+    "data-userid",
+    "player-uid",
+    "data-player-uid",
+    "player-id",
+    "data-player-id"
+  ];
+  var UID_KEYS = ["uid", "userId", "userID", "user_id", "playerUid", "playerUID", "playerId", "playerID"];
+  var NAME_KEYS = [
+    "name",
+    "username",
+    "userName",
+    "user_name",
+    "displayName",
+    "display_name",
+    "playerName",
+    "player_name",
+    "nickname",
+    "nickName",
+    "nick"
+  ];
+  function normalizeName(value) {
+    return String(value ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  }
+  function readUidAttribute(element) {
+    for (const attribute of UID_ATTRIBUTES) {
+      const uid = normalizeUid(element?.getAttribute?.(attribute));
+      if (uid) {
+        return uid;
+      }
+    }
+    for (const attribute of Array.from(element?.attributes || [])) {
+      if (!/(?:uid|user.*id|player.*id)/i.test(attribute?.name || "")) {
+        continue;
+      }
+      const uid = normalizeUid(attribute.value);
+      if (uid) {
+        return uid;
+      }
+    }
+    return "";
+  }
+  function extractUidFromElement(element, includeDescendants = true) {
+    if (!element) {
+      return "";
+    }
+    const ownUid = readUidAttribute(element);
+    if (ownUid) {
+      return ownUid;
+    }
+    if (!includeDescendants) {
+      return "";
+    }
+    for (const node of element.querySelectorAll?.("*") || []) {
+      const uid = readUidAttribute(node);
+      if (uid) {
+        return uid;
+      }
+    }
+    const text = String(element.textContent || "");
+    const match = text.match(/(?:UID|User\s*ID|Player\s*ID)\s*[:#-]?\s*(\d{1,20})/i);
+    return normalizeUid(match?.[1]);
+  }
+  function objectNameMatches(value, preferredName) {
+    if (!preferredName) {
+      return false;
+    }
+    for (const key of NAME_KEYS) {
+      try {
+        if (normalizeName(value[key]) === preferredName) {
+          return true;
+        }
+      } catch {
+      }
+    }
+    return false;
+  }
+  function getUidCandidate(value, preferredName) {
+    for (const key of UID_KEYS) {
+      try {
+        const uid = normalizeUid(value[key]);
+        if (uid) {
+          return { uid, key, nameMatch: objectNameMatches(value, preferredName) };
+        }
+      } catch {
+      }
+    }
+    if (preferredName && objectNameMatches(value, preferredName)) {
+      try {
+        const uid = normalizeUid(value.id);
+        if (uid) {
+          return { uid, key: "id", nameMatch: true };
+        }
+      } catch {
+      }
+    }
+    return null;
+  }
+  function findAngularUid(element, {
+    preferredName = "",
+    maxDepth = 6,
+    maxObjects = 600,
+    maxDescendants = 80
+  } = {}) {
+    if (!element) {
+      return { uid: "", value: null };
+    }
+    const normalizedPreferredName = normalizeName(preferredName);
+    const nodes = [element, ...Array.from(element.querySelectorAll?.("*") || []).slice(0, maxDescendants)];
+    const queue = [];
+    for (const node of nodes) {
+      for (const key of Object.getOwnPropertyNames(node || {})) {
+        if (!/^__ng|player|target|selected|friend|profile|user/i.test(key)) {
+          continue;
+        }
+        try {
+          queue.push({ value: node[key], depth: 0, pathScore: /friend|profile|user|player/i.test(key) ? 8 : 0 });
+        } catch {
+        }
+      }
+    }
+    const seen = /* @__PURE__ */ new Set();
+    let inspected = 0;
+    let best = null;
+    while (queue.length > 0 && inspected < maxObjects) {
+      const { value, depth, pathScore } = queue.shift();
+      if (!value || typeof value !== "object" && !Array.isArray(value) || seen.has(value)) {
+        continue;
+      }
+      seen.add(value);
+      inspected += 1;
+      const candidate = getUidCandidate(value, normalizedPreferredName);
+      if (candidate) {
+        const score = 100 - depth * 4 + pathScore + (candidate.nameMatch ? 50 : 0) + (candidate.key === "id" ? -20 : 0);
+        if (!best || score > best.score) {
+          best = { uid: candidate.uid, value, score };
+        }
+        if (!normalizedPreferredName || candidate.nameMatch) {
+          return { uid: candidate.uid, value };
+        }
+      }
+      if (depth >= maxDepth) {
+        continue;
+      }
+      let entries;
+      try {
+        entries = Array.isArray(value) ? value.entries() : Object.entries(value);
+      } catch {
+        continue;
+      }
+      for (const [key, child] of entries) {
+        if (!child || typeof child !== "object" || child.nodeType || child === element.ownerDocument?.defaultView) {
+          continue;
+        }
+        const keyText = String(key);
+        const isRowContext = /^\$implicit$/i.test(keyText);
+        const isRelevantPath = /friend|profile|user|player|target|selected|data|context|component|item|row|model|entry|implicit/i.test(keyText);
+        const nextPathScore = pathScore + (isRowContext ? 16 : isRelevantPath ? 4 : 0);
+        if (Array.isArray(value) || isRelevantPath || depth < 1) {
+          const next = { value: child, depth: depth + 1, pathScore: nextPathScore };
+          if (isRowContext) {
+            queue.unshift(next);
+          } else {
+            queue.push(next);
+          }
+        }
+      }
+    }
+    return best ? { uid: best.uid, value: best.value } : { uid: "", value: null };
+  }
+
   // src/features/PlayerMuteFeature.js
   var MENU_SELECTOR = [
     "#mouse-menu",
@@ -6110,14 +6066,12 @@ html.${className} .blobio-watermark-extension::after {
       document = globalThis.document,
       mutedPlayersStore,
       roleRegistry,
-      friendHighlightStore = null,
       notifications,
       logger = console
     } = {}) {
       this.document = document;
       this.mutedPlayersStore = mutedPlayersStore;
       this.roleRegistry = roleRegistry;
-      this.friendHighlightStore = friendHighlightStore;
       this.notifications = notifications;
       this.logger = logger;
       this.pageObserver = null;
@@ -6150,7 +6104,7 @@ html.${className} .blobio-watermark-extension::after {
         capturedAt: Date.now()
       };
       this.rememberProtectedChatPlayers();
-      if (!this.shouldInspectMenus()) {
+      if (!this.mutedPlayersStore?.isEnabled?.()) {
         return;
       }
       this.scheduleMenuChecks();
@@ -6191,7 +6145,7 @@ html.${className} .blobio-watermark-extension::after {
         return;
       }
       this.pageObserver = new MutationObserver((mutations) => {
-        if (!this.shouldInspectMenus()) {
+        if (!this.mutedPlayersStore?.isEnabled?.()) {
           return;
         }
         for (const mutation of mutations) {
@@ -6282,11 +6236,7 @@ html.${className} .blobio-watermark-extension::after {
       return style?.display !== "none" && style?.visibility !== "hidden";
     }
     decorateMenu(menu) {
-      if (!menu || !this.shouldInspectMenus()) {
-        return;
-      }
-      this.syncFriendStatusFromMenu(menu);
-      if (!this.mutedPlayersStore?.isEnabled?.()) {
+      if (!menu || !this.mutedPlayersStore?.isEnabled?.()) {
         return;
       }
       if (menu.querySelector?.(".blobio-mute-player-action")) {
@@ -6305,51 +6255,6 @@ html.${className} .blobio-watermark-extension::after {
         this.muteCurrentTarget(menu);
       });
       actionContainer.appendChild(action);
-    }
-    shouldInspectMenus() {
-      return Boolean(
-        this.mutedPlayersStore?.isEnabled?.() || this.friendHighlightStore?.isEnabled?.()
-      );
-    }
-    syncFriendStatusFromMenu(menu) {
-      if (!this.friendHighlightStore?.isEnabled?.()) {
-        return false;
-      }
-      const friendState = this.readFriendStateFromMenu(menu);
-      if (!friendState) {
-        return false;
-      }
-      const menuTarget = this.readTargetFromMenu(menu);
-      const pending = this.pendingTarget && Date.now() - this.pendingTarget.capturedAt < 2500 ? this.pendingTarget : null;
-      const uid = menuTarget.uid || pending?.uid || "";
-      if (!uid) {
-        return false;
-      }
-      if (friendState === "friend") {
-        this.friendHighlightStore.addUid?.(uid);
-      } else {
-        this.friendHighlightStore.removeUid?.(uid);
-      }
-      return true;
-    }
-    readFriendStateFromMenu(menu) {
-      const queue = Array.from(menu?.children || []);
-      let inspected = 0;
-      while (queue.length > 0 && inspected < 120) {
-        const action = queue.shift();
-        inspected += 1;
-        if (!action?.classList?.contains?.("blobio-mute-player-action")) {
-          const label = String(action?.textContent || "").trim().replace(/\s+/g, " ").toLowerCase();
-          if (/^in friends?$/.test(label)) {
-            return "friend";
-          }
-          if (/^add to friends?$/.test(label)) {
-            return "not-friend";
-          }
-        }
-        queue.push(...Array.from(action?.children || []));
-      }
-      return "";
     }
     findActionContainer(menu) {
       const ownActions = Array.from(menu.querySelectorAll?.('button, [role="button"], a, li') || []).filter((node) => !node.classList?.contains("blobio-mute-player-action"));
@@ -6835,7 +6740,7 @@ html.${className} .blobio-watermark-extension::after {
   // src/roles/ProfileUidDetector.js
   var PROFILE_MODAL_SELECTOR = "#profile-modal";
   var PROFILE_UID_CLASS = "profile-records-title-userid";
-  var ACCESS_TOKEN_KEY = "access-token";
+  var ACCESS_TOKEN_KEY2 = "access-token";
   var TOKEN_CHECK_INTERVAL_MS = 1e3;
   function parseProfileUid(value) {
     const match = String(value ?? "").match(/\bID\s*:\s*([\d\s]+)/i);
@@ -6913,7 +6818,7 @@ html.${className} .blobio-watermark-extension::after {
     syncFromAccessToken(initial = false) {
       let token = "";
       try {
-        token = String(this.storage?.getItem?.(ACCESS_TOKEN_KEY) || "").trim();
+        token = String(this.storage?.getItem?.(ACCESS_TOKEN_KEY2) || "").trim();
       } catch {
         return false;
       }
@@ -6945,7 +6850,7 @@ html.${className} .blobio-watermark-extension::after {
       }
       if (typeof win.addEventListener === "function") {
         this.storageHandler = (event) => {
-          if (!event || event.key === ACCESS_TOKEN_KEY) {
+          if (!event || event.key === ACCESS_TOKEN_KEY2) {
             this.syncFromAccessToken();
           }
         };
@@ -7129,11 +7034,6 @@ html.${className} .blobio-watermark-extension::after {
         facebookIcon: facebook_icon_default,
         instagramIcon: instagram_icon_default
       };
-      this.features.push(new FriendListFeature({
-        document,
-        logger,
-        friendHighlightStore: this.friendHighlightStore
-      }));
       if (hostMode === "frontpage") {
         const uidDetector = new ProfileUidDetector({ document, logger });
         this.features.push(
@@ -7158,18 +7058,25 @@ html.${className} .blobio-watermark-extension::after {
         );
       } else if (hostMode === "runtime") {
         this.mutedPlayersStore = new MutedPlayersStore({ document, logger });
+        const friendRelationService = new FriendRelationService({
+          document,
+          logger,
+          friendHighlightStore: this.friendHighlightStore
+        });
         const chatSettings = new ChatSettingsFeature({
           document,
           logger,
           mutedPlayersStore: this.mutedPlayersStore
         });
         this.features.push(
+          friendRelationService,
           new ChatRoleFeature({
             document,
             logger,
             roleRegistry: this.roleRegistry,
             mutedPlayersStore: this.mutedPlayersStore,
-            friendHighlightStore: this.friendHighlightStore
+            friendHighlightStore: this.friendHighlightStore,
+            friendRelationService
           }),
           chatSettings,
           new PlayerMuteFeature({
@@ -7177,7 +7084,6 @@ html.${className} .blobio-watermark-extension::after {
             logger,
             roleRegistry: this.roleRegistry,
             mutedPlayersStore: this.mutedPlayersStore,
-            friendHighlightStore: this.friendHighlightStore,
             notifications: chatSettings
           })
         );

@@ -12,6 +12,7 @@ export class ChatRoleFeature {
     roleRegistry,
     mutedPlayersStore = null,
     friendHighlightStore = null,
+    friendRelationService = null,
     storage = createBlobioStorage(document),
     logger = console,
   } = {}) {
@@ -19,6 +20,7 @@ export class ChatRoleFeature {
     this.roleRegistry = roleRegistry;
     this.mutedPlayersStore = mutedPlayersStore;
     this.friendHighlightStore = friendHighlightStore;
+    this.friendRelationService = friendRelationService;
     this.storage = storage;
     this.logger = logger;
     this.styleNode = null;
@@ -28,6 +30,7 @@ export class ChatRoleFeature {
     this.unsubscribeRoles = null;
     this.unsubscribeMutedPlayers = null;
     this.unsubscribeFriendHighlight = null;
+    this.unsubscribeFriendRelations = null;
     this.started = false;
   }
 
@@ -41,6 +44,7 @@ export class ChatRoleFeature {
     this.unsubscribeRoles = this.roleRegistry?.subscribe?.(() => this.reprocessExistingMessages());
     this.unsubscribeMutedPlayers = this.mutedPlayersStore?.subscribe?.(() => this.reprocessExistingMessages());
     this.unsubscribeFriendHighlight = this.friendHighlightStore?.subscribe?.(() => this.reprocessExistingMessages());
+    this.unsubscribeFriendRelations = this.friendRelationService?.subscribe?.(() => this.reprocessExistingMessages());
     this.attachChatObserver();
     this.observeForChat();
     return true;
@@ -180,9 +184,18 @@ export class ChatRoleFeature {
 
     const hideAdminMd = isHideAdminMdEnabled(this.storage);
     const muted = !protectedPlayer && (this.mutedPlayersStore?.isMuted?.(uid) || false);
+    const friendHighlightEnabled = Boolean(this.friendHighlightStore?.isEnabled?.());
+    if (!roles.admin && friendHighlightEnabled) {
+      this.friendRelationService?.ensureChecked?.(uid);
+    }
+
     const friendHighlighted = !roles.admin
-      && Boolean(this.friendHighlightStore?.isEnabled?.())
-      && Boolean(this.friendHighlightStore?.has?.(uid));
+      && friendHighlightEnabled
+      && Boolean(
+        this.friendRelationService
+          ? this.friendRelationService.isFriend?.(uid)
+          : this.friendHighlightStore?.has?.(uid),
+      );
     const signature = `${uid}:${roles.admin ? 1 : 0}:${roles.vip.active ? 1 : 0}:${hideAdminMd ? 1 : 0}:${muted ? 1 : 0}:${friendHighlighted ? 1 : 0}`;
     if (!force && message.dataset.blobioRoleSignature === signature) {
       return;
@@ -224,6 +237,7 @@ export class ChatRoleFeature {
 
     this.toggleClass(username, 'blobio-chat-admin-username', roles.admin);
     this.toggleClass(username, 'blobio-chat-friend-username', friendHighlighted);
+    this.toggleClass(messageSpan, 'blobio-chat-friend-message', friendHighlighted);
     this.toggleClass(messageSpan, 'blobio-chat-admin-message', false);
 
     const messageBody = this.getMessageBody(messageSpan, roles.admin);
@@ -325,9 +339,11 @@ export class ChatRoleFeature {
     this.unsubscribeRoles?.();
     this.unsubscribeMutedPlayers?.();
     this.unsubscribeFriendHighlight?.();
+    this.unsubscribeFriendRelations?.();
     this.unsubscribeRoles = null;
     this.unsubscribeMutedPlayers = null;
     this.unsubscribeFriendHighlight = null;
+    this.unsubscribeFriendRelations = null;
     for (const message of this.document.querySelectorAll?.('#chat li.blobio-chat-muted-message') || []) {
       message.classList.remove('blobio-chat-muted-message');
       message.removeAttribute?.('aria-hidden');

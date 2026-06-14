@@ -10,9 +10,9 @@ import { MutedPlayersStore } from './chat/MutedPlayersStore.js';
 import { BackgroundFeature } from './features/BackgroundFeature.js';
 import { ChatRoleFeature } from './features/ChatRoleFeature.js';
 import { ChatSettingsFeature } from './features/ChatSettingsFeature.js';
-import { FriendListFeature } from './features/FriendListFeature.js';
 import { MenuFeature } from './features/MenuFeature.js';
 import { FriendHighlightStore } from './friends/FriendHighlightStore.js';
+import { FriendRelationService } from './friends/FriendRelationService.js';
 import { PlayerMuteFeature } from './features/PlayerMuteFeature.js';
 import { VipBadgeFeature } from './features/VipBadgeFeature.js';
 import { getBlobioHostMode } from './hostRules.js';
@@ -69,12 +69,6 @@ class BlobioExtension {
       instagramIcon: instagramIconUrl,
     };
 
-    this.features.push(new FriendListFeature({
-      document,
-      logger,
-      friendHighlightStore: this.friendHighlightStore,
-    }));
-
     if (hostMode === 'frontpage') {
       const uidDetector = new ProfileUidDetector({ document, logger });
 
@@ -100,6 +94,11 @@ class BlobioExtension {
       );
     } else if (hostMode === 'runtime') {
       this.mutedPlayersStore = new MutedPlayersStore({ document, logger });
+      const friendRelationService = new FriendRelationService({
+        document,
+        logger,
+        friendHighlightStore: this.friendHighlightStore,
+      });
       const chatSettings = new ChatSettingsFeature({
         document,
         logger,
@@ -107,12 +106,14 @@ class BlobioExtension {
       });
 
       this.features.push(
+        friendRelationService,
         new ChatRoleFeature({
           document,
           logger,
           roleRegistry: this.roleRegistry,
           mutedPlayersStore: this.mutedPlayersStore,
           friendHighlightStore: this.friendHighlightStore,
+          friendRelationService,
         }),
         chatSettings,
         new PlayerMuteFeature({
@@ -120,7 +121,6 @@ class BlobioExtension {
           logger,
           roleRegistry: this.roleRegistry,
           mutedPlayersStore: this.mutedPlayersStore,
-          friendHighlightStore: this.friendHighlightStore,
           notifications: chatSettings,
         }),
       );
