@@ -727,11 +727,73 @@ html.${className} app-settings.blobio-extension-settings-active textarea {
 }
 
 html.${className} app-settings.blobio-extension-settings-active .blobio-extension-settings-panel {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   min-height: 100%;
-  padding-bottom: 10px;
   box-sizing: border-box;
+}
+
+html.${className} app-settings .blobio-extension-category-tabs {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 8px 8px 5px;
+  border-bottom: 1px solid rgba(142, 255, 174, 0.28);
+  background: rgba(1, 24, 13, 0.74);
+  box-sizing: border-box;
+}
+
+html.${className} app-settings .blobio-extension-category-button {
+  min-width: 0;
+  padding: 7px 4px;
+  border: 1px solid rgba(142, 255, 174, 0.34);
+  border-radius: 7px;
+  outline: none;
+  background: rgba(3, 39, 21, 0.78);
+  color: #bcefc8;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 0 6px rgba(118, 255, 154, 0.5);
+  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.08);
+  cursor: pointer;
+}
+
+html.${className} app-settings .blobio-extension-category-button:hover,
+html.${className} app-settings .blobio-extension-category-button:focus-visible {
+  border-color: rgba(196, 255, 211, 0.72);
+  color: #effff2;
+  box-shadow: 0 0 11px rgba(79, 255, 130, 0.22), inset 0 0 8px rgba(79, 255, 130, 0.12);
+}
+
+html.${className} app-settings .blobio-extension-category-button.is-active {
+  border-color: rgba(210, 255, 220, 0.88);
+  background: rgba(11, 74, 38, 0.9);
+  color: #ffffff;
+  text-shadow: 0 0 9px rgba(196, 255, 210, 0.92);
+  box-shadow: 0 0 13px rgba(79, 255, 130, 0.34), inset 0 0 10px rgba(79, 255, 130, 0.14);
+}
+
+html.${className} app-settings .blobio-extension-category-panel {
+  display: none;
+  align-content: start;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 7px 8px 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+html.${className} app-settings .blobio-extension-category-panel.is-active {
+  display: grid;
+}
+
+html.${className} app-settings .blobio-extension-category-panel[hidden] {
+  display: none !important;
 }
 
 html.${className} app-settings .blobio-extension-setting-row {

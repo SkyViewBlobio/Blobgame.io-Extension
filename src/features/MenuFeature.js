@@ -6,7 +6,7 @@ import { isFpsUncapEnabled, setFpsUncapEnabled } from '../settings/RuntimeSettin
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
 const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
-const DEFAULT_EXTENSION_VERSION = '0.1.73';
+const DEFAULT_EXTENSION_VERSION = '0.1.74';
 const HIDDEN_CLASS = 'blobio-original-hidden';
 const PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
 const FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -28,6 +28,15 @@ const CUSTOM_SKIN_NOTICE_DURATION = 2200;
 const CUSTOM_SKIN_RELOAD_SECONDS = 3;
 const MAIN_MENU_ALIGNMENT_CLASS = 'blobio-main-menu-align-target';
 const MAIN_MENU_LAYERED_SELECT_CLASS = 'blobio-menu-layered-select';
+const EXTENSION_DEFAULT_CATEGORY = 'fps';
+const EXTENSION_SETTING_CATEGORIES = [
+  ['fps', 'FPS'],
+  ['cell', 'Cell'],
+  ['text', 'Text'],
+  ['theme', 'Theme'],
+  ['animation', 'Animation'],
+  ['misc', 'Misc'],
+];
 
 const EXTENSION_OPTION_TOOLTIPS = {
   watermark: 'This option will display the Extension name text, alongside its current version.',
@@ -831,11 +840,17 @@ export class MenuFeature {
         tabs.appendChild(tab);
       }
 
+      if (panel && !panel.querySelector?.('.blobio-extension-category-tabs')) {
+        panel.remove?.();
+        panel = null;
+      }
+
       if (!panel) {
         panel = this.createExtensionSettingsPanel();
         content.appendChild(panel);
       }
 
+      this.activateExtensionCategory(panel, panel.dataset.activeCategory || EXTENSION_DEFAULT_CATEGORY);
       this.syncExtensionSettingsCheckboxes(panel);
       this.syncExtensionSettingsPanelHeight(settings);
 
@@ -873,20 +888,54 @@ export class MenuFeature {
 
   createExtensionSettingsPanel() {
     const panel = this.document.createElement('div');
-    panel.classList.add('grid-container', 'blobio-extension-settings-panel');
+    panel.classList.add('blobio-extension-settings-panel');
     panel.setAttribute('_ngcontent-c3', '');
 
-    panel.append(
+    const tabs = this.document.createElement('div');
+    tabs.classList.add('blobio-extension-category-tabs');
+    tabs.setAttribute('role', 'tablist');
+    tabs.setAttribute('aria-label', 'Extension setting categories');
+    tabs.setAttribute('_ngcontent-c3', '');
+
+    const categoryPanels = new Map();
+    for (const [key, label] of EXTENSION_SETTING_CATEGORIES) {
+      const button = this.document.createElement('button');
+      button.type = 'button';
+      button.classList.add('blobio-extension-category-button');
+      button.dataset.category = key;
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', 'false');
+      button.setAttribute('_ngcontent-c3', '');
+      button.textContent = label;
+      this.addSettingsListener(button, 'click', (event) => {
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        this.activateExtensionCategory(panel, key);
+      });
+      tabs.appendChild(button);
+
+      const categoryPanel = this.document.createElement('div');
+      categoryPanel.classList.add('grid-container', 'blobio-extension-category-panel');
+      categoryPanel.dataset.category = key;
+      categoryPanel.setAttribute('role', 'tabpanel');
+      categoryPanel.setAttribute('aria-label', `${label} extension settings`);
+      categoryPanel.setAttribute('_ngcontent-c3', '');
+      categoryPanels.set(key, categoryPanel);
+    }
+
+    categoryPanels.get('fps').appendChild(
       this.createExtensionSwitchRow({
-        id: 'config-switch-watermark',
-        label: 'WaterMark',
-        description: EXTENSION_OPTION_TOOLTIPS.watermark,
-        checked: this.isWatermarkEnabled(),
-        onChange: (enabled) => {
-          this.setWatermarkEnabled(enabled);
-          this.syncWatermark();
+        id: 'config-switch-fps-uncap',
+        label: 'FPS-uncap',
+        description: EXTENSION_OPTION_TOOLTIPS.fpsUncap,
+        checked: isFpsUncapEnabled(this.storage),
+        onChange: (enabled, checkbox) => {
+          checkbox.checked = setFpsUncapEnabled(this.storage, enabled);
         },
       }),
+    );
+
+    categoryPanels.get('cell').appendChild(
       this.createExtensionSwitchRow({
         id: 'config-switch-custom-imgur-skin',
         label: 'Custom Skin',
@@ -904,13 +953,17 @@ export class MenuFeature {
           }
         },
       }),
+    );
+
+    categoryPanels.get('text').append(
       this.createExtensionSwitchRow({
-        id: 'config-switch-fps-uncap',
-        label: 'FPS-uncap',
-        description: EXTENSION_OPTION_TOOLTIPS.fpsUncap,
-        checked: isFpsUncapEnabled(this.storage),
-        onChange: (enabled, checkbox) => {
-          checkbox.checked = setFpsUncapEnabled(this.storage, enabled);
+        id: 'config-switch-watermark',
+        label: 'WaterMark',
+        description: EXTENSION_OPTION_TOOLTIPS.watermark,
+        checked: this.isWatermarkEnabled(),
+        onChange: (enabled) => {
+          this.setWatermarkEnabled(enabled);
+          this.syncWatermark();
         },
       }),
       this.createExtensionSwitchRow({
@@ -934,8 +987,45 @@ export class MenuFeature {
       }),
     );
 
+    panel.appendChild(tabs);
+    for (const [key] of EXTENSION_SETTING_CATEGORIES) {
+      panel.appendChild(categoryPanels.get(key));
+    }
+
+    this.activateExtensionCategory(panel, EXTENSION_DEFAULT_CATEGORY);
     this.syncAdminSettingVisibility(panel);
     return panel;
+  }
+
+  activateExtensionCategory(panel, category) {
+    if (!panel) {
+      return;
+    }
+
+    const validCategory = EXTENSION_SETTING_CATEGORIES.some(([key]) => key === category)
+      ? category
+      : EXTENSION_DEFAULT_CATEGORY;
+    panel.dataset.activeCategory = validCategory;
+
+    for (const button of panel.querySelectorAll?.('.blobio-extension-category-button') || []) {
+      const active = button.dataset.category === validCategory;
+      if (active) {
+        button.classList.add('is-active');
+      } else {
+        button.classList.remove('is-active');
+      }
+      button.setAttribute('aria-selected', String(active));
+    }
+
+    for (const categoryPanel of panel.querySelectorAll?.('.blobio-extension-category-panel') || []) {
+      const active = categoryPanel.dataset.category === validCategory;
+      categoryPanel.hidden = !active;
+      if (active) {
+        categoryPanel.classList.add('is-active');
+      } else {
+        categoryPanel.classList.remove('is-active');
+      }
+    }
   }
 
   createExtensionSwitchRow({ id, label, description, checked, onChange, rowClass = '' }) {
@@ -994,6 +1084,8 @@ export class MenuFeature {
       item.classList?.remove('active');
     }
 
+    const panel = settings.querySelector?.('.blobio-extension-settings-panel');
+    this.activateExtensionCategory(panel, panel?.dataset?.activeCategory || EXTENSION_DEFAULT_CATEGORY);
     this.syncExtensionSettingsPanelHeight(settings);
     settings.classList.add('blobio-extension-settings-active');
     extensionTab?.classList.add('active');

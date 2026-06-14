@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Blobio Web Script Loader
 // @namespace    https://github.com/SkyViewBlobio/Blobgame.io-Extension
-// @version      0.1.73
+// @version      0.1.74
 // @description  Loads the Blobio modular extension bundle from GitHub.
 // @match        *://blobgame.io/*
 // @match        *://custom.client.blobgame.io/*
@@ -24,7 +24,7 @@
   'use strict';
 
   const LOG_PREFIX = '[Blobio]';
-  const VERSION = '0.1.73';
+  const VERSION = '0.1.74';
   const CUSTOM_CLIENT_HOST = 'custom.client.blobgame.io';
   const STORAGE_BRIDGE_SOURCE = 'BlobioExtensionStorageBridge';
   const CUSTOM_SKIN_ENABLED_KEY = 'blobio.customSkin.enabled';
@@ -32,6 +32,7 @@
   const CUSTOM_SKIN_CARRIER_ASSET_KEY = 'blobio.customSkin.carrierAsset';
   const FPS_UNCAP_STORAGE_KEY = 'blobio.settings.fpsUncap';
   const EARLY_HOTKEY_BRIDGE_KEY = '__blobioEarlyHotkeyBridge';
+  const INPUT_KEYBOARD_ISOLATION_KEY = '__blobioExtensionInputKeyboardIsolationInstalled';
   const DIRECT_IMGUR_IMAGE_MATCH = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|webp)(?:\?.*)?$/i;
 
   globalThis.__blobioLoaderVersion = VERSION;
@@ -103,6 +104,96 @@
       || value.startsWith('blobio.roles.')
       || value.startsWith('blobio.settings.')
       || value.startsWith('blobio.chat.');
+  }
+
+  function installExtensionInputKeyboardIsolation() {
+    if (location.hostname !== CUSTOM_CLIENT_HOST || globalThis[INPUT_KEYBOARD_ISOLATION_KEY]) {
+      return;
+    }
+
+    const prototype = globalThis.EventTarget?.prototype;
+    if (!prototype?.addEventListener || !prototype?.removeEventListener) {
+      return;
+    }
+
+    const nativeAddEventListener = prototype.addEventListener;
+    const nativeRemoveEventListener = prototype.removeEventListener;
+    const keyboardEvents = new Set(['keydown', 'keypress', 'keyup']);
+    const listenerWrappers = new WeakMap();
+
+    const isGlobalKeyboardTarget = (target) => target === window
+      || target === document
+      || target === document.body;
+
+    const isExtensionInput = (target) => {
+      const input = target?.closest?.('input, textarea, select, [contenteditable="true"]');
+      return Boolean(input?.closest?.('.blobio-chat-settings-root'));
+    };
+
+    const captureKey = (options) => {
+      if (typeof options === 'boolean') {
+        return options ? 'capture' : 'bubble';
+      }
+      return options?.capture ? 'capture' : 'bubble';
+    };
+
+    const getListenerMap = (target, type, options, create) => {
+      let targetMap = listenerWrappers.get(target);
+      if (!targetMap && create) {
+        targetMap = new Map();
+        listenerWrappers.set(target, targetMap);
+      }
+      if (!targetMap) {
+        return null;
+      }
+
+      const key = `${type}:${captureKey(options)}`;
+      let listeners = targetMap.get(key);
+      if (!listeners && create) {
+        listeners = new WeakMap();
+        targetMap.set(key, listeners);
+      }
+      return listeners || null;
+    };
+
+    prototype.addEventListener = function blobioInputSafeAddEventListener(type, listener, options) {
+      const listenerType = typeof listener;
+      if (!keyboardEvents.has(type)
+        || (listenerType !== 'function' && listenerType !== 'object')
+        || !isGlobalKeyboardTarget(this)) {
+        return nativeAddEventListener.call(this, type, listener, options);
+      }
+
+      const listeners = getListenerMap(this, type, options, true);
+      let wrapped = listeners.get(listener);
+      if (!wrapped) {
+        wrapped = function blobioInputSafeKeyboardListener(event) {
+          if (isExtensionInput(event?.target)) {
+            return undefined;
+          }
+
+          if (typeof listener === 'function') {
+            return listener.call(this, event);
+          }
+          return listener.handleEvent?.call(listener, event);
+        };
+        listeners.set(listener, wrapped);
+      }
+
+      return nativeAddEventListener.call(this, type, wrapped, options);
+    };
+
+    prototype.removeEventListener = function blobioInputSafeRemoveEventListener(type, listener, options) {
+      const listenerType = typeof listener;
+      const wrapped = keyboardEvents.has(type)
+        && (listenerType === 'function' || listenerType === 'object')
+        && isGlobalKeyboardTarget(this)
+        ? getListenerMap(this, type, options, false)?.get(listener)
+        : null;
+      return nativeRemoveEventListener.call(this, type, wrapped || listener, options);
+    };
+
+    globalThis[INPUT_KEYBOARD_ISOLATION_KEY] = true;
   }
 
   function installEarlyKeyboardRuntime() {
@@ -1038,6 +1129,7 @@
     });
   }
 
+  installExtensionInputKeyboardIsolation();
   installEarlyKeyboardRuntime();
   installSharedStorageBridge();
   installFpsUncapRuntime();

@@ -4258,11 +4258,73 @@ html.${className} app-settings.blobio-extension-settings-active textarea {
 }
 
 html.${className} app-settings.blobio-extension-settings-active .blobio-extension-settings-panel {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   min-height: 100%;
-  padding-bottom: 10px;
   box-sizing: border-box;
+}
+
+html.${className} app-settings .blobio-extension-category-tabs {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 8px 8px 5px;
+  border-bottom: 1px solid rgba(142, 255, 174, 0.28);
+  background: rgba(1, 24, 13, 0.74);
+  box-sizing: border-box;
+}
+
+html.${className} app-settings .blobio-extension-category-button {
+  min-width: 0;
+  padding: 7px 4px;
+  border: 1px solid rgba(142, 255, 174, 0.34);
+  border-radius: 7px;
+  outline: none;
+  background: rgba(3, 39, 21, 0.78);
+  color: #bcefc8;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 0 6px rgba(118, 255, 154, 0.5);
+  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.08);
+  cursor: pointer;
+}
+
+html.${className} app-settings .blobio-extension-category-button:hover,
+html.${className} app-settings .blobio-extension-category-button:focus-visible {
+  border-color: rgba(196, 255, 211, 0.72);
+  color: #effff2;
+  box-shadow: 0 0 11px rgba(79, 255, 130, 0.22), inset 0 0 8px rgba(79, 255, 130, 0.12);
+}
+
+html.${className} app-settings .blobio-extension-category-button.is-active {
+  border-color: rgba(210, 255, 220, 0.88);
+  background: rgba(11, 74, 38, 0.9);
+  color: #ffffff;
+  text-shadow: 0 0 9px rgba(196, 255, 210, 0.92);
+  box-shadow: 0 0 13px rgba(79, 255, 130, 0.34), inset 0 0 10px rgba(79, 255, 130, 0.14);
+}
+
+html.${className} app-settings .blobio-extension-category-panel {
+  display: none;
+  align-content: start;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 7px 8px 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+html.${className} app-settings .blobio-extension-category-panel.is-active {
+  display: grid;
+}
+
+html.${className} app-settings .blobio-extension-category-panel[hidden] {
+  display: none !important;
 }
 
 html.${className} app-settings .blobio-extension-setting-row {
@@ -4718,7 +4780,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.73";
+  var DEFAULT_EXTENSION_VERSION = "0.1.74";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -4740,6 +4802,15 @@ html.${className} .blobio-watermark-extension::after {
   var CUSTOM_SKIN_RELOAD_SECONDS = 3;
   var MAIN_MENU_ALIGNMENT_CLASS = "blobio-main-menu-align-target";
   var MAIN_MENU_LAYERED_SELECT_CLASS = "blobio-menu-layered-select";
+  var EXTENSION_DEFAULT_CATEGORY = "fps";
+  var EXTENSION_SETTING_CATEGORIES = [
+    ["fps", "FPS"],
+    ["cell", "Cell"],
+    ["text", "Text"],
+    ["theme", "Theme"],
+    ["animation", "Animation"],
+    ["misc", "Misc"]
+  ];
   var EXTENSION_OPTION_TOOLTIPS = {
     watermark: "This option will display the Extension name text, alongside its current version.",
     customSkin: "Replace one of your owned skin assets locally with a saved direct i.imgur.com image. Only you see the custom image.",
@@ -5406,10 +5477,15 @@ html.${className} .blobio-watermark-extension::after {
           tab = this.createExtensionSettingsTab(settings);
           tabs.appendChild(tab);
         }
+        if (panel && !panel.querySelector?.(".blobio-extension-category-tabs")) {
+          panel.remove?.();
+          panel = null;
+        }
         if (!panel) {
           panel = this.createExtensionSettingsPanel();
           content.appendChild(panel);
         }
+        this.activateExtensionCategory(panel, panel.dataset.activeCategory || EXTENSION_DEFAULT_CATEGORY);
         this.syncExtensionSettingsCheckboxes(panel);
         this.syncExtensionSettingsPanelHeight(settings);
         if (tab.dataset.blobioExtensionListener !== "true") {
@@ -5442,19 +5518,49 @@ html.${className} .blobio-watermark-extension::after {
     }
     createExtensionSettingsPanel() {
       const panel = this.document.createElement("div");
-      panel.classList.add("grid-container", "blobio-extension-settings-panel");
+      panel.classList.add("blobio-extension-settings-panel");
       panel.setAttribute("_ngcontent-c3", "");
-      panel.append(
+      const tabs = this.document.createElement("div");
+      tabs.classList.add("blobio-extension-category-tabs");
+      tabs.setAttribute("role", "tablist");
+      tabs.setAttribute("aria-label", "Extension setting categories");
+      tabs.setAttribute("_ngcontent-c3", "");
+      const categoryPanels = /* @__PURE__ */ new Map();
+      for (const [key, label] of EXTENSION_SETTING_CATEGORIES) {
+        const button = this.document.createElement("button");
+        button.type = "button";
+        button.classList.add("blobio-extension-category-button");
+        button.dataset.category = key;
+        button.setAttribute("role", "tab");
+        button.setAttribute("aria-selected", "false");
+        button.setAttribute("_ngcontent-c3", "");
+        button.textContent = label;
+        this.addSettingsListener(button, "click", (event) => {
+          event.preventDefault?.();
+          event.stopPropagation?.();
+          this.activateExtensionCategory(panel, key);
+        });
+        tabs.appendChild(button);
+        const categoryPanel = this.document.createElement("div");
+        categoryPanel.classList.add("grid-container", "blobio-extension-category-panel");
+        categoryPanel.dataset.category = key;
+        categoryPanel.setAttribute("role", "tabpanel");
+        categoryPanel.setAttribute("aria-label", `${label} extension settings`);
+        categoryPanel.setAttribute("_ngcontent-c3", "");
+        categoryPanels.set(key, categoryPanel);
+      }
+      categoryPanels.get("fps").appendChild(
         this.createExtensionSwitchRow({
-          id: "config-switch-watermark",
-          label: "WaterMark",
-          description: EXTENSION_OPTION_TOOLTIPS.watermark,
-          checked: this.isWatermarkEnabled(),
-          onChange: (enabled) => {
-            this.setWatermarkEnabled(enabled);
-            this.syncWatermark();
+          id: "config-switch-fps-uncap",
+          label: "FPS-uncap",
+          description: EXTENSION_OPTION_TOOLTIPS.fpsUncap,
+          checked: isFpsUncapEnabled(this.storage),
+          onChange: (enabled, checkbox) => {
+            checkbox.checked = setFpsUncapEnabled(this.storage, enabled);
           }
-        }),
+        })
+      );
+      categoryPanels.get("cell").appendChild(
         this.createExtensionSwitchRow({
           id: "config-switch-custom-imgur-skin",
           label: "Custom Skin",
@@ -5470,14 +5576,17 @@ html.${className} .blobio-watermark-extension::after {
               this.warnIfOwnedSkinIsMissing();
             }
           }
-        }),
+        })
+      );
+      categoryPanels.get("text").append(
         this.createExtensionSwitchRow({
-          id: "config-switch-fps-uncap",
-          label: "FPS-uncap",
-          description: EXTENSION_OPTION_TOOLTIPS.fpsUncap,
-          checked: isFpsUncapEnabled(this.storage),
-          onChange: (enabled, checkbox) => {
-            checkbox.checked = setFpsUncapEnabled(this.storage, enabled);
+          id: "config-switch-watermark",
+          label: "WaterMark",
+          description: EXTENSION_OPTION_TOOLTIPS.watermark,
+          checked: this.isWatermarkEnabled(),
+          onChange: (enabled) => {
+            this.setWatermarkEnabled(enabled);
+            this.syncWatermark();
           }
         }),
         this.createExtensionSwitchRow({
@@ -5500,8 +5609,38 @@ html.${className} .blobio-watermark-extension::after {
           }
         })
       );
+      panel.appendChild(tabs);
+      for (const [key] of EXTENSION_SETTING_CATEGORIES) {
+        panel.appendChild(categoryPanels.get(key));
+      }
+      this.activateExtensionCategory(panel, EXTENSION_DEFAULT_CATEGORY);
       this.syncAdminSettingVisibility(panel);
       return panel;
+    }
+    activateExtensionCategory(panel, category) {
+      if (!panel) {
+        return;
+      }
+      const validCategory = EXTENSION_SETTING_CATEGORIES.some(([key]) => key === category) ? category : EXTENSION_DEFAULT_CATEGORY;
+      panel.dataset.activeCategory = validCategory;
+      for (const button of panel.querySelectorAll?.(".blobio-extension-category-button") || []) {
+        const active = button.dataset.category === validCategory;
+        if (active) {
+          button.classList.add("is-active");
+        } else {
+          button.classList.remove("is-active");
+        }
+        button.setAttribute("aria-selected", String(active));
+      }
+      for (const categoryPanel of panel.querySelectorAll?.(".blobio-extension-category-panel") || []) {
+        const active = categoryPanel.dataset.category === validCategory;
+        categoryPanel.hidden = !active;
+        if (active) {
+          categoryPanel.classList.add("is-active");
+        } else {
+          categoryPanel.classList.remove("is-active");
+        }
+      }
     }
     createExtensionSwitchRow({ id, label, description, checked, onChange, rowClass = "" }) {
       const row = this.document.createElement("div");
@@ -5548,6 +5687,8 @@ html.${className} .blobio-watermark-extension::after {
       for (const item of left?.querySelector?.("ul")?.children || []) {
         item.classList?.remove("active");
       }
+      const panel = settings.querySelector?.(".blobio-extension-settings-panel");
+      this.activateExtensionCategory(panel, panel?.dataset?.activeCategory || EXTENSION_DEFAULT_CATEGORY);
       this.syncExtensionSettingsPanelHeight(settings);
       settings.classList.add("blobio-extension-settings-active");
       extensionTab?.classList.add("active");
@@ -8554,7 +8695,7 @@ html.${className} .blobio-watermark-extension::after {
 
   // src/main.js
   var INSTANCE_KEY = "__blobioExtension";
-  var EXTENSION_VERSION = "0.1.73";
+  var EXTENSION_VERSION = "0.1.74";
   var VIP_BADGE_URL = "https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/main/assets/VIP_icon_plus.png";
   var BlobioExtension = class {
     constructor(windowRef = globalThis) {
