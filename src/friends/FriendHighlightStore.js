@@ -76,7 +76,12 @@ export class FriendHighlightStore {
 
   readEnabled() {
     try {
-      return this.storage?.getItem?.(FRIEND_HIGHLIGHT_ENABLED_KEY) === '1';
+      const value = this.storage?.getItem?.(FRIEND_HIGHLIGHT_ENABLED_KEY);
+      if (value == null) {
+        return true;
+      }
+
+      return value === '1';
     } catch {
       return false;
     }
