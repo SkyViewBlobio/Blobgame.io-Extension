@@ -851,8 +851,7 @@ html.${this.className} body::before {
      0 0 7px rgba(0, 255, 0, 0.72) !important;
 }
 
-#chat .blobio-chat-friend-username:not(.blobio-chat-admin-username),
-#chat .blobio-chat-friend-message:not(.blobio-chat-admin-message) {
+#chat .blobio-chat-friend-text:not(.blobio-extension-chat-tag):not(.blobio-chat-admin-username) {
   color: rgb(0, 255, 0) !important;
   text-shadow:
     -1px -1px 0 #000,
@@ -928,16 +927,12 @@ html.${this.className} body::before {
       document = globalThis.document,
       roleRegistry,
       mutedPlayersStore = null,
-      friendHighlightStore = null,
-      friendRelationService = null,
       storage = createBlobioStorage(document),
       logger = console
     } = {}) {
       this.document = document;
       this.roleRegistry = roleRegistry;
       this.mutedPlayersStore = mutedPlayersStore;
-      this.friendHighlightStore = friendHighlightStore;
-      this.friendRelationService = friendRelationService;
       this.storage = storage;
       this.logger = logger;
       this.styleNode = null;
@@ -946,8 +941,6 @@ html.${this.className} body::before {
       this.chatList = null;
       this.unsubscribeRoles = null;
       this.unsubscribeMutedPlayers = null;
-      this.unsubscribeFriendHighlight = null;
-      this.unsubscribeFriendRelations = null;
       this.started = false;
     }
     start() {
@@ -958,8 +951,6 @@ html.${this.className} body::before {
       this.ensureStyle();
       this.unsubscribeRoles = this.roleRegistry?.subscribe?.(() => this.reprocessExistingMessages());
       this.unsubscribeMutedPlayers = this.mutedPlayersStore?.subscribe?.(() => this.reprocessExistingMessages());
-      this.unsubscribeFriendHighlight = this.friendHighlightStore?.subscribe?.(() => this.reprocessExistingMessages());
-      this.unsubscribeFriendRelations = this.friendRelationService?.subscribe?.(() => this.reprocessExistingMessages());
       this.attachChatObserver();
       this.observeForChat();
       return true;
@@ -1071,9 +1062,7 @@ html.${this.className} body::before {
       }
       const hideAdminMd = isHideAdminMdEnabled(this.storage);
       const muted = !protectedPlayer && (this.mutedPlayersStore?.isMuted?.(uid) || false);
-      const friendHighlightEnabled = Boolean(this.friendHighlightStore?.isEnabled?.());
-      const friendHighlighted = !roles.admin && friendHighlightEnabled && Boolean(this.friendRelationService?.isFriend?.(uid));
-      const signature = `${uid}:${roles.admin ? 1 : 0}:${roles.vip.active ? 1 : 0}:${hideAdminMd ? 1 : 0}:${muted ? 1 : 0}:${friendHighlighted ? 1 : 0}`;
+      const signature = `${uid}:${roles.admin ? 1 : 0}:${roles.vip.active ? 1 : 0}:${hideAdminMd ? 1 : 0}:${muted ? 1 : 0}`;
       if (!force && message.dataset.blobioRoleSignature === signature) {
         return;
       }
@@ -1107,12 +1096,9 @@ html.${this.className} body::before {
         }
       }
       this.toggleClass(username, "blobio-chat-admin-username", roles.admin);
-      this.toggleClass(username, "blobio-chat-friend-username", friendHighlighted);
-      this.toggleClass(messageSpan, "blobio-chat-friend-message", friendHighlighted);
       this.toggleClass(messageSpan, "blobio-chat-admin-message", false);
       const messageBody = this.getMessageBody(messageSpan, roles.admin);
       if (messageBody) {
-        this.toggleClass(messageBody, "blobio-chat-friend-message", false);
         this.toggleClass(messageBody, "blobio-chat-admin-message", roles.admin);
       }
       if (roles.admin) {
@@ -1192,12 +1178,8 @@ html.${this.className} body::before {
       this.chatList = null;
       this.unsubscribeRoles?.();
       this.unsubscribeMutedPlayers?.();
-      this.unsubscribeFriendHighlight?.();
-      this.unsubscribeFriendRelations?.();
       this.unsubscribeRoles = null;
       this.unsubscribeMutedPlayers = null;
-      this.unsubscribeFriendHighlight = null;
-      this.unsubscribeFriendRelations = null;
       for (const message of this.document.querySelectorAll?.("#chat li.blobio-chat-muted-message") || []) {
         message.classList.remove("blobio-chat-muted-message");
         message.removeAttribute?.("aria-hidden");
@@ -2253,6 +2235,179 @@ html.${this.className} body::before {
       this.selectedMutedUids.clear();
       this.editingUid = "";
       this.editingNameDraft = "";
+      this.started = false;
+    }
+  };
+
+  // src/features/FriendHighlightFeature.js
+  var FRIEND_TEXT_CLASS = "blobio-chat-friend-text";
+  var FRIEND_UID_ATTR = "data-blobio-friend-uid";
+  var UID_ATTRS = ["uid", "data-uid", "data-user-id", "data-account-id", "data-id"];
+  var UID_SELECTOR = UID_ATTRS.map((attr) => `[${attr}]`).join(",");
+  function uidFromElement(element) {
+    for (const attr of UID_ATTRS) {
+      const uid = normalizeUid(element?.getAttribute?.(attr));
+      if (uid) {
+        return uid;
+      }
+    }
+    return "";
+  }
+  function isExtensionTag(element) {
+    return Boolean(element?.classList?.contains?.("blobio-extension-chat-tag"));
+  }
+  var FriendHighlightFeature = class {
+    constructor({
+      document = globalThis.document,
+      friendHighlightStore,
+      friendRelationService,
+      roleRegistry
+    } = {}) {
+      this.document = document;
+      this.window = document?.defaultView || globalThis;
+      this.friendHighlightStore = friendHighlightStore;
+      this.friendRelationService = friendRelationService;
+      this.roleRegistry = roleRegistry;
+      this.observer = null;
+      this.frameId = 0;
+      this.unsubscribeSetting = null;
+      this.unsubscribeRelations = null;
+      this.unsubscribeRoles = null;
+      this.debugApi = null;
+      this.started = false;
+    }
+    start() {
+      if (this.started || !this.document?.documentElement) {
+        return Boolean(this.started);
+      }
+      this.started = true;
+      this.unsubscribeSetting = this.friendHighlightStore?.subscribe?.(() => this.scheduleUpdate());
+      this.unsubscribeRelations = this.friendRelationService?.subscribe?.(() => this.scheduleUpdate());
+      this.unsubscribeRoles = this.roleRegistry?.subscribe?.(() => this.scheduleUpdate());
+      this.installObserver();
+      this.debugApi = {
+        status: () => ({
+          enabled: Boolean(this.friendHighlightStore?.isEnabled?.()),
+          friends: this.friendRelationService?.getFriendUids?.() || [],
+          tokenPresent: Boolean(this.friendRelationService?.readAccessToken?.())
+        }),
+        refresh: () => this.friendRelationService?.refresh?.(true),
+        apply: () => this.applyFriendStyles()
+      };
+      this.window.blobioFriendHighlight = this.debugApi;
+      this.scheduleUpdate();
+      return true;
+    }
+    installObserver() {
+      const MutationObserver = this.window.MutationObserver || globalThis.MutationObserver;
+      if (!MutationObserver) {
+        return;
+      }
+      this.observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (mutation.type === "childList" && (mutation.addedNodes.length || mutation.removedNodes.length)) {
+            this.scheduleUpdate();
+            return;
+          }
+          if (mutation.type === "attributes" && UID_ATTRS.includes(mutation.attributeName)) {
+            this.scheduleUpdate();
+            return;
+          }
+        }
+      });
+      this.observer.observe(this.document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: UID_ATTRS
+      });
+    }
+    scheduleUpdate() {
+      if (this.frameId) {
+        return;
+      }
+      const requestFrame = this.window.requestAnimationFrame?.bind(this.window) || ((callback) => this.window.setTimeout?.(callback, 0));
+      this.frameId = requestFrame?.(() => {
+        this.frameId = 0;
+        this.applyFriendStyles();
+      }) || 0;
+    }
+    applyFriendStyles() {
+      const chat = this.document.querySelector?.("#chat");
+      if (!chat) {
+        return;
+      }
+      this.clearFriendStyles(chat);
+      if (!this.friendHighlightStore?.isEnabled?.()) {
+        return;
+      }
+      const uidNodes = [];
+      if (this.hasUid(chat)) {
+        uidNodes.push(chat);
+      }
+      for (const node of chat.querySelectorAll?.(UID_SELECTOR) || []) {
+        uidNodes.push(node);
+      }
+      for (const node of uidNodes) {
+        const uid = uidFromElement(node);
+        if (!uid || !this.friendRelationService?.isFriend?.(uid)) {
+          continue;
+        }
+        const roles = this.roleRegistry?.getRoles?.(uid);
+        if (roles?.admin) {
+          continue;
+        }
+        const spans = Array.from(node.querySelectorAll?.("span") || []);
+        if (spans.length === 0) {
+          this.markFriendText(node, uid);
+          continue;
+        }
+        for (const span of spans) {
+          if (!isExtensionTag(span)) {
+            this.markFriendText(span, uid);
+          }
+        }
+      }
+    }
+    hasUid(element) {
+      return UID_ATTRS.some((attr) => element?.hasAttribute?.(attr));
+    }
+    markFriendText(element, uid) {
+      element.classList?.add?.(FRIEND_TEXT_CLASS);
+      element.setAttribute?.(FRIEND_UID_ATTR, uid);
+    }
+    clearFriendStyles(root = this.document) {
+      const elements = [];
+      if (root?.classList?.contains?.(FRIEND_TEXT_CLASS)) {
+        elements.push(root);
+      }
+      for (const element of root?.querySelectorAll?.(`.${FRIEND_TEXT_CLASS}`) || []) {
+        elements.push(element);
+      }
+      for (const element of elements) {
+        element.classList?.remove?.(FRIEND_TEXT_CLASS);
+        element.removeAttribute?.(FRIEND_UID_ATTR);
+      }
+    }
+    destroy() {
+      this.observer?.disconnect();
+      this.observer = null;
+      if (this.frameId) {
+        const cancelFrame = this.window.cancelAnimationFrame?.bind(this.window) || this.window.clearTimeout?.bind(this.window);
+        cancelFrame?.(this.frameId);
+        this.frameId = 0;
+      }
+      this.unsubscribeSetting?.();
+      this.unsubscribeRelations?.();
+      this.unsubscribeRoles?.();
+      this.unsubscribeSetting = null;
+      this.unsubscribeRelations = null;
+      this.unsubscribeRoles = null;
+      this.clearFriendStyles(this.document);
+      if (this.window.blobioFriendHighlight === this.debugApi) {
+        delete this.window.blobioFriendHighlight;
+      }
+      this.debugApi = null;
       this.started = false;
     }
   };
@@ -3447,7 +3602,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.67";
+  var DEFAULT_EXTENSION_VERSION = "0.1.68";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -5673,8 +5828,7 @@ html.${className} .blobio-watermark-extension::after {
   var ACCESS_TOKEN_KEY = "access-token";
   var PLATFORM = "3";
   var API_VERSION = "4.7";
-  var TOKEN_RETRY_DELAY_MS = 1e3;
-  var MAX_TOKEN_RETRIES = 30;
+  var TOKEN_POLL_INTERVAL_MS = 5e3;
   function toUrl(value, baseUrl) {
     try {
       return new URL(String(value || ""), baseUrl);
@@ -5855,8 +6009,9 @@ html.${className} .blobio-watermark-extension::after {
       this.loadPromise = null;
       this.unsubscribeSetting = null;
       this.storageHandler = null;
-      this.tokenRetryTimer = null;
-      this.tokenRetryCount = 0;
+      this.tokenPollTimer = null;
+      this.focusHandler = null;
+      this.visibilityHandler = null;
       this.fetchWrapper = null;
       this.nativeFetch = null;
       this.xhrPrototype = null;
@@ -5874,6 +6029,7 @@ html.${className} .blobio-watermark-extension::after {
       this.installFetchHook();
       this.installXhrHook();
       this.installTokenListener();
+      this.installRefreshTriggers();
       this.unsubscribeSetting = this.friendHighlightStore?.subscribe?.((snapshot, source) => {
         if (snapshot.enabled) {
           this.refresh(source !== "current");
@@ -5907,10 +6063,8 @@ html.${className} .blobio-watermark-extension::after {
       const token = this.readAccessToken();
       if (!token) {
         this.setToken("");
-        this.scheduleTokenRetry();
         return Promise.resolve(false);
       }
-      this.clearTokenRetry();
       const tokenChanged = token !== this.accessToken;
       if (tokenChanged) {
         this.setToken(token);
@@ -6032,22 +6186,20 @@ html.${className} .blobio-watermark-extension::after {
         }
       }
     }
-    scheduleTokenRetry() {
-      if (this.tokenRetryTimer !== null || this.tokenRetryCount >= MAX_TOKEN_RETRIES || !this.friendHighlightStore?.isEnabled?.()) {
-        return;
-      }
-      this.tokenRetryCount += 1;
-      this.tokenRetryTimer = this.window.setTimeout?.(() => {
-        this.tokenRetryTimer = null;
-        this.refresh(false);
-      }, TOKEN_RETRY_DELAY_MS) ?? null;
-    }
-    clearTokenRetry() {
-      if (this.tokenRetryTimer !== null) {
-        this.window.clearTimeout?.(this.tokenRetryTimer);
-        this.tokenRetryTimer = null;
-      }
-      this.tokenRetryCount = 0;
+    installRefreshTriggers() {
+      this.focusHandler = () => this.refresh(false);
+      this.visibilityHandler = () => {
+        if (!this.document?.hidden) {
+          this.refresh(false);
+        }
+      };
+      this.window.addEventListener?.("focus", this.focusHandler);
+      this.document?.addEventListener?.("visibilitychange", this.visibilityHandler);
+      this.tokenPollTimer = this.window.setInterval?.(() => {
+        if (this.friendHighlightStore?.isEnabled?.()) {
+          this.refresh(false);
+        }
+      }, TOKEN_POLL_INTERVAL_MS) ?? null;
     }
     installFetchHook() {
       const nativeFetch = this.window.fetch;
@@ -6170,7 +6322,18 @@ html.${className} .blobio-watermark-extension::after {
           this.xhrPrototype.send = this.nativeXhrSend;
         }
       }
-      this.clearTokenRetry();
+      if (this.tokenPollTimer !== null) {
+        this.window.clearInterval?.(this.tokenPollTimer);
+        this.tokenPollTimer = null;
+      }
+      if (this.focusHandler) {
+        this.window.removeEventListener?.("focus", this.focusHandler);
+        this.focusHandler = null;
+      }
+      if (this.visibilityHandler) {
+        this.document?.removeEventListener?.("visibilitychange", this.visibilityHandler);
+        this.visibilityHandler = null;
+      }
       this.friendUids.clear();
       this.listeners.clear();
       this.loadPromise = null;
@@ -7402,7 +7565,11 @@ html.${className} .blobio-watermark-extension::after {
             document,
             logger,
             roleRegistry: this.roleRegistry,
-            mutedPlayersStore: this.mutedPlayersStore,
+            mutedPlayersStore: this.mutedPlayersStore
+          }),
+          new FriendHighlightFeature({
+            document,
+            roleRegistry: this.roleRegistry,
             friendHighlightStore: this.friendHighlightStore,
             friendRelationService
           }),

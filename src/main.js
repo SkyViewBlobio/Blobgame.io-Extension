@@ -10,6 +10,7 @@ import { MutedPlayersStore } from './chat/MutedPlayersStore.js';
 import { BackgroundFeature } from './features/BackgroundFeature.js';
 import { ChatRoleFeature } from './features/ChatRoleFeature.js';
 import { ChatSettingsFeature } from './features/ChatSettingsFeature.js';
+import { FriendHighlightFeature } from './features/FriendHighlightFeature.js';
 import { MenuFeature } from './features/MenuFeature.js';
 import { FriendHighlightStore } from './friends/FriendHighlightStore.js';
 import { FriendRelationService } from './friends/FriendRelationService.js';
@@ -112,6 +113,10 @@ class BlobioExtension {
           logger,
           roleRegistry: this.roleRegistry,
           mutedPlayersStore: this.mutedPlayersStore,
+        }),
+        new FriendHighlightFeature({
+          document,
+          roleRegistry: this.roleRegistry,
           friendHighlightStore: this.friendHighlightStore,
           friendRelationService,
         }),

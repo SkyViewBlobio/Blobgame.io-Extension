@@ -153,8 +153,7 @@ export const CHAT_ROLE_CSS = `
      0 0 7px rgba(0, 255, 0, 0.72) !important;
 }
 
-#chat .blobio-chat-friend-username:not(.blobio-chat-admin-username),
-#chat .blobio-chat-friend-message:not(.blobio-chat-admin-message) {
+#chat .blobio-chat-friend-text:not(.blobio-extension-chat-tag):not(.blobio-chat-admin-username) {
   color: rgb(0, 255, 0) !important;
   text-shadow:
     -1px -1px 0 #000,

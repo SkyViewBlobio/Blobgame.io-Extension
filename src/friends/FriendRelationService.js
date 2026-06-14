@@ -5,8 +5,7 @@ const API_ROOT = 'https://api.blobgame.io:988/api';
 const ACCESS_TOKEN_KEY = 'access-token';
 const PLATFORM = '3';
 const API_VERSION = '4.7';
-const TOKEN_RETRY_DELAY_MS = 1000;
-const MAX_TOKEN_RETRIES = 30;
+const TOKEN_POLL_INTERVAL_MS = 5000;
 
 function toUrl(value, baseUrl) {
   try {
@@ -229,8 +228,9 @@ export class FriendRelationService {
     this.loadPromise = null;
     this.unsubscribeSetting = null;
     this.storageHandler = null;
-    this.tokenRetryTimer = null;
-    this.tokenRetryCount = 0;
+    this.tokenPollTimer = null;
+    this.focusHandler = null;
+    this.visibilityHandler = null;
     this.fetchWrapper = null;
     this.nativeFetch = null;
     this.xhrPrototype = null;
@@ -250,6 +250,7 @@ export class FriendRelationService {
     this.installFetchHook();
     this.installXhrHook();
     this.installTokenListener();
+    this.installRefreshTriggers();
     this.unsubscribeSetting = this.friendHighlightStore?.subscribe?.((snapshot, source) => {
       if (snapshot.enabled) {
         this.refresh(source !== 'current');
@@ -290,11 +291,8 @@ export class FriendRelationService {
     const token = this.readAccessToken();
     if (!token) {
       this.setToken('');
-      this.scheduleTokenRetry();
       return Promise.resolve(false);
     }
-
-    this.clearTokenRetry();
 
     const tokenChanged = token !== this.accessToken;
     if (tokenChanged) {
@@ -445,29 +443,23 @@ export class FriendRelationService {
   }
 
 
-  scheduleTokenRetry() {
-    if (
-      this.tokenRetryTimer !== null
-      || this.tokenRetryCount >= MAX_TOKEN_RETRIES
-      || !this.friendHighlightStore?.isEnabled?.()
-    ) {
-      return;
-    }
+  installRefreshTriggers() {
+    this.focusHandler = () => this.refresh(false);
+    this.visibilityHandler = () => {
+      if (!this.document?.hidden) {
+        this.refresh(false);
+      }
+    };
 
-    this.tokenRetryCount += 1;
-    this.tokenRetryTimer = this.window.setTimeout?.(() => {
-      this.tokenRetryTimer = null;
-      this.refresh(false);
-    }, TOKEN_RETRY_DELAY_MS) ?? null;
+    this.window.addEventListener?.('focus', this.focusHandler);
+    this.document?.addEventListener?.('visibilitychange', this.visibilityHandler);
+    this.tokenPollTimer = this.window.setInterval?.(() => {
+      if (this.friendHighlightStore?.isEnabled?.()) {
+        this.refresh(false);
+      }
+    }, TOKEN_POLL_INTERVAL_MS) ?? null;
   }
 
-  clearTokenRetry() {
-    if (this.tokenRetryTimer !== null) {
-      this.window.clearTimeout?.(this.tokenRetryTimer);
-      this.tokenRetryTimer = null;
-    }
-    this.tokenRetryCount = 0;
-  }
 
   installFetchHook() {
     const nativeFetch = this.window.fetch;
@@ -614,7 +606,19 @@ export class FriendRelationService {
       }
     }
 
-    this.clearTokenRetry();
+    if (this.tokenPollTimer !== null) {
+      this.window.clearInterval?.(this.tokenPollTimer);
+      this.tokenPollTimer = null;
+    }
+    if (this.focusHandler) {
+      this.window.removeEventListener?.('focus', this.focusHandler);
+      this.focusHandler = null;
+    }
+    if (this.visibilityHandler) {
+      this.document?.removeEventListener?.('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
+
     this.friendUids.clear();
     this.listeners.clear();
     this.loadPromise = null;
