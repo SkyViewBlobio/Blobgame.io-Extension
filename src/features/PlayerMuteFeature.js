@@ -45,12 +45,14 @@ export class PlayerMuteFeature {
     document = globalThis.document,
     mutedPlayersStore,
     roleRegistry,
+    friendHighlightStore = null,
     notifications,
     logger = console,
   } = {}) {
     this.document = document;
     this.mutedPlayersStore = mutedPlayersStore;
     this.roleRegistry = roleRegistry;
+    this.friendHighlightStore = friendHighlightStore;
     this.notifications = notifications;
     this.logger = logger;
     this.pageObserver = null;
@@ -87,7 +89,7 @@ export class PlayerMuteFeature {
     };
 
     this.rememberProtectedChatPlayers();
-    if (!this.mutedPlayersStore?.isEnabled?.()) {
+    if (!this.shouldInspectMenus()) {
       return;
     }
 
@@ -134,7 +136,7 @@ export class PlayerMuteFeature {
     }
 
     this.pageObserver = new MutationObserver((mutations) => {
-      if (!this.mutedPlayersStore?.isEnabled?.()) {
+      if (!this.shouldInspectMenus()) {
         return;
       }
 
@@ -244,7 +246,12 @@ export class PlayerMuteFeature {
   }
 
   decorateMenu(menu) {
-    if (!menu || !this.mutedPlayersStore?.isEnabled?.()) {
+    if (!menu || !this.shouldInspectMenus()) {
+      return;
+    }
+
+    this.syncFriendStatusFromMenu(menu);
+    if (!this.mutedPlayersStore?.isEnabled?.()) {
       return;
     }
 
@@ -267,6 +274,65 @@ export class PlayerMuteFeature {
       this.muteCurrentTarget(menu);
     });
     actionContainer.appendChild(action);
+  }
+
+  shouldInspectMenus() {
+    return Boolean(
+      this.mutedPlayersStore?.isEnabled?.()
+      || this.friendHighlightStore?.isEnabled?.(),
+    );
+  }
+
+  syncFriendStatusFromMenu(menu) {
+    if (!this.friendHighlightStore?.isEnabled?.()) {
+      return false;
+    }
+
+    const friendState = this.readFriendStateFromMenu(menu);
+    if (!friendState) {
+      return false;
+    }
+
+    const menuTarget = this.readTargetFromMenu(menu);
+    const pending = this.pendingTarget && Date.now() - this.pendingTarget.capturedAt < 2500
+      ? this.pendingTarget
+      : null;
+    const uid = menuTarget.uid || pending?.uid || '';
+    if (!uid) {
+      return false;
+    }
+
+    if (friendState === 'friend') {
+      this.friendHighlightStore.addUid?.(uid);
+    } else {
+      this.friendHighlightStore.removeUid?.(uid);
+    }
+
+    return true;
+  }
+
+  readFriendStateFromMenu(menu) {
+    const queue = Array.from(menu?.children || []);
+    let inspected = 0;
+
+    while (queue.length > 0 && inspected < 120) {
+      const action = queue.shift();
+      inspected += 1;
+
+      if (!action?.classList?.contains?.('blobio-mute-player-action')) {
+        const label = String(action?.textContent || '').trim().replace(/\s+/g, ' ').toLowerCase();
+        if (/^in friends?$/.test(label)) {
+          return 'friend';
+        }
+        if (/^add to friends?$/.test(label)) {
+          return 'not-friend';
+        }
+      }
+
+      queue.push(...Array.from(action?.children || []));
+    }
+
+    return '';
   }
 
   findActionContainer(menu) {

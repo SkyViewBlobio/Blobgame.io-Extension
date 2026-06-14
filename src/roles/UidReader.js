@@ -14,7 +14,19 @@ const UID_ATTRIBUTES = [
 ];
 
 const UID_KEYS = ['uid', 'userId', 'userID', 'user_id', 'playerUid', 'playerUID', 'playerId', 'playerID'];
-const NAME_KEYS = ['name', 'username', 'userName', 'displayName', 'playerName', 'nickname', 'nick'];
+const NAME_KEYS = [
+  'name',
+  'username',
+  'userName',
+  'user_name',
+  'displayName',
+  'display_name',
+  'playerName',
+  'player_name',
+  'nickname',
+  'nickName',
+  'nick',
+];
 
 function normalizeName(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
@@ -108,8 +120,8 @@ function getUidCandidate(value, preferredName) {
 
 export function findAngularUid(element, {
   preferredName = '',
-  maxDepth = 4,
-  maxObjects = 300,
+  maxDepth = 6,
+  maxObjects = 600,
   maxDescendants = 80,
 } = {}) {
   if (!element) {
@@ -174,9 +186,17 @@ export function findAngularUid(element, {
       }
 
       const keyText = String(key);
-      const nextPathScore = pathScore + (/friend|profile|user|player|target|selected|data|context|component/i.test(keyText) ? 4 : 0);
-      if (Array.isArray(value) || nextPathScore > pathScore || depth < 1) {
-        queue.push({ value: child, depth: depth + 1, pathScore: nextPathScore });
+      const isRowContext = /^\$implicit$/i.test(keyText);
+      const isRelevantPath = /friend|profile|user|player|target|selected|data|context|component|item|row|model|entry|implicit/i.test(keyText);
+      const nextPathScore = pathScore + (isRowContext ? 16 : isRelevantPath ? 4 : 0);
+
+      if (Array.isArray(value) || isRelevantPath || depth < 1) {
+        const next = { value: child, depth: depth + 1, pathScore: nextPathScore };
+        if (isRowContext) {
+          queue.unshift(next);
+        } else {
+          queue.push(next);
+        }
       }
     }
   }

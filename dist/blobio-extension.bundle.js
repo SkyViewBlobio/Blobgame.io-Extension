@@ -1024,13 +1024,14 @@ html.${this.className} body::before {
       } else {
         message.removeAttribute?.("aria-hidden");
       }
-      message.dataset.blobioRoleSignature = signature;
       if (muted) {
+        message.dataset.blobioRoleSignature = signature;
         return;
       }
       this.removeExtensionTags(message);
       const spans = Array.from(message.children || []).filter((child) => String(child.tagName).toUpperCase() === "SPAN");
       if (spans.length < 2) {
+        delete message.dataset.blobioRoleSignature;
         return;
       }
       const username = spans[0];
@@ -2207,7 +2208,19 @@ html.${this.className} body::before {
     "data-player-id"
   ];
   var UID_KEYS = ["uid", "userId", "userID", "user_id", "playerUid", "playerUID", "playerId", "playerID"];
-  var NAME_KEYS = ["name", "username", "userName", "displayName", "playerName", "nickname", "nick"];
+  var NAME_KEYS = [
+    "name",
+    "username",
+    "userName",
+    "user_name",
+    "displayName",
+    "display_name",
+    "playerName",
+    "player_name",
+    "nickname",
+    "nickName",
+    "nick"
+  ];
   function normalizeName(value) {
     return String(value ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
   }
@@ -2287,8 +2300,8 @@ html.${this.className} body::before {
   }
   function findAngularUid(element, {
     preferredName = "",
-    maxDepth = 4,
-    maxObjects = 300,
+    maxDepth = 6,
+    maxObjects = 600,
     maxDescendants = 80
   } = {}) {
     if (!element) {
@@ -2342,9 +2355,16 @@ html.${this.className} body::before {
           continue;
         }
         const keyText = String(key);
-        const nextPathScore = pathScore + (/friend|profile|user|player|target|selected|data|context|component/i.test(keyText) ? 4 : 0);
-        if (Array.isArray(value) || nextPathScore > pathScore || depth < 1) {
-          queue.push({ value: child, depth: depth + 1, pathScore: nextPathScore });
+        const isRowContext = /^\$implicit$/i.test(keyText);
+        const isRelevantPath = /friend|profile|user|player|target|selected|data|context|component|item|row|model|entry|implicit/i.test(keyText);
+        const nextPathScore = pathScore + (isRowContext ? 16 : isRelevantPath ? 4 : 0);
+        if (Array.isArray(value) || isRelevantPath || depth < 1) {
+          const next = { value: child, depth: depth + 1, pathScore: nextPathScore };
+          if (isRowContext) {
+            queue.unshift(next);
+          } else {
+            queue.push(next);
+          }
         }
       }
     }
@@ -3741,7 +3761,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.62";
+  var DEFAULT_EXTENSION_VERSION = "0.1.63";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -6090,12 +6110,14 @@ html.${className} .blobio-watermark-extension::after {
       document = globalThis.document,
       mutedPlayersStore,
       roleRegistry,
+      friendHighlightStore = null,
       notifications,
       logger = console
     } = {}) {
       this.document = document;
       this.mutedPlayersStore = mutedPlayersStore;
       this.roleRegistry = roleRegistry;
+      this.friendHighlightStore = friendHighlightStore;
       this.notifications = notifications;
       this.logger = logger;
       this.pageObserver = null;
@@ -6128,7 +6150,7 @@ html.${className} .blobio-watermark-extension::after {
         capturedAt: Date.now()
       };
       this.rememberProtectedChatPlayers();
-      if (!this.mutedPlayersStore?.isEnabled?.()) {
+      if (!this.shouldInspectMenus()) {
         return;
       }
       this.scheduleMenuChecks();
@@ -6169,7 +6191,7 @@ html.${className} .blobio-watermark-extension::after {
         return;
       }
       this.pageObserver = new MutationObserver((mutations) => {
-        if (!this.mutedPlayersStore?.isEnabled?.()) {
+        if (!this.shouldInspectMenus()) {
           return;
         }
         for (const mutation of mutations) {
@@ -6260,7 +6282,11 @@ html.${className} .blobio-watermark-extension::after {
       return style?.display !== "none" && style?.visibility !== "hidden";
     }
     decorateMenu(menu) {
-      if (!menu || !this.mutedPlayersStore?.isEnabled?.()) {
+      if (!menu || !this.shouldInspectMenus()) {
+        return;
+      }
+      this.syncFriendStatusFromMenu(menu);
+      if (!this.mutedPlayersStore?.isEnabled?.()) {
         return;
       }
       if (menu.querySelector?.(".blobio-mute-player-action")) {
@@ -6279,6 +6305,51 @@ html.${className} .blobio-watermark-extension::after {
         this.muteCurrentTarget(menu);
       });
       actionContainer.appendChild(action);
+    }
+    shouldInspectMenus() {
+      return Boolean(
+        this.mutedPlayersStore?.isEnabled?.() || this.friendHighlightStore?.isEnabled?.()
+      );
+    }
+    syncFriendStatusFromMenu(menu) {
+      if (!this.friendHighlightStore?.isEnabled?.()) {
+        return false;
+      }
+      const friendState = this.readFriendStateFromMenu(menu);
+      if (!friendState) {
+        return false;
+      }
+      const menuTarget = this.readTargetFromMenu(menu);
+      const pending = this.pendingTarget && Date.now() - this.pendingTarget.capturedAt < 2500 ? this.pendingTarget : null;
+      const uid = menuTarget.uid || pending?.uid || "";
+      if (!uid) {
+        return false;
+      }
+      if (friendState === "friend") {
+        this.friendHighlightStore.addUid?.(uid);
+      } else {
+        this.friendHighlightStore.removeUid?.(uid);
+      }
+      return true;
+    }
+    readFriendStateFromMenu(menu) {
+      const queue = Array.from(menu?.children || []);
+      let inspected = 0;
+      while (queue.length > 0 && inspected < 120) {
+        const action = queue.shift();
+        inspected += 1;
+        if (!action?.classList?.contains?.("blobio-mute-player-action")) {
+          const label = String(action?.textContent || "").trim().replace(/\s+/g, " ").toLowerCase();
+          if (/^in friends?$/.test(label)) {
+            return "friend";
+          }
+          if (/^add to friends?$/.test(label)) {
+            return "not-friend";
+          }
+        }
+        queue.push(...Array.from(action?.children || []));
+      }
+      return "";
     }
     findActionContainer(menu) {
       const ownActions = Array.from(menu.querySelectorAll?.('button, [role="button"], a, li') || []).filter((node) => !node.classList?.contains("blobio-mute-player-action"));
@@ -7106,6 +7177,7 @@ html.${className} .blobio-watermark-extension::after {
             logger,
             roleRegistry: this.roleRegistry,
             mutedPlayersStore: this.mutedPlayersStore,
+            friendHighlightStore: this.friendHighlightStore,
             notifications: chatSettings
           })
         );

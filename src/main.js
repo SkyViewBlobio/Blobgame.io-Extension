@@ -120,6 +120,7 @@ class BlobioExtension {
           logger,
           roleRegistry: this.roleRegistry,
           mutedPlayersStore: this.mutedPlayersStore,
+          friendHighlightStore: this.friendHighlightStore,
           notifications: chatSettings,
         }),
       );

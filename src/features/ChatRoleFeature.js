@@ -194,8 +194,8 @@ export class ChatRoleFeature {
     } else {
       message.removeAttribute?.('aria-hidden');
     }
-    message.dataset.blobioRoleSignature = signature;
     if (muted) {
+      message.dataset.blobioRoleSignature = signature;
       return;
     }
 
@@ -203,6 +203,7 @@ export class ChatRoleFeature {
     const spans = Array.from(message.children || [])
       .filter((child) => String(child.tagName).toUpperCase() === 'SPAN');
     if (spans.length < 2) {
+      delete message.dataset.blobioRoleSignature;
       return;
     }
 
