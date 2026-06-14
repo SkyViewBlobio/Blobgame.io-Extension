@@ -185,17 +185,9 @@ export class ChatRoleFeature {
     const hideAdminMd = isHideAdminMdEnabled(this.storage);
     const muted = !protectedPlayer && (this.mutedPlayersStore?.isMuted?.(uid) || false);
     const friendHighlightEnabled = Boolean(this.friendHighlightStore?.isEnabled?.());
-    if (!roles.admin && friendHighlightEnabled) {
-      this.friendRelationService?.ensureChecked?.(uid);
-    }
-
     const friendHighlighted = !roles.admin
       && friendHighlightEnabled
-      && Boolean(
-        this.friendRelationService
-          ? this.friendRelationService.isFriend?.(uid)
-          : this.friendHighlightStore?.has?.(uid),
-      );
+      && Boolean(this.friendRelationService?.isFriend?.(uid));
     const signature = `${uid}:${roles.admin ? 1 : 0}:${roles.vip.active ? 1 : 0}:${hideAdminMd ? 1 : 0}:${muted ? 1 : 0}:${friendHighlighted ? 1 : 0}`;
     if (!force && message.dataset.blobioRoleSignature === signature) {
       return;
@@ -237,11 +229,12 @@ export class ChatRoleFeature {
 
     this.toggleClass(username, 'blobio-chat-admin-username', roles.admin);
     this.toggleClass(username, 'blobio-chat-friend-username', friendHighlighted);
-    this.toggleClass(messageSpan, 'blobio-chat-friend-message', friendHighlighted);
+    this.toggleClass(messageSpan, 'blobio-chat-friend-message', false);
     this.toggleClass(messageSpan, 'blobio-chat-admin-message', false);
 
-    const messageBody = this.getMessageBody(messageSpan, roles.admin);
+    const messageBody = this.getMessageBody(messageSpan, roles.admin || friendHighlighted);
     if (messageBody) {
+      this.toggleClass(messageBody, 'blobio-chat-friend-message', friendHighlighted);
       this.toggleClass(messageBody, 'blobio-chat-admin-message', roles.admin);
     }
 

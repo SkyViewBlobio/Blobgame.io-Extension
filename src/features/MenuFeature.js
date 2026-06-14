@@ -6,7 +6,7 @@ import { isFpsUncapEnabled, setFpsUncapEnabled } from '../settings/RuntimeSettin
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
 const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
-const DEFAULT_EXTENSION_VERSION = '0.1.64';
+const DEFAULT_EXTENSION_VERSION = '0.1.65';
 const HIDDEN_CLASS = 'blobio-original-hidden';
 const PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
 const FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -33,7 +33,7 @@ const EXTENSION_OPTION_TOOLTIPS = {
   watermark: 'This option will display the Extension name text, alongside its current version.',
   customSkin: 'Replace one of your owned skin assets locally with a saved direct i.imgur.com image. Only you see the custom image.',
   hideAdminMd: 'Hide the built-in [MD] tag from extension ADMIN users in chat. This is enabled by default.',
-  friendHighlight: 'Color accepted friends in chat green by matching their Blobgame UID. Friend requests and declined users are ignored.',
+  friendHighlight: 'Load accepted friends from Blobgame and color their chat name and message green. Friend requests and declined users are ignored.',
   fpsUncap: 'Uncap the in-game render loop after a safe startup delay, periodically yield to native frames, keep the game active when unfocused, and smooth camera zoom using the real frame delta. Off by default and applies immediately.',
 };
 

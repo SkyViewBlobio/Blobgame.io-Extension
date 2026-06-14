@@ -116,25 +116,81 @@ export const CHAT_ROLE_CSS = `
 
 #chat .blobio-chat-vip-plus-tag.is-admin-combined {
   text-decoration: none !important;
+  text-shadow:
+    -1px -1px 0 #000,
+     0 -1px 0 #000,
+     1px -1px 0 #000,
+    -1px 0 0 #000,
+     1px 0 0 #000,
+    -1px 1px 0 #000,
+     0 1px 0 #000,
+     1px 1px 0 #000,
+    -2px 0 0 #000,
+     2px 0 0 #000,
+     0 -2px 0 #000,
+     0 2px 0 #000,
+     0 0 6px rgba(255, 248, 204, 0.74),
+     0 0 11px rgba(255, 190, 47, 0.72) !important;
 }
 
 #chat .blobio-chat-admin-tag {
   color: rgb(0, 255, 0) !important;
   font-style: italic !important;
   text-decoration: none !important;
-  text-shadow: 0 0 7px rgba(0, 255, 0, 0.72);
+  text-shadow:
+    -1px -1px 0 #000,
+     0 -1px 0 #000,
+     1px -1px 0 #000,
+    -1px 0 0 #000,
+     1px 0 0 #000,
+    -1px 1px 0 #000,
+     0 1px 0 #000,
+     1px 1px 0 #000,
+    -2px 0 0 #000,
+     2px 0 0 #000,
+     0 -2px 0 #000,
+     0 2px 0 #000,
+     0 0 7px rgba(0, 255, 0, 0.72) !important;
 }
 
-#chat .blobio-chat-friend-username:not(.blobio-chat-admin-username),
+#chat .blobio-chat-friend-username:not(.blobio-chat-admin-username) {
+  color: rgb(0, 255, 0) !important;
+}
+
 #chat .blobio-chat-friend-message:not(.blobio-chat-admin-message) {
   color: rgb(0, 255, 0) !important;
-  text-shadow: -1px 0 1px rgba(0, 0, 0, 0.88), 1px 0 1px rgba(0, 0, 0, 0.88), 0 1px 2px rgba(0, 0, 0, 0.94) !important;
+  text-shadow:
+    -1px -1px 0 #000,
+     0 -1px 0 #000,
+     1px -1px 0 #000,
+    -1px 0 0 #000,
+     1px 0 0 #000,
+    -1px 1px 0 #000,
+     0 1px 0 #000,
+     1px 1px 0 #000,
+    -2px 0 0 #000,
+     2px 0 0 #000,
+     0 -2px 0 #000,
+     0 2px 0 #000 !important;
 }
 
 #chat .blobio-chat-admin-username {
   font-weight: 800 !important;
   font-style: italic !important;
   text-decoration: none !important;
+  text-shadow:
+    -1px -1px 0 #000,
+     0 -1px 0 #000,
+     1px -1px 0 #000,
+    -1px 0 0 #000,
+     1px 0 0 #000,
+    -1px 1px 0 #000,
+     0 1px 0 #000,
+     1px 1px 0 #000,
+    -2px 0 0 #000,
+     2px 0 0 #000,
+     0 -2px 0 #000,
+     0 2px 0 #000 !important;
 }
 
 #chat .blobio-chat-admin-message {

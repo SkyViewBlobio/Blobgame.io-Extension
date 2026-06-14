@@ -1,36 +1,8 @@
-import { normalizeUid } from '../roles/RoleRegistry.js';
 import { createBlobioStorage } from '../storage/BlobioStorage.js';
 
 export const FRIEND_HIGHLIGHT_ENABLED_KEY = 'blobio.settings.friendHighlight';
-export const FRIEND_UIDS_KEY = 'blobio.settings.friendUids';
 
 const STORAGE_BRIDGE_SOURCE = 'BlobioExtensionStorageBridge';
-
-function normalizeUidList(values) {
-  const uids = new Set();
-
-  for (const value of values || []) {
-    const uid = normalizeUid(value);
-    if (uid) {
-      uids.add(uid);
-    }
-  }
-
-  return [...uids].sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
-}
-
-function parseUidList(value) {
-  try {
-    const parsed = JSON.parse(String(value || '[]'));
-    return Array.isArray(parsed) ? normalizeUidList(parsed) : [];
-  } catch {
-    return [];
-  }
-}
-
-function sameUidList(left, right) {
-  return left.length === right.length && left.every((uid, index) => uid === right[index]);
-}
 
 export class FriendHighlightStore {
   constructor({
@@ -42,10 +14,8 @@ export class FriendHighlightStore {
     this.storage = storage;
     this.logger = logger;
     this.enabled = false;
-    this.uids = [];
-    this.uidSet = new Set();
     this.listeners = new Set();
-    this.gmListenerIds = [];
+    this.gmListenerId = null;
     this.storageHandler = null;
     this.messageHandler = null;
     this.started = false;
@@ -66,7 +36,7 @@ export class FriendHighlightStore {
     const win = this.document?.defaultView || globalThis;
 
     this.storageHandler = (event) => {
-      if ([FRIEND_HIGHLIGHT_ENABLED_KEY, FRIEND_UIDS_KEY].includes(event?.key)) {
+      if (event?.key === FRIEND_HIGHLIGHT_ENABLED_KEY) {
         this.reload();
       }
     };
@@ -74,10 +44,7 @@ export class FriendHighlightStore {
 
     this.messageHandler = (event) => {
       const message = event?.data;
-      if (
-        message?.source === STORAGE_BRIDGE_SOURCE
-        && [FRIEND_HIGHLIGHT_ENABLED_KEY, FRIEND_UIDS_KEY].includes(message.key)
-      ) {
+      if (message?.source === STORAGE_BRIDGE_SOURCE && message.key === FRIEND_HIGHLIGHT_ENABLED_KEY) {
         this.reload();
       }
     };
@@ -88,26 +55,17 @@ export class FriendHighlightStore {
       return;
     }
 
-    for (const key of [FRIEND_HIGHLIGHT_ENABLED_KEY, FRIEND_UIDS_KEY]) {
-      try {
-        const listenerId = addValueListener(key, () => this.reload());
-        if (listenerId !== undefined && listenerId !== null) {
-          this.gmListenerIds.push(listenerId);
-        }
-      } catch (error) {
-        this.logger.warn?.(`[Blobio] Could not watch ${key}.`, error);
-      }
+    try {
+      this.gmListenerId = addValueListener(FRIEND_HIGHLIGHT_ENABLED_KEY, () => this.reload());
+    } catch (error) {
+      this.logger.warn?.('[Blobio] Could not watch Friends-highlight setting.', error);
     }
   }
 
   reload(notify = true) {
     const enabled = this.readEnabled();
-    const uids = this.readUids();
-    const changed = enabled !== this.enabled || !sameUidList(uids, this.uids);
-
+    const changed = enabled !== this.enabled;
     this.enabled = enabled;
-    this.uids = uids;
-    this.uidSet = new Set(uids);
 
     if (changed && notify) {
       this.notify('storage');
@@ -121,14 +79,6 @@ export class FriendHighlightStore {
       return this.storage?.getItem?.(FRIEND_HIGHLIGHT_ENABLED_KEY) === '1';
     } catch {
       return false;
-    }
-  }
-
-  readUids() {
-    try {
-      return parseUidList(this.storage?.getItem?.(FRIEND_UIDS_KEY));
-    } catch {
-      return [];
     }
   }
 
@@ -154,78 +104,18 @@ export class FriendHighlightStore {
     return this.enabled;
   }
 
-  getUids() {
-    return [...this.uids];
-  }
-
-  has(rawUid) {
-    const uid = normalizeUid(rawUid);
-    return Boolean(uid && this.uidSet.has(uid));
-  }
-
-  replaceUids(values) {
-    const nextUids = normalizeUidList(values);
-    if (sameUidList(nextUids, this.uids)) {
-      return false;
-    }
-
-    this.persistUids(nextUids, 'friends');
-    return true;
-  }
-
-  addUid(rawUid) {
-    const uid = normalizeUid(rawUid);
-    if (!uid || this.uidSet.has(uid)) {
-      return false;
-    }
-
-    this.persistUids([...this.uids, uid], 'friend-added');
-    return true;
-  }
-
-  removeUid(rawUid) {
-    const uid = normalizeUid(rawUid);
-    if (!uid || !this.uidSet.has(uid)) {
-      return false;
-    }
-
-    this.persistUids(this.uids.filter((currentUid) => currentUid !== uid), 'friend-removed');
-    return true;
-  }
-
-  persistUids(values, source) {
-    const nextUids = normalizeUidList(values);
-
-    try {
-      this.storage?.setItem?.(FRIEND_UIDS_KEY, JSON.stringify(nextUids));
-      this.uids = nextUids;
-      this.uidSet = new Set(nextUids);
-      this.notify(source);
-    } catch (error) {
-      this.logger.warn?.('[Blobio] Could not save the accepted friend UID list.', error);
-      this.reload(false);
-    }
-  }
-
   subscribe(listener) {
     if (typeof listener !== 'function') {
       return () => {};
     }
 
     this.listeners.add(listener);
-    listener(this.getSnapshot(), 'current');
+    listener({ enabled: this.enabled }, 'current');
     return () => this.listeners.delete(listener);
   }
 
-  getSnapshot() {
-    return {
-      enabled: this.enabled,
-      uids: this.getUids(),
-    };
-  }
-
   notify(source) {
-    const snapshot = this.getSnapshot();
+    const snapshot = { enabled: this.enabled };
     for (const listener of this.listeners) {
       try {
         listener(snapshot, source);
@@ -247,15 +137,13 @@ export class FriendHighlightStore {
     }
 
     const removeValueListener = win.GM_removeValueChangeListener || globalThis.GM_removeValueChangeListener;
-    if (typeof removeValueListener === 'function') {
-      for (const listenerId of this.gmListenerIds) {
-        try {
-          removeValueListener(listenerId);
-        } catch {}
-      }
+    if (this.gmListenerId !== null && typeof removeValueListener === 'function') {
+      try {
+        removeValueListener(this.gmListenerId);
+      } catch {}
     }
 
-    this.gmListenerIds = [];
+    this.gmListenerId = null;
     this.listeners.clear();
     this.started = false;
   }
