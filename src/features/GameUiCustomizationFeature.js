@@ -36,6 +36,10 @@ function removeCssVariable(element, name) {
   }
 }
 
+function isRecaptchaAnchorFrame(frame) {
+  return /\/recaptcha\/(?:api2|enterprise)\/anchor(?:[/?#]|$)/.test(String(frame?.src || ''));
+}
+
 export class GameUiCustomizationFeature {
   constructor({
     document = globalThis.document,
@@ -338,12 +342,13 @@ export class GameUiCustomizationFeature {
   }
 
   applyCaptchaLogo(hidden) {
+    const hiddenState = Boolean(hidden);
     const applyInDocument = (documentRef) => {
       let changed = false;
       for (const logo of documentRef?.querySelectorAll?.('.rc-anchor-logo-img, .rc-anchor-logo-img-large') || []) {
-        logo.classList.toggle('blobio-captcha-logo-hidden', Boolean(hidden));
+        logo.classList.toggle('blobio-captcha-logo-hidden', hiddenState);
         logo.closest?.('.rc-anchor-logo-portrait, .rc-anchor-logo-landscape')
-          ?.classList?.toggle('blobio-captcha-logo-block-hidden', Boolean(hidden));
+          ?.classList?.toggle('blobio-captcha-logo-block-hidden', hiddenState);
         changed = true;
       }
       return changed;
@@ -351,6 +356,13 @@ export class GameUiCustomizationFeature {
 
     let changed = applyInDocument(this.document);
     for (const frame of this.document.querySelectorAll?.('iframe[src*="recaptcha"]') || []) {
+      if (isRecaptchaAnchorFrame(frame)) {
+        frame.classList?.toggle('blobio-captcha-anchor-hidden', hiddenState);
+        frame.closest?.('.grecaptcha-badge')
+          ?.classList?.toggle('blobio-captcha-anchor-hidden', hiddenState);
+        changed = true;
+      }
+
       try {
         changed = applyInDocument(frame.contentDocument) || changed;
       } catch {
@@ -399,7 +411,7 @@ export class GameUiCustomizationFeature {
 
   handleChatMutations(mutations) {
     const previousHeight = this.lastChatScrollHeight;
-    const wasNearBottom = this.nearChatBottom;
+    const wasNearBottom = this.wasNearChatBottomBeforeMutation(previousHeight);
     const addedMessages = [];
 
     for (const mutation of mutations) {
@@ -683,6 +695,22 @@ export class GameUiCustomizationFeature {
     return remaining <= CHAT_NEAR_BOTTOM_PX;
   }
 
+  wasNearChatBottomBeforeMutation(previousHeight) {
+    const chat = this.chatElement;
+    if (!chat) {
+      return true;
+    }
+
+    const height = Number(previousHeight);
+    const scrollTop = Number(this.lastChatScrollTop);
+    const clientHeight = Number(chat.clientHeight);
+    if (!Number.isFinite(height) || !Number.isFinite(scrollTop) || !Number.isFinite(clientHeight)) {
+      return this.nearChatBottom;
+    }
+
+    return this.nearChatBottom || height - scrollTop - clientHeight <= CHAT_NEAR_BOTTOM_PX;
+  }
+
   disconnectSmoothChat() {
     this.chatObserver?.disconnect();
     this.chatObserver = null;
@@ -720,6 +748,7 @@ export class GameUiCustomizationFeature {
           if (node?.id === 'chat'
             || node?.id === 'chat-wrapper'
             || node?.id === 'leader-board-wrapper'
+            || (String(node?.tagName || '').toLowerCase() === 'ul' && node?.parentElement?.id === 'chat')
             || node?.matches?.('.rc-anchor-logo-img, .rc-anchor-logo-img-large')
             || node?.querySelector?.('#chat, #chat-wrapper, #leader-board-wrapper, .rc-anchor-logo-img, .rc-anchor-logo-img-large')) {
             this.applyAll();

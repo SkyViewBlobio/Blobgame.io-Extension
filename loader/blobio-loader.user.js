@@ -79,7 +79,11 @@
       html.blobio-hide-captcha-logo .rc-anchor-logo-img,
       html.blobio-hide-captcha-logo .rc-anchor-logo-img-large,
       html.blobio-hide-captcha-logo .rc-anchor-logo-portrait,
-      html.blobio-hide-captcha-logo .rc-anchor-logo-landscape {
+      html.blobio-hide-captcha-logo .rc-anchor-logo-landscape,
+      html.blobio-hide-captcha-logo .rc-anchor-normal-footer,
+      html.blobio-hide-captcha-logo .rc-anchor-compact-footer,
+      html.blobio-hide-captcha-logo .rc-anchor-logo-text,
+      html.blobio-hide-captcha-logo .rc-anchor-pt {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
@@ -99,7 +103,9 @@
     const applyInlineState = (hidden) => {
       const targets = document.querySelectorAll?.(
         '.rc-anchor-logo-img, .rc-anchor-logo-img-large, '
-        + '.rc-anchor-logo-portrait, .rc-anchor-logo-landscape',
+        + '.rc-anchor-logo-portrait, .rc-anchor-logo-landscape, '
+        + '.rc-anchor-normal-footer, .rc-anchor-compact-footer, '
+        + '.rc-anchor-logo-text, .rc-anchor-pt',
       ) || [];
 
       for (const target of targets) {

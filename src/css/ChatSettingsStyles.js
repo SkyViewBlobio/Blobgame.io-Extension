@@ -796,6 +796,22 @@ export const CHAT_SETTINGS_CSS = `
   background-color: transparent !important;
 }
 
+iframe.blobio-captcha-anchor-hidden,
+.grecaptcha-badge.blobio-captcha-anchor-hidden {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 #chat.blobio-smooth-chat li.blobio-chat-message-enter {
   animation: blobio-chat-message-enter 560ms cubic-bezier(0.2, 0.72, 0.22, 1);
   transform-origin: left bottom;
@@ -830,8 +846,7 @@ export const CHAT_SETTINGS_CSS = `
   .blobio-hotkey-load,
   .blobio-hotkey-bind,
   .blobio-chat-notification,
-  .blobio-leaderboard-resize-handle,
-  #chat.blobio-smooth-chat li.blobio-chat-message-enter {
+  .blobio-leaderboard-resize-handle {
     transition: none;
     animation: none;
   }

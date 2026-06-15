@@ -2000,6 +2000,22 @@ html.${this.className} body::before {
   background-color: transparent !important;
 }
 
+iframe.blobio-captcha-anchor-hidden,
+.grecaptcha-badge.blobio-captcha-anchor-hidden {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 #chat.blobio-smooth-chat li.blobio-chat-message-enter {
   animation: blobio-chat-message-enter 560ms cubic-bezier(0.2, 0.72, 0.22, 1);
   transform-origin: left bottom;
@@ -2034,8 +2050,7 @@ html.${this.className} body::before {
   .blobio-hotkey-load,
   .blobio-hotkey-bind,
   .blobio-chat-notification,
-  .blobio-leaderboard-resize-handle,
-  #chat.blobio-smooth-chat li.blobio-chat-message-enter {
+  .blobio-leaderboard-resize-handle {
     transition: none;
     animation: none;
   }
@@ -3990,6 +4005,9 @@ html.${this.className} body::before {
       delete element.style[name];
     }
   }
+  function isRecaptchaAnchorFrame(frame) {
+    return /\/recaptcha\/(?:api2|enterprise)\/anchor(?:[/?#]|$)/.test(String(frame?.src || ""));
+  }
   var GameUiCustomizationFeature = class {
     constructor({
       document = globalThis.document,
@@ -4253,17 +4271,23 @@ html.${this.className} body::before {
       this.leaderboardResizeState = null;
     }
     applyCaptchaLogo(hidden) {
+      const hiddenState = Boolean(hidden);
       const applyInDocument = (documentRef) => {
         let changed2 = false;
         for (const logo of documentRef?.querySelectorAll?.(".rc-anchor-logo-img, .rc-anchor-logo-img-large") || []) {
-          logo.classList.toggle("blobio-captcha-logo-hidden", Boolean(hidden));
-          logo.closest?.(".rc-anchor-logo-portrait, .rc-anchor-logo-landscape")?.classList?.toggle("blobio-captcha-logo-block-hidden", Boolean(hidden));
+          logo.classList.toggle("blobio-captcha-logo-hidden", hiddenState);
+          logo.closest?.(".rc-anchor-logo-portrait, .rc-anchor-logo-landscape")?.classList?.toggle("blobio-captcha-logo-block-hidden", hiddenState);
           changed2 = true;
         }
         return changed2;
       };
       let changed = applyInDocument(this.document);
       for (const frame of this.document.querySelectorAll?.('iframe[src*="recaptcha"]') || []) {
+        if (isRecaptchaAnchorFrame(frame)) {
+          frame.classList?.toggle("blobio-captcha-anchor-hidden", hiddenState);
+          frame.closest?.(".grecaptcha-badge")?.classList?.toggle("blobio-captcha-anchor-hidden", hiddenState);
+          changed = true;
+        }
         try {
           changed = applyInDocument(frame.contentDocument) || changed;
         } catch {
@@ -4304,7 +4328,7 @@ html.${this.className} body::before {
     }
     handleChatMutations(mutations) {
       const previousHeight = this.lastChatScrollHeight;
-      const wasNearBottom = this.nearChatBottom;
+      const wasNearBottom = this.wasNearChatBottomBeforeMutation(previousHeight);
       const addedMessages = [];
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes || []) {
@@ -4535,6 +4559,19 @@ html.${this.className} body::before {
       const remaining = (Number(chat.scrollHeight) || 0) - (Number(chat.scrollTop) || 0) - (Number(chat.clientHeight) || 0);
       return remaining <= CHAT_NEAR_BOTTOM_PX;
     }
+    wasNearChatBottomBeforeMutation(previousHeight) {
+      const chat = this.chatElement;
+      if (!chat) {
+        return true;
+      }
+      const height = Number(previousHeight);
+      const scrollTop = Number(this.lastChatScrollTop);
+      const clientHeight = Number(chat.clientHeight);
+      if (!Number.isFinite(height) || !Number.isFinite(scrollTop) || !Number.isFinite(clientHeight)) {
+        return this.nearChatBottom;
+      }
+      return this.nearChatBottom || height - scrollTop - clientHeight <= CHAT_NEAR_BOTTOM_PX;
+    }
     disconnectSmoothChat() {
       this.chatObserver?.disconnect();
       this.chatObserver = null;
@@ -4566,7 +4603,7 @@ html.${this.className} body::before {
       this.pageObserver = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
           for (const node of mutation.addedNodes || []) {
-            if (node?.id === "chat" || node?.id === "chat-wrapper" || node?.id === "leader-board-wrapper" || node?.matches?.(".rc-anchor-logo-img, .rc-anchor-logo-img-large") || node?.querySelector?.("#chat, #chat-wrapper, #leader-board-wrapper, .rc-anchor-logo-img, .rc-anchor-logo-img-large")) {
+            if (node?.id === "chat" || node?.id === "chat-wrapper" || node?.id === "leader-board-wrapper" || String(node?.tagName || "").toLowerCase() === "ul" && node?.parentElement?.id === "chat" || node?.matches?.(".rc-anchor-logo-img, .rc-anchor-logo-img-large") || node?.querySelector?.("#chat, #chat-wrapper, #leader-board-wrapper, .rc-anchor-logo-img, .rc-anchor-logo-img-large")) {
               this.applyAll();
               return;
             }
