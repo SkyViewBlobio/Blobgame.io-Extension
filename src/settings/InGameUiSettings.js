@@ -30,6 +30,18 @@ export const LEADERBOARD_FONT_KEYS = {
   value: 'blobio.chat.leaderboard.fontSizePx',
 };
 
+export const LEADERBOARD_SIZE_KEYS = {
+  width: 'blobio.chat.leaderboard.widthPx',
+  height: 'blobio.chat.leaderboard.heightPx',
+};
+
+export const LEADERBOARD_SIZE_LIMITS = {
+  minWidth: 180,
+  minHeight: 90,
+  maxWidth: 720,
+  maxHeight: 720,
+};
+
 export const UI_FONT_SIZE_LIMITS = {
   min: 8,
   max: 48,
@@ -75,6 +87,13 @@ function normalizeAlpha(value, fallback) {
 function normalizeFontSize(value) {
   const size = Math.round(Number(value) || UI_FONT_SIZE_LIMITS.defaultValue);
   return Math.max(UI_FONT_SIZE_LIMITS.min, Math.min(UI_FONT_SIZE_LIMITS.max, size));
+}
+
+function normalizeOptionalSize(value, min, max) {
+  const size = Math.round(Number(value));
+  return Number.isFinite(size) && size >= min
+    ? Math.min(max, size)
+    : null;
 }
 
 export function getBooleanSetting(storage, key, fallback = false) {
@@ -146,6 +165,62 @@ export function setLeaderboardFontSetting(storage, changes) {
   return next;
 }
 
+export function getLeaderboardSizeSetting(storage) {
+  let width = null;
+  let height = null;
+
+  try {
+    width = normalizeOptionalSize(
+      storage?.getItem?.(LEADERBOARD_SIZE_KEYS.width),
+      LEADERBOARD_SIZE_LIMITS.minWidth,
+      LEADERBOARD_SIZE_LIMITS.maxWidth,
+    );
+    height = normalizeOptionalSize(
+      storage?.getItem?.(LEADERBOARD_SIZE_KEYS.height),
+      LEADERBOARD_SIZE_LIMITS.minHeight,
+      LEADERBOARD_SIZE_LIMITS.maxHeight,
+    );
+  } catch {}
+
+  return { width, height };
+}
+
+export function setLeaderboardSizeSetting(storage, changes = {}) {
+  const current = getLeaderboardSizeSetting(storage);
+  const next = {
+    width: changes.width === undefined
+      ? current.width
+      : normalizeOptionalSize(
+        changes.width,
+        LEADERBOARD_SIZE_LIMITS.minWidth,
+        LEADERBOARD_SIZE_LIMITS.maxWidth,
+      ),
+    height: changes.height === undefined
+      ? current.height
+      : normalizeOptionalSize(
+        changes.height,
+        LEADERBOARD_SIZE_LIMITS.minHeight,
+        LEADERBOARD_SIZE_LIMITS.maxHeight,
+      ),
+  };
+
+  try {
+    if (next.width === null) {
+      storage?.removeItem?.(LEADERBOARD_SIZE_KEYS.width);
+    } else {
+      storage?.setItem?.(LEADERBOARD_SIZE_KEYS.width, String(next.width));
+    }
+
+    if (next.height === null) {
+      storage?.removeItem?.(LEADERBOARD_SIZE_KEYS.height);
+    } else {
+      storage?.setItem?.(LEADERBOARD_SIZE_KEYS.height, String(next.height));
+    }
+  } catch {}
+
+  return next;
+}
+
 export function readInGameUiSettings(storage) {
   return {
     hideCaptchaLogo: readBoolean(storage, CAPTCHA_LOGO_HIDDEN_KEY, true),
@@ -163,6 +238,7 @@ export function readInGameUiSettings(storage) {
       DEFAULT_COLORS.leaderboardOutline,
     ),
     leaderboardFont: getLeaderboardFontSetting(storage),
+    leaderboardSize: getLeaderboardSizeSetting(storage),
   };
 }
 
