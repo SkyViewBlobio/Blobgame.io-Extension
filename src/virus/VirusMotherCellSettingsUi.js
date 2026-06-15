@@ -10,11 +10,22 @@ const MASK_OPTIONS = [
 ];
 
 export class VirusMotherCellSettingsUi {
-  constructor({ document, storage, assets = {}, logger = console } = {}) {
+  constructor({
+    document,
+    storage,
+    assets = {},
+    logger = console,
+    showTooltip = null,
+    moveTooltip = null,
+    hideTooltip = null,
+  } = {}) {
     this.document = document;
     this.storage = storage;
     this.assets = assets;
     this.logger = logger;
+    this.showTooltip = showTooltip;
+    this.moveTooltip = moveTooltip;
+    this.hideTooltip = hideTooltip;
     this.settings = readVirusMotherCellSettings(storage);
     this.listeners = [];
     this.maskImage = null;
@@ -39,7 +50,7 @@ export class VirusMotherCellSettingsUi {
       menu,
       enabled: row.querySelector('#config-switch-virus-mother-cell'),
       arrowButton: row.querySelector('.blobio-virus-dropdown-button'),
-      arrow: row.querySelector('.blobio-virus-dropdown-arrow'),
+      disclosure: row.querySelector('.blobio-virus-dropdown-symbol'),
       previewCanvas: menu.querySelector('.blobio-virus-preview-canvas'),
       colorInput: menu.querySelector('.blobio-virus-color-input'),
       colorSwatch: menu.querySelector('.blobio-virus-color-swatch'),
@@ -98,13 +109,18 @@ export class VirusMotherCellSettingsUi {
     arrowButton.setAttribute('aria-expanded', 'false');
     arrowButton.setAttribute('_ngcontent-c3', '');
 
-    const arrow = this.document.createElement('img');
-    arrow.classList.add('blobio-virus-dropdown-arrow');
-    arrow.alt = '';
-    arrow.src = this.assets.dropdownArrow || '';
-    arrowButton.appendChild(arrow);
+    const disclosure = this.document.createElement('span');
+    disclosure.classList.add('blobio-virus-dropdown-symbol');
+    disclosure.setAttribute('aria-hidden', 'true');
+    disclosure.textContent = '+';
+    arrowButton.appendChild(disclosure);
 
     row.append(switchLabel, textLabel, arrowButton);
+
+    this.installTooltip(
+      row,
+      'Replace in-game virus and mother-cell rendering with a selected extension mask after reloading the game tab.',
+    );
 
     this.listen(checkbox, 'change', () => {
       this.settings = this.save({ enabled: Boolean(checkbox.checked) });
@@ -211,6 +227,10 @@ export class VirusMotherCellSettingsUi {
     const rotateText = this.document.createElement('span');
     rotateText.textContent = 'Rotate';
     rotateRow.append(rotateInput, rotateText);
+    this.installTooltip(
+      rotateRow,
+      "Some Virus PNG's have the rotation option. When enabled, it will assign the PNG a randomized angle.",
+    );
     menu.appendChild(rotateRow);
 
     this.listen(colorInput, 'input', () => {
@@ -231,6 +251,23 @@ export class VirusMotherCellSettingsUi {
     return menu;
   }
 
+
+  installTooltip(node, text) {
+    if (!node || !text) {
+      return;
+    }
+
+    node.dataset.blobioTooltip = text;
+    node.title = text;
+    if (typeof this.showTooltip !== 'function') {
+      return;
+    }
+
+    this.listen(node, 'mouseenter', (event) => this.showTooltip(node, event));
+    this.listen(node, 'mousemove', (event) => this.moveTooltip?.(event));
+    this.listen(node, 'mouseleave', () => this.hideTooltip?.());
+  }
+
   save(changes) {
     return saveVirusMotherCellSettings(this.storage, {
       ...this.settings,
@@ -244,7 +281,7 @@ export class VirusMotherCellSettingsUi {
     }
     this.elements.menu.hidden = !open;
     this.elements.arrowButton.setAttribute('aria-expanded', String(open));
-    this.elements.arrow.classList.toggle('is-open', open);
+    this.elements.disclosure.textContent = open ? '-' : '+';
     this.elements.group.classList.toggle('is-open', open);
     if (open) {
       this.renderPreview();

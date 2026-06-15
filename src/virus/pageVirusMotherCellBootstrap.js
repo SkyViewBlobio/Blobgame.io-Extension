@@ -4,7 +4,14 @@ export function pageVirusMotherCellBootstrap(initialConfig, pageWindow) {
   const win = pageWindow || globalThis;
   const doc = win.document;
   const config = normalizeConfig(initialConfig);
+  const loaderStatus = win.__blobioVirusMotherCellLoaderStatus || {};
+  loaderStatus.bootstrapEntered = true;
+  loaderStatus.bootstrapHost = win.location?.hostname || '';
+  loaderStatus.bootstrapEnabled = config.enabled;
+  win.__blobioVirusMotherCellLoaderStatus = loaderStatus;
+
   if (!config.enabled || win.location?.hostname !== 'custom.client.blobgame.io') {
+    loaderStatus.bootstrapResult = 'skipped';
     return false;
   }
 
@@ -77,6 +84,8 @@ export function pageVirusMotherCellBootstrap(initialConfig, pageWindow) {
   state.rotateMaskActive = settings.rotate;
   state.lastRotateMaskId = settings.maskId;
   win.__blobVirusGlowState = state;
+  state.patchBundle = patchBundle;
+  loaderStatus.bootstrapResult = 'installing';
 
   let customGlowMaskImage = null;
   let customGlowMaskUrl = '';
@@ -312,17 +321,39 @@ export function pageVirusMotherCellBootstrap(initialConfig, pageWindow) {
         enabled: true,
         maskId: settings.maskId,
         shouldRotate: settings.rotate,
+        loaderStatus: { ...loaderStatus },
         callbackCalls: state.callbackCalls,
         patchedChunks: state.patchedChunks,
         seenCacheScripts: state.seenCacheScripts,
+        wrappedCallback: state.wrappedCallback,
         lastPatchResult: state.lastPatchResult,
+        lastPatchRotateSelected: state.lastPatchRotateSelected,
+        rotatedDrawName: state.rotatedDrawName,
         customMaskReady: state.customMaskReady,
         customMaskErrors: state.customMaskErrors,
+        glowMaskAssetHits: state.glowMaskAssetHits,
+        glowMaskTextureUploads: state.glowMaskTextureUploads,
         highDetailVirusHits: state.highDetailVirusHits,
+        highDetailGlowDraws: state.highDetailGlowDraws,
+        rotationHighDetailDraws: state.rotationHighDetailDraws,
         fallbackVirusHits: state.fallbackVirusHits,
+        fallbackGlowDraws: state.fallbackGlowDraws,
+        rotationFallbackDraws: state.rotationFallbackDraws,
         textureVirusHits: state.textureVirusHits,
+        glowTextureDraws: state.glowTextureDraws,
+        rotationGlowTextureDraws: state.rotationGlowTextureDraws,
         rotationDraws: state.rotationDraws,
-        errors: state.errors,
+        rotationStateChecks: state.rotationStateChecks,
+        rotateChecks: state.rotateChecks,
+        rotateMaskActive: state.rotateMaskActive,
+        lastGlowDrawSource: state.lastGlowDrawSource,
+        lastRotationSource: state.lastRotationSource,
+        lastRotationSkippedSource: state.lastRotationSkippedSource,
+        lastRotation: state.lastRotation,
+        lastHighDetailCell: state.lastHighDetailCell,
+        lastFallbackCell: state.lastFallbackCell,
+        lastGlowTextureCell: state.lastGlowTextureCell,
+        errors: [...state.errors],
       };
     };
   }
@@ -407,8 +438,6 @@ export function pageVirusMotherCellBootstrap(initialConfig, pageWindow) {
     state.lastPatchResult = { ...result, code: undefined };
     return result;
   }
-
-  state.patchBundle = patchBundle;
 
   function buildGlowDrawCall(rotatedDrawName, drawRegion, cellName, batchName, textureName, sourceName) {
     const normalDraw = `${drawRegion}(${batchName},${textureName},${cellName}.R-${cellName}.M*2,${cellName}.S-${cellName}.M*2,${cellName}.N*2,${cellName}.N*2)`;
@@ -557,5 +586,7 @@ export function pageVirusMotherCellBootstrap(initialConfig, pageWindow) {
     }
   }, 10);
   win.setTimeout(() => win.clearInterval(callbackPatchTimer), 30000);
+  loaderStatus.bootstrapResult = 'installed';
+  loaderStatus.installed = true;
   return true;
 }

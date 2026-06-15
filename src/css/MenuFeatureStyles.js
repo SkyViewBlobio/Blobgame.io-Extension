@@ -848,16 +848,15 @@ html.${className} app-settings .blobio-virus-dropdown-button:focus-visible {
   box-shadow: 0 0 11px rgba(79, 255, 130, 0.28), inset 0 0 8px rgba(79, 255, 130, 0.14);
 }
 
-html.${className} app-settings .blobio-virus-dropdown-arrow {
-  width: 19px;
-  height: 19px;
-  object-fit: contain;
-  transition: transform 160ms ease;
+html.${className} app-settings .blobio-virus-dropdown-symbol {
+  display: block;
+  color: #dfffe6;
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 0 7px rgba(118, 255, 154, 0.58);
   pointer-events: none;
-}
-
-html.${className} app-settings .blobio-virus-dropdown-arrow.is-open {
-  transform: rotate(180deg);
 }
 
 html.${className} app-settings .blobio-virus-mothercell-button-menu {
@@ -871,6 +870,33 @@ html.${className} app-settings .blobio-virus-mothercell-button-menu {
   background: linear-gradient(145deg, rgba(3, 31, 19, 0.94), rgba(1, 10, 7, 0.94));
   box-shadow: inset 0 0 18px rgba(79, 255, 130, 0.12), 0 0 14px rgba(79, 255, 130, 0.16);
   box-sizing: border-box;
+  max-height: 390px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 232, 133, 0.88) rgba(0, 18, 10, 0.72);
+}
+
+html.${className} app-settings .blobio-virus-mothercell-button-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+html.${className} app-settings .blobio-virus-mothercell-button-menu::-webkit-scrollbar-track {
+  border-radius: 8px;
+  background: rgba(0, 18, 10, 0.72);
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.55);
+}
+
+html.${className} app-settings .blobio-virus-mothercell-button-menu::-webkit-scrollbar-thumb {
+  border: 1px solid rgba(200, 255, 214, 0.52);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(111, 244, 145, 0.94), rgba(42, 150, 78, 0.94));
+  box-shadow: 0 0 7px rgba(79, 255, 130, 0.38);
+}
+
+html.${className} app-settings .blobio-virus-mothercell-button-menu::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(151, 255, 177, 0.98), rgba(57, 182, 94, 0.98));
 }
 
 html.${className} app-settings .blobio-virus-mothercell-button-menu[hidden] {

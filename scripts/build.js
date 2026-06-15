@@ -7,6 +7,11 @@ const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const outputFile = resolve(rootDir, 'dist/blobio-extension.bundle.js');
 const loaderFile = resolve(rootDir, 'loader/blobio-loader.user.js');
 const virusRuntimeFile = resolve(rootDir, 'src/virus/pageVirusMotherCellBootstrap.js');
+const virusAssetFiles = {
+  halo: resolve(rootDir, 'assets/virus_glow_1 _mask.png'),
+  rotate: resolve(rootDir, 'assets/viurs_glow_2_random_rotate_mask.png'),
+  ring: resolve(rootDir, 'assets/virus_glow_3 _mask.png'),
+};
 
 await mkdir(dirname(outputFile), { recursive: true });
 
@@ -24,16 +29,19 @@ await build({
   },
 });
 
-const startMarker = '  /* VIRUS_RUNTIME_START */';
-const endMarker = '  /* VIRUS_RUNTIME_END */';
-const [loaderSource, runtimeSource] = await Promise.all([
+const [loaderSource, runtimeSource, virusHalo, virusRotate, virusRing] = await Promise.all([
   readFile(loaderFile, 'utf8'),
   readFile(virusRuntimeFile, 'utf8'),
+  readFile(virusAssetFiles.halo),
+  readFile(virusAssetFiles.rotate),
+  readFile(virusAssetFiles.ring),
 ]);
 
-const startIndex = loaderSource.indexOf(startMarker);
-const endIndex = loaderSource.indexOf(endMarker);
-if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
+const runtimeStartMarker = '  /* VIRUS_RUNTIME_START */';
+const runtimeEndMarker = '  /* VIRUS_RUNTIME_END */';
+const runtimeStartIndex = loaderSource.indexOf(runtimeStartMarker);
+const runtimeEndIndex = loaderSource.indexOf(runtimeEndMarker);
+if (runtimeStartIndex === -1 || runtimeEndIndex === -1 || runtimeEndIndex < runtimeStartIndex) {
   throw new Error('Virus runtime markers are missing from the loader.');
 }
 
@@ -44,5 +52,18 @@ const embeddedRuntime = runtimeSource
   .map((line) => `  ${line}`)
   .join('\n');
 
-const nextLoader = `${loaderSource.slice(0, startIndex)}${startMarker}\n${embeddedRuntime}\n${endMarker}${loaderSource.slice(endIndex + endMarker.length)}`;
+let nextLoader = `${loaderSource.slice(0, runtimeStartIndex)}${runtimeStartMarker}\n${embeddedRuntime}\n${runtimeEndMarker}${loaderSource.slice(runtimeEndIndex + runtimeEndMarker.length)}`;
+
+const assetStartMarker = '  /* VIRUS_ASSETS_START */';
+const assetEndMarker = '  /* VIRUS_ASSETS_END */';
+const assetStartIndex = nextLoader.indexOf(assetStartMarker);
+const assetEndIndex = nextLoader.indexOf(assetEndMarker);
+if (assetStartIndex === -1 || assetEndIndex === -1 || assetEndIndex < assetStartIndex) {
+  throw new Error('Virus asset markers are missing from the loader.');
+}
+
+const toDataUrl = (buffer) => `data:image/png;base64,${buffer.toString('base64')}`;
+const embeddedAssets = `${assetStartMarker}\n  const VIRUS_MOTHER_CELL_ASSET_URLS = {\n    halo: '${toDataUrl(virusHalo)}',\n    rotate: '${toDataUrl(virusRotate)}',\n    ring: '${toDataUrl(virusRing)}',\n  };\n  ${assetEndMarker}`;
+
+nextLoader = `${nextLoader.slice(0, assetStartIndex)}${embeddedAssets}${nextLoader.slice(assetEndIndex + assetEndMarker.length)}`;
 await writeFile(loaderFile, nextLoader);

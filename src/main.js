@@ -6,7 +6,6 @@ import socialsButtonUrl from '../assets/socal_icon_n.png';
 import updatesButtonUrl from '../assets/update_notes_n_.png';
 import youtubeIconUrl from '../assets/youtube_icon.png';
 import recommendedButtonUrl from '../assets/yt_recommended_n.png';
-import dropdownArrowUrl from '../assets/dropdown_ext_arrow.png';
 import virusPreviewUrl from '../assets/virus_preview.png';
 import virusHaloUrl from '../assets/virus_glow_1 _mask.png';
 import virusRingUrl from '../assets/virus_glow_3 _mask.png';
@@ -26,9 +25,12 @@ import { VipBadgeFeature } from './features/VipBadgeFeature.js';
 import { getBlobioHostMode } from './hostRules.js';
 import { ProfileUidDetector } from './roles/ProfileUidDetector.js';
 import { RoleRegistry } from './roles/RoleRegistry.js';
+import { createBlobioStorage } from './storage/BlobioStorage.js';
+import { readVirusMotherCellSettings } from './virus/VirusMotherCellSettings.js';
+import { pageVirusMotherCellBootstrap } from './virus/pageVirusMotherCellBootstrap.js';
 
 const INSTANCE_KEY = '__blobioExtension';
-const EXTENSION_VERSION = '0.1.75';
+const EXTENSION_VERSION = '0.1.76';
 const VIP_BADGE_URL = 'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/main/assets/VIP_icon_plus.png';
 
 class BlobioExtension {
@@ -65,6 +67,10 @@ class BlobioExtension {
     }
 
     const logger = this.window.console || console;
+    if (hostMode === 'runtime') {
+      this.installVirusMotherCellFallback(document, logger);
+    }
+
     this.roleRegistry = new RoleRegistry({ document, logger });
     this.roleRegistry.start();
     this.friendHighlightStore = new FriendHighlightStore({ document, logger });
@@ -78,7 +84,6 @@ class BlobioExtension {
       discordIcon: discordIconUrl,
       facebookIcon: facebookIconUrl,
       instagramIcon: instagramIconUrl,
-      dropdownArrow: dropdownArrowUrl,
       virusPreview: virusPreviewUrl,
       virusHalo: virusHaloUrl,
       virusRotate: virusRotateUrl,
@@ -160,6 +165,67 @@ class BlobioExtension {
 
     this.started = true;
     return true;
+  }
+
+  installVirusMotherCellFallback(document, logger) {
+    const windowRef = this.window;
+    if (windowRef.__blobioVirusMotherCellInstalled) {
+      return true;
+    }
+
+    const storage = createBlobioStorage(document);
+    const settings = readVirusMotherCellSettings(storage);
+    const existingStatus = windowRef.__blobioVirusMotherCellLoaderStatus || {};
+    const status = {
+      ...existingStatus,
+      version: EXTENSION_VERSION,
+      enabled: settings.enabled,
+      attemptedByBundle: false,
+      installedByBundle: false,
+      reason: settings.enabled ? 'loader-runtime-missing' : 'disabled',
+    };
+    windowRef.__blobioVirusMotherCellLoaderStatus = status;
+
+    if (typeof windowRef.__blobVirusGlowDebug !== 'function') {
+      windowRef.__blobVirusGlowDebug = () => ({
+        ...status,
+        runtimeState: windowRef.__blobVirusGlowState || null,
+        runtimeSettings: windowRef.__blobVirusGlowSettings || null,
+      });
+    }
+
+    if (!settings.enabled) {
+      return false;
+    }
+
+    const maskUrls = {
+      halo: virusHaloUrl,
+      rotate: virusRotateUrl,
+      ring: virusRingUrl,
+    };
+    status.attemptedByBundle = true;
+
+    try {
+      status.installedByBundle = Boolean(pageVirusMotherCellBootstrap({
+        enabled: true,
+        maskId: settings.maskId,
+        maskUrl: maskUrls[settings.maskId] || maskUrls.halo,
+        color: settings.color,
+        alpha: settings.alpha,
+        rotate: settings.rotate,
+        version: EXTENSION_VERSION,
+      }, windowRef));
+      status.reason = status.installedByBundle ? 'installed-by-bundle-fallback' : 'bundle-bootstrap-returned-false';
+      if (!status.installedByBundle) {
+        logger.warn?.('[Blobio] Virus | Mother-cell runtime did not start. Update or reinstall the Tampermonkey loader, then reload the game tab.');
+      }
+      return status.installedByBundle;
+    } catch (error) {
+      status.reason = 'bundle-bootstrap-error';
+      status.error = error?.message || String(error);
+      logger.warn?.('[Blobio] Virus | Mother-cell fallback failed.', error);
+      return false;
+    }
   }
 
   destroy() {
