@@ -26,7 +26,7 @@ export class VirusMotherCellSettingsUi {
     this.showTooltip = showTooltip;
     this.moveTooltip = moveTooltip;
     this.hideTooltip = hideTooltip;
-    this.settings = readVirusMotherCellSettings(storage);
+    this.settings = readVirusMotherCellSettings(storage, document);
     this.listeners = [];
     this.maskImage = null;
     this.maskImageUrl = '';
@@ -34,7 +34,7 @@ export class VirusMotherCellSettingsUi {
   }
 
   create() {
-    this.settings = readVirusMotherCellSettings(this.storage);
+    this.settings = readVirusMotherCellSettings(this.storage, this.document);
 
     const group = this.document.createElement('div');
     group.classList.add('blobio-virus-setting-group');
@@ -258,7 +258,7 @@ export class VirusMotherCellSettingsUi {
     }
 
     node.dataset.blobioTooltip = text;
-    node.title = text;
+    node.removeAttribute?.('title');
     if (typeof this.showTooltip !== 'function') {
       return;
     }
@@ -272,7 +272,7 @@ export class VirusMotherCellSettingsUi {
     return saveVirusMotherCellSettings(this.storage, {
       ...this.settings,
       ...changes,
-    });
+    }, this.document);
   }
 
   setOpen(open) {

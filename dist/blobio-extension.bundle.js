@@ -5038,6 +5038,8 @@ html.${className} .blobio-watermark-extension::after {
     alpha: "blobio.settings.virusMotherCell.alpha",
     rotate: "blobio.settings.virusMotherCell.rotate"
   };
+  var VIRUS_MOTHER_CELL_SNAPSHOT_KEY = "blobio.settings.virusMotherCell.snapshot";
+  var VIRUS_MOTHER_CELL_COOKIE_NAME = "blobioVirusMotherCell";
   var VIRUS_MOTHER_CELL_MASKS = ["halo", "rotate", "ring"];
   var DEFAULT_VIRUS_MOTHER_CELL_SETTINGS = Object.freeze({
     enabled: false,
@@ -5046,29 +5048,70 @@ html.${className} .blobio-watermark-extension::after {
     alpha: 0.85,
     rotate: false
   });
-  function readVirusMotherCellSettings(storage) {
-    return {
+  function readVirusMotherCellSettings(storage, document = globalThis.document) {
+    const storedSnapshot = parseVirusMotherCellSnapshot(
+      storage?.getItem?.(VIRUS_MOTHER_CELL_SNAPSHOT_KEY)
+    );
+    const cookieSnapshot = readVirusMotherCellCookie(document);
+    const snapshot = chooseNewestSnapshot(storedSnapshot, cookieSnapshot);
+    if (snapshot) {
+      return normalizeVirusMotherCellSettings(snapshot);
+    }
+    return normalizeVirusMotherCellSettings({
       enabled: readBoolean(storage, VIRUS_MOTHER_CELL_KEYS.enabled, DEFAULT_VIRUS_MOTHER_CELL_SETTINGS.enabled),
-      maskId: normalizeVirusMaskId(storage?.getItem?.(VIRUS_MOTHER_CELL_KEYS.maskId)),
-      color: normalizeVirusColor(storage?.getItem?.(VIRUS_MOTHER_CELL_KEYS.color)),
-      alpha: normalizeVirusAlpha(storage?.getItem?.(VIRUS_MOTHER_CELL_KEYS.alpha)),
+      maskId: storage?.getItem?.(VIRUS_MOTHER_CELL_KEYS.maskId),
+      color: storage?.getItem?.(VIRUS_MOTHER_CELL_KEYS.color),
+      alpha: storage?.getItem?.(VIRUS_MOTHER_CELL_KEYS.alpha),
       rotate: readBoolean(storage, VIRUS_MOTHER_CELL_KEYS.rotate, DEFAULT_VIRUS_MOTHER_CELL_SETTINGS.rotate)
-    };
+    });
   }
-  function saveVirusMotherCellSettings(storage, settings) {
-    const clean = {
-      enabled: Boolean(settings?.enabled),
-      maskId: normalizeVirusMaskId(settings?.maskId),
-      color: normalizeVirusColor(settings?.color),
-      alpha: normalizeVirusAlpha(settings?.alpha),
-      rotate: Boolean(settings?.rotate)
+  function saveVirusMotherCellSettings(storage, settings, document = globalThis.document) {
+    const clean = normalizeVirusMotherCellSettings(settings);
+    const snapshot = {
+      ...clean,
+      updatedAt: Date.now()
     };
+    storage?.setItem?.(VIRUS_MOTHER_CELL_SNAPSHOT_KEY, JSON.stringify(snapshot));
     storage?.setItem?.(VIRUS_MOTHER_CELL_KEYS.enabled, clean.enabled ? "1" : "0");
     storage?.setItem?.(VIRUS_MOTHER_CELL_KEYS.maskId, clean.maskId);
     storage?.setItem?.(VIRUS_MOTHER_CELL_KEYS.color, clean.color);
     storage?.setItem?.(VIRUS_MOTHER_CELL_KEYS.alpha, String(clean.alpha));
     storage?.setItem?.(VIRUS_MOTHER_CELL_KEYS.rotate, clean.rotate ? "1" : "0");
+    writeVirusMotherCellCookie(document, snapshot);
     return clean;
+  }
+  function parseVirusMotherCellSnapshot(value) {
+    if (!value) {
+      return null;
+    }
+    try {
+      const parsed = typeof value === "string" ? JSON.parse(value) : value;
+      if (!parsed || typeof parsed !== "object") {
+        return null;
+      }
+      return {
+        ...normalizeVirusMotherCellSettings(parsed),
+        updatedAt: normalizeUpdatedAt(parsed.updatedAt)
+      };
+    } catch {
+      return null;
+    }
+  }
+  function readVirusMotherCellCookie(document = globalThis.document) {
+    const cookie = String(document?.cookie || "");
+    const prefix = `${VIRUS_MOTHER_CELL_COOKIE_NAME}=`;
+    for (const part of cookie.split(";")) {
+      const entry = part.trim();
+      if (!entry.startsWith(prefix)) {
+        continue;
+      }
+      try {
+        return parseVirusMotherCellSnapshot(decodeURIComponent(entry.slice(prefix.length)));
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
   function normalizeVirusMaskId(value) {
     const maskId = String(value || "").trim().toLowerCase();
@@ -5087,6 +5130,34 @@ html.${className} .blobio-watermark-extension::after {
       return DEFAULT_VIRUS_MOTHER_CELL_SETTINGS.alpha;
     }
     return Math.max(0, Math.min(1, Math.round(alpha * 100) / 100));
+  }
+  function normalizeVirusMotherCellSettings(settings) {
+    return {
+      enabled: Boolean(settings?.enabled),
+      maskId: normalizeVirusMaskId(settings?.maskId),
+      color: normalizeVirusColor(settings?.color),
+      alpha: normalizeVirusAlpha(settings?.alpha),
+      rotate: Boolean(settings?.rotate)
+    };
+  }
+  function chooseNewestSnapshot(...snapshots) {
+    return snapshots.filter(Boolean).sort((left, right) => normalizeUpdatedAt(right.updatedAt) - normalizeUpdatedAt(left.updatedAt))[0] || null;
+  }
+  function normalizeUpdatedAt(value) {
+    const updatedAt = Number(value);
+    return Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : 0;
+  }
+  function writeVirusMotherCellCookie(document, snapshot) {
+    if (!document) {
+      return;
+    }
+    try {
+      const value = encodeURIComponent(JSON.stringify(snapshot));
+      const hostname = String(document.defaultView?.location?.hostname || globalThis.location?.hostname || "");
+      const domain = hostname === "blobgame.io" || hostname.endsWith(".blobgame.io") ? "; Domain=.blobgame.io" : "";
+      document.cookie = `${VIRUS_MOTHER_CELL_COOKIE_NAME}=${value}; Path=/; Max-Age=31536000; SameSite=Lax${domain}`;
+    } catch {
+    }
   }
   function readBoolean(storage, key, fallback) {
     const value = storage?.getItem?.(key);
@@ -5119,14 +5190,14 @@ html.${className} .blobio-watermark-extension::after {
       this.showTooltip = showTooltip;
       this.moveTooltip = moveTooltip;
       this.hideTooltip = hideTooltip;
-      this.settings = readVirusMotherCellSettings(storage);
+      this.settings = readVirusMotherCellSettings(storage, document);
       this.listeners = [];
       this.maskImage = null;
       this.maskImageUrl = "";
       this.elements = null;
     }
     create() {
-      this.settings = readVirusMotherCellSettings(this.storage);
+      this.settings = readVirusMotherCellSettings(this.storage, this.document);
       const group = this.document.createElement("div");
       group.classList.add("blobio-virus-setting-group");
       group.setAttribute("_ngcontent-c3", "");
@@ -5312,7 +5383,7 @@ html.${className} .blobio-watermark-extension::after {
         return;
       }
       node.dataset.blobioTooltip = text;
-      node.title = text;
+      node.removeAttribute?.("title");
       if (typeof this.showTooltip !== "function") {
         return;
       }
@@ -5324,7 +5395,7 @@ html.${className} .blobio-watermark-extension::after {
       return saveVirusMotherCellSettings(this.storage, {
         ...this.settings,
         ...changes
-      });
+      }, this.document);
     }
     setOpen(open) {
       if (!this.elements) {
@@ -5417,7 +5488,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.1.76";
+  var DEFAULT_EXTENSION_VERSION = "0.1.77";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
   var FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
@@ -9851,7 +9922,7 @@ html.${className} .blobio-watermark-extension::after {
 
   // src/main.js
   var INSTANCE_KEY = "__blobioExtension";
-  var EXTENSION_VERSION = "0.1.76";
+  var EXTENSION_VERSION = "0.1.77";
   var VIP_BADGE_URL = "https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/main/assets/VIP_icon_plus.png";
   var BlobioExtension = class {
     constructor(windowRef = globalThis) {
@@ -9980,7 +10051,7 @@ html.${className} .blobio-watermark-extension::after {
         return true;
       }
       const storage = createBlobioStorage(document);
-      const settings = readVirusMotherCellSettings(storage);
+      const settings = readVirusMotherCellSettings(storage, document);
       const existingStatus = windowRef.__blobioVirusMotherCellLoaderStatus || {};
       const status = {
         ...existingStatus,
