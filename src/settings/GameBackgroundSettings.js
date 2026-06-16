@@ -13,10 +13,10 @@ export const GAME_BACKGROUND_KEYS = {
 export const DEFAULT_GAME_BACKGROUND_SETTINGS = Object.freeze({
   enabled: false,
   mode: 'solid',
-  solid: { color: '#222222', alpha: 1 },
+  solid: { color: '#222222', alpha: 100 },
   gradient: {
-    from: { color: '#141824', alpha: 1 },
-    to: { color: '#007e69', alpha: 1 },
+    from: { color: '#141824', alpha: 100 },
+    to: { color: '#007e69', alpha: 100 },
     angle: 135,
   },
 });
@@ -36,7 +36,7 @@ function normalizeColor(value, fallback) {
 
 function normalizeAlpha(value, fallback) {
   const alpha = Number(value);
-  return Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : fallback;
+  return Number.isFinite(alpha) ? Math.max(0, Math.min(100, Math.round(alpha))) : fallback;
 }
 
 function normalizeAngle(value, fallback) {
@@ -126,7 +126,7 @@ export function backgroundColorToRgba(color, alpha) {
   const red = Number.parseInt(normalized.slice(0, 2), 16);
   const green = Number.parseInt(normalized.slice(2, 4), 16);
   const blue = Number.parseInt(normalized.slice(4, 6), 16);
-  return `rgba(${red}, ${green}, ${blue}, ${normalizeAlpha(alpha, 1)})`;
+  return `rgba(${red}, ${green}, ${blue}, ${normalizeAlpha(alpha, 100) / 100})`;
 }
 
 export function gameBackgroundCss(settings) {

@@ -670,12 +670,16 @@ export class ChatSettingsFeature {
     const value = this.document.createElement('span');
     value.classList.add('blobio-animation-speed-value');
 
+    const rangeLabel = this.document.createElement('span');
+    rangeLabel.classList.add('blobio-animation-speed-range-label');
+    rangeLabel.textContent = '0.1x - 18.0x';
+
     const reset = this.document.createElement('button');
     reset.type = 'button';
     reset.classList.add('blobio-animation-speed-reset');
     reset.textContent = 'Reset to default';
 
-    controls.append(slider, value, reset);
+    controls.append(slider, value, rangeLabel, reset);
     group.append(toggle, label, controls);
     category.appendChild(group);
     return category;

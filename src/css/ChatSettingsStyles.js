@@ -645,6 +645,15 @@ export const CHAT_SETTINGS_CSS = `
   font-variant-numeric: tabular-nums;
 }
 
+.blobio-animation-speed-range-label {
+  grid-column: 1 / -1;
+  color: rgba(223, 255, 230, 0.82);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
 .blobio-animation-speed-reset {
   grid-column: 1 / -1;
   justify-self: stretch;

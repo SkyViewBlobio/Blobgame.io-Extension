@@ -1369,7 +1369,8 @@ html.${className} app-settings .blobio-background-angle-row {
   font-weight: 800;
 }
 
-html.${className} app-settings .blobio-background-alpha-input {
+html.${className} app-settings .blobio-background-alpha-input,
+html.${className} app-settings .blobio-background-angle-input {
   width: 100%;
   min-width: 0;
   height: 18px;
@@ -1381,7 +1382,8 @@ html.${className} app-settings .blobio-background-alpha-input {
   cursor: pointer;
 }
 
-html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-runnable-track {
+html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-runnable-track,
+html.${className} app-settings .blobio-background-angle-input::-webkit-slider-runnable-track {
   height: 6px;
   border: 1px solid rgba(147, 255, 177, 0.62);
   border-radius: 999px;
@@ -1389,7 +1391,8 @@ html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-ru
   box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.58), 0 0 8px rgba(79, 255, 130, 0.28);
 }
 
-html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-thumb {
+html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-thumb,
+html.${className} app-settings .blobio-background-angle-input::-webkit-slider-thumb {
   width: 16px;
   height: 16px;
   margin-top: -6px;
@@ -1401,7 +1404,8 @@ html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-th
   box-shadow: 0 0 10px rgba(79, 255, 130, 0.72), inset 0 0 5px rgba(255, 255, 255, 0.42);
 }
 
-html.${className} app-settings .blobio-background-alpha-input::-moz-range-track {
+html.${className} app-settings .blobio-background-alpha-input::-moz-range-track,
+html.${className} app-settings .blobio-background-angle-input::-moz-range-track {
   height: 6px;
   border: 1px solid rgba(147, 255, 177, 0.62);
   border-radius: 999px;
@@ -1409,7 +1413,8 @@ html.${className} app-settings .blobio-background-alpha-input::-moz-range-track 
   box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.58), 0 0 8px rgba(79, 255, 130, 0.28);
 }
 
-html.${className} app-settings .blobio-background-alpha-input::-moz-range-thumb {
+html.${className} app-settings .blobio-background-alpha-input::-moz-range-thumb,
+html.${className} app-settings .blobio-background-angle-input::-moz-range-thumb {
   width: 16px;
   height: 16px;
   border: 1px solid rgba(225, 255, 233, 0.96);

@@ -217,8 +217,8 @@ export class GameBackgroundSettingsUi {
     const alphaInput = this.document.createElement('input');
     alphaInput.type = 'range';
     alphaInput.min = '0';
-    alphaInput.max = '1';
-    alphaInput.step = '0.01';
+    alphaInput.max = '100';
+    alphaInput.step = '1';
     alphaInput.classList.add('blobio-background-alpha-input');
     alphaInput.dataset.colorPath = path;
     alphaInput.setAttribute('aria-label', `${title} alpha`);
@@ -253,7 +253,7 @@ export class GameBackgroundSettingsUi {
     input.min = '0';
     input.max = '360';
     input.step = '1';
-    input.classList.add('blobio-background-angle-input', 'blobio-background-alpha-input');
+    input.classList.add('blobio-background-angle-input');
 
     const value = this.document.createElement('span');
     value.classList.add('blobio-background-angle-value');
@@ -368,7 +368,7 @@ export class GameBackgroundSettingsUi {
 
     for (const value of this.elements.alphaValues) {
       const path = value.closest?.('.blobio-background-color-row')?.dataset?.colorPath;
-      value.textContent = `${Math.round(this.colorSetting(path).alpha * 100)}%`;
+      value.textContent = `${Math.round(this.colorSetting(path).alpha)}%`;
     }
   }
 

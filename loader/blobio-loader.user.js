@@ -267,7 +267,7 @@
     if (!Number.isFinite(number)) {
       return 10;
     }
-    return Math.max(10, Math.min(180, number));
+    return Math.max(1, Math.min(180, number));
   }
 
   function readAnimationSpeedRuntimeValue() {
@@ -281,9 +281,9 @@
     return /^#[0-9a-f]{6}$/.test(color) ? color : fallback;
   }
 
-  function normalizeUnitAlpha(value, fallback) {
+  function normalizePercentAlpha(value, fallback) {
     const alpha = Number(value);
-    return Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : fallback;
+    return Number.isFinite(alpha) ? Math.max(0, Math.min(100, Math.round(alpha))) : fallback;
   }
 
   function normalizeGradientAngle(value, fallback) {
@@ -297,16 +297,16 @@
       mode: getSharedValue(GAME_BACKGROUND_KEYS.mode) === 'gradient' ? 'gradient' : 'solid',
       solid: {
         color: normalizeHexColor(getSharedValue(GAME_BACKGROUND_KEYS.solidColor), '#222222'),
-        alpha: normalizeUnitAlpha(getSharedValue(GAME_BACKGROUND_KEYS.solidAlpha), 1),
+        alpha: normalizePercentAlpha(getSharedValue(GAME_BACKGROUND_KEYS.solidAlpha), 100),
       },
       gradient: {
         from: {
           color: normalizeHexColor(getSharedValue(GAME_BACKGROUND_KEYS.gradientFromColor), '#141824'),
-          alpha: normalizeUnitAlpha(getSharedValue(GAME_BACKGROUND_KEYS.gradientFromAlpha), 1),
+          alpha: normalizePercentAlpha(getSharedValue(GAME_BACKGROUND_KEYS.gradientFromAlpha), 100),
         },
         to: {
           color: normalizeHexColor(getSharedValue(GAME_BACKGROUND_KEYS.gradientToColor), '#007e69'),
-          alpha: normalizeUnitAlpha(getSharedValue(GAME_BACKGROUND_KEYS.gradientToAlpha), 1),
+          alpha: normalizePercentAlpha(getSharedValue(GAME_BACKGROUND_KEYS.gradientToAlpha), 100),
         },
         angle: normalizeGradientAngle(getSharedValue(GAME_BACKGROUND_KEYS.gradientAngle), 135),
       },
@@ -961,14 +961,16 @@
     const shaderLocations = typeof win.WeakSet === 'function' ? new win.WeakSet() : null;
     const shaderLocationList = [];
     const patchedWindows = typeof win.WeakSet === 'function' ? new win.WeakSet() : null;
-    const state = {
-      installed: true,
-      speed,
-      patchedWindows: 0,
-      shaderUniforms: 0,
-      shaderWrites: 0,
-      lastError: '',
-    };
+      const state = {
+        installed: true,
+        speed,
+        patchedWindows: 0,
+        patchedFrames: 0,
+        frameHookInstalled: false,
+        shaderUniforms: 0,
+        shaderWrites: 0,
+        lastError: '',
+      };
     win.__blobioAnimationSpeedState = state;
 
     function clampSpeed(value) {
@@ -1094,11 +1096,81 @@
     }
 
     function patchExistingFrames() {
+      let count = 0;
       for (const frame of win.document?.querySelectorAll?.('iframe') || []) {
-        try {
-          patchWindow(frame.contentWindow);
-        } catch {}
+        if (patchFrame(frame)) {
+          count += 1;
+        }
       }
+      return count;
+    }
+
+    function patchFrame(frame) {
+      try {
+        if (!frame?.contentWindow) {
+          return false;
+        }
+
+        const patched = patchWindow(frame.contentWindow);
+        if (patched) {
+          state.patchedFrames += 1;
+        }
+        return patched;
+      } catch (error) {
+        state.lastError = error?.message || String(error);
+        return false;
+      }
+    }
+
+    function installAnimationSpeedFrameHooks() {
+      const NodeCtor = win.Node;
+      const prototype = NodeCtor?.prototype;
+      if (!prototype || prototype.__blobioAnimationFrameHooksInstalled) {
+        return false;
+      }
+
+      const nativeAppendChild = prototype.appendChild;
+      const nativeInsertBefore = prototype.insertBefore;
+      const patchSoon = (node) => {
+        if (node?.tagName !== 'IFRAME') {
+          return;
+        }
+
+        patchFrame(node);
+        win.setTimeout?.(() => patchFrame(node), 0);
+        win.setTimeout?.(() => patchFrame(node), 250);
+      };
+
+      if (typeof nativeAppendChild === 'function') {
+        prototype.appendChild = function blobAnimationAppendChild(node) {
+          const result = nativeAppendChild.apply(this, arguments);
+          patchSoon(node);
+          return result;
+        };
+      }
+
+      if (typeof nativeInsertBefore === 'function') {
+        prototype.insertBefore = function blobAnimationInsertBefore(node) {
+          const result = nativeInsertBefore.apply(this, arguments);
+          patchSoon(node);
+          return result;
+        };
+      }
+
+      if (win.document?.documentElement && typeof win.MutationObserver === 'function') {
+        const observer = new win.MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            for (const node of mutation.addedNodes || []) {
+              patchSoon(node);
+            }
+          }
+        });
+        observer.observe(win.document.documentElement, { childList: true, subtree: true });
+      }
+
+      prototype.__blobioAnimationFrameHooksInstalled = true;
+      state.frameHookInstalled = true;
+      return true;
     }
 
     win.__blobioAnimationSpeedRefresh = setSpeed;
@@ -1114,8 +1186,10 @@
     };
 
     patchWindow(win);
+    installAnimationSpeedFrameHooks();
     patchExistingFrames();
     win.setTimeout?.(patchExistingFrames, 0);
+    win.setTimeout?.(patchExistingFrames, 250);
     win.__blobioAnimationSpeedInstalled = true;
     return true;
   }
@@ -1136,14 +1210,17 @@
     const GAME_CANVAS_CLASS = 'blobio-background-game-canvas';
     const GAME_CANVAS_READY_CLASS = 'blobio-background-game-ready';
     let settings = normalizeSettings(initialSettings);
-    const state = {
-      installed: true,
-      activeCanvases: 0,
-      clearColorHits: 0,
-      clearHits: 0,
-      fillHits: 0,
-      lastError: '',
-    };
+      const state = {
+        installed: true,
+        activeCanvases: 0,
+        clearColorHits: 0,
+        clearHits: 0,
+        fillHits: 0,
+        patchedWindows: 0,
+        patchedFrames: 0,
+        frameHookInstalled: false,
+        lastError: '',
+      };
     win.__blobioGameBackgroundState = state;
 
     function normalizeSettings(value = {}) {
@@ -1157,16 +1234,16 @@
         mode: source.mode === 'gradient' ? 'gradient' : 'solid',
         solid: {
           color: normalizeColor(solid.color, '#222222'),
-          alpha: normalizeAlpha(solid.alpha, 1),
+          alpha: normalizeAlpha(solid.alpha, 100),
         },
         gradient: {
           from: {
             color: normalizeColor(from.color, '#141824'),
-            alpha: normalizeAlpha(from.alpha, 1),
+            alpha: normalizeAlpha(from.alpha, 100),
           },
           to: {
             color: normalizeColor(to.color, '#007e69'),
-            alpha: normalizeAlpha(to.alpha, 1),
+            alpha: normalizeAlpha(to.alpha, 100),
           },
           angle: normalizeAngle(gradient.angle, 135),
         },
@@ -1180,7 +1257,7 @@
 
     function normalizeAlpha(value, fallback) {
       const alpha = Number(value);
-      return Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : fallback;
+      return Number.isFinite(alpha) ? Math.max(0, Math.min(100, Math.round(alpha))) : fallback;
     }
 
     function normalizeAngle(value, fallback) {
@@ -1194,8 +1271,8 @@
       return settings;
     }
 
-    function patchCanvasGetContext() {
-      const prototype = win.HTMLCanvasElement?.prototype;
+    function patchCanvasGetContext(targetWindow = win) {
+      const prototype = targetWindow.HTMLCanvasElement?.prototype;
       if (!prototype || prototype.__blobioBackgroundGetContextPatched) {
         return;
       }
@@ -1253,8 +1330,8 @@
       prototype.__blobioBackgroundClearPatched = true;
     }
 
-    function patchCanvas2d() {
-      const prototype = win.CanvasRenderingContext2D?.prototype;
+    function patchCanvas2d(targetWindow = win) {
+      const prototype = targetWindow.CanvasRenderingContext2D?.prototype;
       if (!prototype || prototype.__blobioBackgroundFillPatched) {
         return;
       }
@@ -1364,10 +1441,12 @@
 
     function updateKnownCanvases() {
       let active = 0;
-      for (const canvas of win.document?.querySelectorAll?.(`canvas.${GAME_CANVAS_CLASS}, canvas.${GAME_CANVAS_READY_CLASS}`) || []) {
-        updateCanvasBackground(canvas);
-        if (canvas.classList?.contains(GAME_CANVAS_READY_CLASS)) {
-          active += 1;
+      for (const doc of getGameDocuments()) {
+        for (const canvas of doc.querySelectorAll?.(`canvas.${GAME_CANVAS_CLASS}, canvas.${GAME_CANVAS_READY_CLASS}`) || []) {
+          updateCanvasBackground(canvas);
+          if (canvas.classList?.contains(GAME_CANVAS_READY_CLASS)) {
+            active += 1;
+          }
         }
       }
       state.activeCanvases = active;
@@ -1383,7 +1462,7 @@
         r: color.r / 255,
         g: color.g / 255,
         b: color.b / 255,
-        a: settings.solid.alpha,
+        a: settings.solid.alpha / 100,
       };
     }
 
@@ -1455,7 +1534,7 @@
 
     function rgbaCss(color, alpha) {
       const rgb = hexToRgb(color);
-      return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+      return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha / 100})`;
     }
 
     function hexToRgb(color) {
@@ -1471,13 +1550,134 @@
     win.__blobioGameBackgroundDebug = () => ({
       ...state,
       settings,
+      canvases: getGameDocuments().flatMap((doc) => Array.from(doc.querySelectorAll?.('canvas') || []).map((canvas) => ({
+        width: canvas.width || canvas.clientWidth || 0,
+        height: canvas.height || canvas.clientHeight || 0,
+        classes: String(canvas.className || ''),
+        background: canvas.style?.background || '',
+      }))),
     });
 
+    function getGameDocuments() {
+      const docs = [];
+      if (win.document) {
+        docs.push(win.document);
+      }
+
+      for (const frame of win.document?.querySelectorAll?.('iframe') || []) {
+        try {
+          if (frame.contentDocument) {
+            docs.push(frame.contentDocument);
+          }
+        } catch {}
+      }
+
+      return docs;
+    }
+
+    function patchGameBackgroundWindow(targetWindow) {
+      if (!targetWindow || targetWindow.__blobioGameBackgroundWindowPatched) {
+        return false;
+      }
+
+      try {
+        patchCanvasGetContext(targetWindow);
+        patchWebGlContext(targetWindow.WebGLRenderingContext);
+        patchWebGlContext(targetWindow.WebGL2RenderingContext);
+        patchCanvas2d(targetWindow);
+        targetWindow.__blobioGameBackgroundWindowPatched = true;
+        state.patchedWindows += 1;
+        return true;
+      } catch (error) {
+        state.lastError = error?.message || String(error);
+        return false;
+      }
+    }
+
+    function patchGameBackgroundFrame(frame) {
+      try {
+        if (!frame?.contentWindow) {
+          return false;
+        }
+
+        const patched = patchGameBackgroundWindow(frame.contentWindow);
+        if (patched) {
+          state.patchedFrames += 1;
+        }
+        return patched;
+      } catch (error) {
+        state.lastError = error?.message || String(error);
+        return false;
+      }
+    }
+
+    function patchExistingGameBackgroundFrames() {
+      let count = 0;
+      for (const frame of win.document?.querySelectorAll?.('iframe') || []) {
+        if (patchGameBackgroundFrame(frame)) {
+          count += 1;
+        }
+      }
+      return count;
+    }
+
+    function installGameBackgroundFrameHooks() {
+      const NodeCtor = win.Node;
+      const prototype = NodeCtor?.prototype;
+      if (!prototype || prototype.__blobioBackgroundFrameHooksInstalled) {
+        return false;
+      }
+
+      const nativeAppendChild = prototype.appendChild;
+      const nativeInsertBefore = prototype.insertBefore;
+      const patchSoon = (node) => {
+        if (node?.tagName !== 'IFRAME') {
+          return;
+        }
+
+        patchGameBackgroundFrame(node);
+        win.setTimeout?.(() => patchGameBackgroundFrame(node), 0);
+        win.setTimeout?.(() => patchGameBackgroundFrame(node), 250);
+      };
+
+      if (typeof nativeAppendChild === 'function') {
+        prototype.appendChild = function blobBackgroundAppendChild(node) {
+          const result = nativeAppendChild.apply(this, arguments);
+          patchSoon(node);
+          return result;
+        };
+      }
+
+      if (typeof nativeInsertBefore === 'function') {
+        prototype.insertBefore = function blobBackgroundInsertBefore(node) {
+          const result = nativeInsertBefore.apply(this, arguments);
+          patchSoon(node);
+          return result;
+        };
+      }
+
+      if (win.document?.documentElement && typeof win.MutationObserver === 'function') {
+        const observer = new win.MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            for (const node of mutation.addedNodes || []) {
+              patchSoon(node);
+            }
+          }
+        });
+        observer.observe(win.document.documentElement, { childList: true, subtree: true });
+      }
+
+      prototype.__blobioBackgroundFrameHooksInstalled = true;
+      state.frameHookInstalled = true;
+      return true;
+    }
+
     try {
-      patchCanvasGetContext();
-      patchWebGlContext(win.WebGLRenderingContext);
-      patchWebGlContext(win.WebGL2RenderingContext);
-      patchCanvas2d();
+      patchGameBackgroundWindow(win);
+      installGameBackgroundFrameHooks();
+      patchExistingGameBackgroundFrames();
+      win.setTimeout?.(patchExistingGameBackgroundFrames, 0);
+      win.setTimeout?.(patchExistingGameBackgroundFrames, 250);
       win.__blobioGameBackgroundInstalled = true;
       return true;
     } catch (error) {

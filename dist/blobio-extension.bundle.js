@@ -1849,6 +1849,15 @@ html.${this.className} body::before {
   font-variant-numeric: tabular-nums;
 }
 
+.blobio-animation-speed-range-label {
+  grid-column: 1 / -1;
+  color: rgba(223, 255, 230, 0.82);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
 .blobio-animation-speed-reset {
   grid-column: 1 / -1;
   justify-self: stretch;
@@ -2340,7 +2349,7 @@ iframe.blobio-captcha-anchor-hidden,
   var MIN_CHAT_FONT_SIZE = 8;
   var MAX_CHAT_FONT_SIZE = 48;
   var DEFAULT_ANIMATION_SPEED_SLIDER = 10;
-  var MIN_ANIMATION_SPEED_SLIDER = 10;
+  var MIN_ANIMATION_SPEED_SLIDER = 1;
   var MAX_ANIMATION_SPEED_SLIDER = 180;
   function isFpsUncapEnabled(storage) {
     try {
@@ -3198,11 +3207,14 @@ iframe.blobio-captcha-anchor-hidden,
       slider.setAttribute("aria-label", "Animation speed");
       const value = this.document.createElement("span");
       value.classList.add("blobio-animation-speed-value");
+      const rangeLabel = this.document.createElement("span");
+      rangeLabel.classList.add("blobio-animation-speed-range-label");
+      rangeLabel.textContent = "0.1x - 18.0x";
       const reset = this.document.createElement("button");
       reset.type = "button";
       reset.classList.add("blobio-animation-speed-reset");
       reset.textContent = "Reset to default";
-      controls.append(slider, value, reset);
+      controls.append(slider, value, rangeLabel, reset);
       group.append(toggle, label, controls);
       category.appendChild(group);
       return category;
@@ -6588,7 +6600,8 @@ html.${className} app-settings .blobio-background-angle-row {
   font-weight: 800;
 }
 
-html.${className} app-settings .blobio-background-alpha-input {
+html.${className} app-settings .blobio-background-alpha-input,
+html.${className} app-settings .blobio-background-angle-input {
   width: 100%;
   min-width: 0;
   height: 18px;
@@ -6600,7 +6613,8 @@ html.${className} app-settings .blobio-background-alpha-input {
   cursor: pointer;
 }
 
-html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-runnable-track {
+html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-runnable-track,
+html.${className} app-settings .blobio-background-angle-input::-webkit-slider-runnable-track {
   height: 6px;
   border: 1px solid rgba(147, 255, 177, 0.62);
   border-radius: 999px;
@@ -6608,7 +6622,8 @@ html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-ru
   box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.58), 0 0 8px rgba(79, 255, 130, 0.28);
 }
 
-html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-thumb {
+html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-thumb,
+html.${className} app-settings .blobio-background-angle-input::-webkit-slider-thumb {
   width: 16px;
   height: 16px;
   margin-top: -6px;
@@ -6620,7 +6635,8 @@ html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-th
   box-shadow: 0 0 10px rgba(79, 255, 130, 0.72), inset 0 0 5px rgba(255, 255, 255, 0.42);
 }
 
-html.${className} app-settings .blobio-background-alpha-input::-moz-range-track {
+html.${className} app-settings .blobio-background-alpha-input::-moz-range-track,
+html.${className} app-settings .blobio-background-angle-input::-moz-range-track {
   height: 6px;
   border: 1px solid rgba(147, 255, 177, 0.62);
   border-radius: 999px;
@@ -6628,7 +6644,8 @@ html.${className} app-settings .blobio-background-alpha-input::-moz-range-track 
   box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.58), 0 0 8px rgba(79, 255, 130, 0.28);
 }
 
-html.${className} app-settings .blobio-background-alpha-input::-moz-range-thumb {
+html.${className} app-settings .blobio-background-alpha-input::-moz-range-thumb,
+html.${className} app-settings .blobio-background-angle-input::-moz-range-thumb {
   width: 16px;
   height: 16px;
   border: 1px solid rgba(225, 255, 233, 0.96);
@@ -7090,10 +7107,10 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_GAME_BACKGROUND_SETTINGS = Object.freeze({
     enabled: false,
     mode: "solid",
-    solid: { color: "#222222", alpha: 1 },
+    solid: { color: "#222222", alpha: 100 },
     gradient: {
-      from: { color: "#141824", alpha: 1 },
-      to: { color: "#007e69", alpha: 1 },
+      from: { color: "#141824", alpha: 100 },
+      to: { color: "#007e69", alpha: 100 },
       angle: 135
     }
   });
@@ -7109,7 +7126,7 @@ html.${className} .blobio-watermark-extension::after {
   }
   function normalizeAlpha2(value, fallback) {
     const alpha = Number(value);
-    return Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : fallback;
+    return Number.isFinite(alpha) ? Math.max(0, Math.min(100, Math.round(alpha))) : fallback;
   }
   function normalizeAngle(value, fallback) {
     const angle = Math.round(Number(value));
@@ -7191,7 +7208,7 @@ html.${className} .blobio-watermark-extension::after {
     const red = Number.parseInt(normalized.slice(0, 2), 16);
     const green = Number.parseInt(normalized.slice(2, 4), 16);
     const blue = Number.parseInt(normalized.slice(4, 6), 16);
-    return `rgba(${red}, ${green}, ${blue}, ${normalizeAlpha2(alpha, 1)})`;
+    return `rgba(${red}, ${green}, ${blue}, ${normalizeAlpha2(alpha, 100) / 100})`;
   }
   function gameBackgroundCss(settings) {
     const clean = normalizeGameBackgroundSettings(settings);
@@ -7386,8 +7403,8 @@ html.${className} .blobio-watermark-extension::after {
       const alphaInput = this.document.createElement("input");
       alphaInput.type = "range";
       alphaInput.min = "0";
-      alphaInput.max = "1";
-      alphaInput.step = "0.01";
+      alphaInput.max = "100";
+      alphaInput.step = "1";
       alphaInput.classList.add("blobio-background-alpha-input");
       alphaInput.dataset.colorPath = path;
       alphaInput.setAttribute("aria-label", `${title} alpha`);
@@ -7416,7 +7433,7 @@ html.${className} .blobio-watermark-extension::after {
       input.min = "0";
       input.max = "360";
       input.step = "1";
-      input.classList.add("blobio-background-angle-input", "blobio-background-alpha-input");
+      input.classList.add("blobio-background-angle-input");
       const value = this.document.createElement("span");
       value.classList.add("blobio-background-angle-value");
       row.append(title, input, value);
@@ -7514,7 +7531,7 @@ html.${className} .blobio-watermark-extension::after {
       }
       for (const value of this.elements.alphaValues) {
         const path = value.closest?.(".blobio-background-color-row")?.dataset?.colorPath;
-        value.textContent = `${Math.round(this.colorSetting(path).alpha * 100)}%`;
+        value.textContent = `${Math.round(this.colorSetting(path).alpha)}%`;
       }
     }
     colorSetting(path) {
