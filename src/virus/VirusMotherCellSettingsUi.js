@@ -18,6 +18,7 @@ export class VirusMotherCellSettingsUi {
     showTooltip = null,
     moveTooltip = null,
     hideTooltip = null,
+    onOpen = null,
   } = {}) {
     this.document = document;
     this.storage = storage;
@@ -26,6 +27,7 @@ export class VirusMotherCellSettingsUi {
     this.showTooltip = showTooltip;
     this.moveTooltip = moveTooltip;
     this.hideTooltip = hideTooltip;
+    this.onOpen = onOpen;
     this.settings = readVirusMotherCellSettings(storage, document);
     this.listeners = [];
     this.maskImage = null;
@@ -131,6 +133,9 @@ export class VirusMotherCellSettingsUi {
       event.preventDefault?.();
       event.stopPropagation?.();
       const open = this.elements?.menu?.hidden !== false;
+      if (open) {
+        this.onOpen?.(this);
+      }
       this.setOpen(open);
     });
 

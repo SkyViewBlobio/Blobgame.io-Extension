@@ -1,4 +1,5 @@
 import { buildMenuCss } from '../css/MenuFeatureStyles.js';
+import { GameBackgroundSettingsUi } from '../background/GameBackgroundSettingsUi.js';
 import { createBlobioStorage } from '../storage/BlobioStorage.js';
 import { isHideAdminMdEnabled, setHideAdminMdEnabled } from '../roles/RoleSettings.js';
 import { isFpsUncapEnabled, setFpsUncapEnabled } from '../settings/RuntimeSettings.js';
@@ -165,6 +166,7 @@ export class MenuFeature {
     this.unsubscribeAdminUid = null;
     this.unsubscribeFriendHighlight = null;
     this.virusMotherCellSettingsUi = null;
+    this.gameBackgroundSettingsUi = null;
   }
 
   start() {
@@ -249,6 +251,8 @@ export class MenuFeature {
     this.unsubscribeFriendHighlight = null;
     this.virusMotherCellSettingsUi?.destroy?.();
     this.virusMotherCellSettingsUi = null;
+    this.gameBackgroundSettingsUi?.destroy?.();
+    this.gameBackgroundSettingsUi = null;
     this.cleanupExtensionSettings();
     this.cleanupCustomSkinUi();
 
@@ -968,8 +972,20 @@ export class MenuFeature {
       showTooltip: (row, event) => this.showExtensionTooltip(row, event),
       moveTooltip: (event) => this.moveExtensionTooltip(event),
       hideTooltip: () => this.hideExtensionTooltip(),
+      onOpen: (ui) => this.closeExtensionSettingMenus(ui),
     });
     categoryPanels.get('theme').appendChild(this.virusMotherCellSettingsUi.create());
+
+    this.gameBackgroundSettingsUi?.destroy?.();
+    this.gameBackgroundSettingsUi = new GameBackgroundSettingsUi({
+      document: this.document,
+      storage: this.storage,
+      showTooltip: (row, event) => this.showExtensionTooltip(row, event),
+      moveTooltip: (event) => this.moveExtensionTooltip(event),
+      hideTooltip: () => this.hideExtensionTooltip(),
+      onOpen: (ui) => this.closeExtensionSettingMenus(ui),
+    });
+    categoryPanels.get('theme').appendChild(this.gameBackgroundSettingsUi.create());
 
     categoryPanels.get('text').append(
       this.createExtensionSwitchRow({
@@ -1011,6 +1027,14 @@ export class MenuFeature {
     this.activateExtensionCategory(panel, EXTENSION_DEFAULT_CATEGORY);
     this.syncAdminSettingVisibility(panel);
     return panel;
+  }
+
+  closeExtensionSettingMenus(except = null) {
+    for (const ui of [this.virusMotherCellSettingsUi, this.gameBackgroundSettingsUi]) {
+      if (ui && ui !== except) {
+        ui.setOpen?.(false);
+      }
+    }
   }
 
   activateExtensionCategory(panel, category) {

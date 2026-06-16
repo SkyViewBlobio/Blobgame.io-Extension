@@ -1828,6 +1828,52 @@ html.${this.className} body::before {
   opacity: 0.5;
 }
 
+.blobio-animation-speed-category {
+  display: block;
+}
+
+.blobio-animation-speed-controls {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+}
+
+.blobio-animation-speed-value {
+  color: #ecfff1;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+  text-shadow: 0 0 8px rgba(77, 255, 126, 0.68);
+  font-variant-numeric: tabular-nums;
+}
+
+.blobio-animation-speed-reset {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  min-height: 30px;
+  border: 1px solid rgba(147, 255, 177, 0.52);
+  border-radius: 6px;
+  background: rgba(0, 18, 10, 0.78);
+  color: #dfffe6;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.12), 0 0 8px rgba(79, 255, 130, 0.18);
+}
+
+.blobio-animation-speed-reset:hover,
+.blobio-animation-speed-reset:focus-visible {
+  border-color: rgba(196, 255, 211, 0.78);
+  background: rgba(5, 48, 25, 0.9);
+}
+
+.blobio-animation-speed-setting.is-disabled .blobio-animation-speed-controls {
+  opacity: 0.68;
+}
+
 .blobio-themed-range {
   width: 100%;
   height: 18px;
@@ -2286,9 +2332,16 @@ iframe.blobio-captcha-anchor-hidden,
   var FPS_UNCAP_STORAGE_KEY = "blobio.settings.fpsUncap";
   var CHAT_FONT_SIZE_ENABLED_KEY = "blobio.chat.fontSizeEnabled";
   var CHAT_FONT_SIZE_VALUE_KEY = "blobio.chat.fontSizePx";
+  var ANIMATION_SPEED_KEYS = {
+    enabled: "blobio.settings.animationSpeed.enabled",
+    slider: "blobio.settings.animationSpeed.slider"
+  };
   var DEFAULT_CHAT_FONT_SIZE = 16;
   var MIN_CHAT_FONT_SIZE = 8;
   var MAX_CHAT_FONT_SIZE = 48;
+  var DEFAULT_ANIMATION_SPEED_SLIDER = 10;
+  var MIN_ANIMATION_SPEED_SLIDER = 10;
+  var MAX_ANIMATION_SPEED_SLIDER = 180;
   function isFpsUncapEnabled(storage) {
     try {
       return storage?.getItem?.(FPS_UNCAP_STORAGE_KEY) === "1";
@@ -2345,10 +2398,61 @@ iframe.blobio-captcha-anchor-hidden,
     }
     return normalized;
   }
+  function readAnimationSpeedEnabled(storage) {
+    try {
+      const value = storage?.getItem?.(ANIMATION_SPEED_KEYS.enabled);
+      return value === "1" || String(value).toLowerCase() === "true";
+    } catch {
+      return false;
+    }
+  }
+  function normalizeAnimationSpeedSlider(value) {
+    const number = Math.round(Number(value));
+    if (!Number.isFinite(number)) {
+      return DEFAULT_ANIMATION_SPEED_SLIDER;
+    }
+    return Math.max(MIN_ANIMATION_SPEED_SLIDER, Math.min(MAX_ANIMATION_SPEED_SLIDER, number));
+  }
+  function getAnimationSpeedSetting(storage) {
+    let slider = DEFAULT_ANIMATION_SPEED_SLIDER;
+    try {
+      const value = storage?.getItem?.(ANIMATION_SPEED_KEYS.slider);
+      if (value !== null && value !== void 0 && value !== "") {
+        slider = normalizeAnimationSpeedSlider(value);
+      }
+    } catch {
+    }
+    return {
+      enabled: readAnimationSpeedEnabled(storage),
+      slider,
+      speed: slider / 10
+    };
+  }
+  function setAnimationSpeedSetting(storage, changes = {}) {
+    const current = getAnimationSpeedSetting(storage);
+    const next = {
+      enabled: changes.enabled === void 0 ? current.enabled : Boolean(changes.enabled),
+      slider: changes.slider === void 0 ? current.slider : normalizeAnimationSpeedSlider(changes.slider)
+    };
+    try {
+      storage?.setItem?.(ANIMATION_SPEED_KEYS.enabled, next.enabled ? "1" : "0");
+      storage?.setItem?.(ANIMATION_SPEED_KEYS.slider, String(next.slider));
+    } catch {
+    }
+    return {
+      ...next,
+      speed: next.slider / 10
+    };
+  }
   var CHAT_FONT_SIZE_LIMITS = {
     defaultValue: DEFAULT_CHAT_FONT_SIZE,
     min: MIN_CHAT_FONT_SIZE,
     max: MAX_CHAT_FONT_SIZE
+  };
+  var ANIMATION_SPEED_LIMITS = {
+    defaultValue: DEFAULT_ANIMATION_SPEED_SLIDER,
+    min: MIN_ANIMATION_SPEED_SLIDER,
+    max: MAX_ANIMATION_SPEED_SLIDER
   };
 
   // src/settings/InGameUiSettings.js
@@ -2621,6 +2725,7 @@ iframe.blobio-captcha-anchor-hidden,
       this.unsubscribeMutedPlayers = this.mutedPlayersStore?.subscribe?.(() => this.syncMutedPlayersUi()) || null;
       this.unsubscribeHotkeys = this.hotkeyStore?.subscribe?.(() => this.syncHotkeyUi()) || null;
       this.applyChatFontSize();
+      this.applyAnimationSpeed();
       this.watchPage();
       return true;
     }
@@ -2639,6 +2744,7 @@ iframe.blobio-captcha-anchor-hidden,
     ensureUi() {
       if (this.root?.parentNode) {
         this.ensureHotkeyLauncher();
+        this.ensureAnimationSpeedLauncher();
         this.syncChatWrapper();
         this.positionUi();
         return;
@@ -2656,12 +2762,14 @@ iframe.blobio-captcha-anchor-hidden,
       const chatButton = this.createCategoryButton("Chat-Settings", "chat");
       const mutedButton = this.createCategoryButton("Muted-Players", "muted");
       const hotkeyButton = this.createCategoryButton("HotKey", "hotkey");
+      const animationButton = this.createCategoryButton("Anim-Speed", "animation");
       const captchaButton = this.createCategoryButton("Captcha-Logo", "captcha");
       const leaderboardButton = this.createCategoryButton("Leaderboard-Settings", "leaderboard");
-      panel.append(chatButton, mutedButton, hotkeyButton, captchaButton, leaderboardButton);
+      panel.append(chatButton, mutedButton, hotkeyButton, animationButton, captchaButton, leaderboardButton);
       const chatCategory = this.createChatCategory();
       const mutedCategory = this.createMutedPlayersCategory();
       const hotkeyCategory = this.createHotkeyCategory();
+      const animationCategory = this.createAnimationSpeedCategory();
       const captchaCategory = this.createCaptchaCategory();
       const leaderboardCategory = this.createLeaderboardCategory();
       root.append(
@@ -2670,6 +2778,7 @@ iframe.blobio-captcha-anchor-hidden,
         chatCategory,
         mutedCategory,
         hotkeyCategory,
+        animationCategory,
         captchaCategory,
         leaderboardCategory
       );
@@ -2685,10 +2794,12 @@ iframe.blobio-captcha-anchor-hidden,
       this.bindCategoryButton(chatButton);
       this.bindCategoryButton(mutedButton);
       this.bindCategoryButton(hotkeyButton);
+      this.bindCategoryButton(animationButton);
       this.bindCategoryButton(captchaButton);
       this.bindCategoryButton(leaderboardButton);
       this.bindChatCategory(chatCategory);
       this.bindCaptchaCategory(captchaCategory);
+      this.bindAnimationSpeedCategory(animationCategory);
       this.bindLeaderboardCategory(leaderboardCategory);
       const muteToggle = mutedCategory.querySelector(".blobio-muted-players-toggle");
       const mutedList = mutedCategory.querySelector(".blobio-muted-players-list");
@@ -2785,6 +2896,7 @@ iframe.blobio-captcha-anchor-hidden,
       this.root = root;
       this.notificationHost = notificationHost;
       this.ensureHotkeyLauncher();
+      this.ensureAnimationSpeedLauncher();
       this.syncControls();
       this.syncMutedPlayersUi();
       this.syncHotkeyUi();
@@ -2885,6 +2997,20 @@ iframe.blobio-captcha-anchor-hidden,
       if (!button) {
         button = this.createCategoryButton("HotKey", "hotkey");
         panel.appendChild(button);
+      }
+      this.bindCategoryButton(button);
+      return button;
+    }
+    ensureAnimationSpeedLauncher() {
+      const panel = this.root?.querySelector?.(".blobio-chat-settings-panel");
+      if (!panel) {
+        return null;
+      }
+      let button = Array.from(panel.querySelectorAll?.(".blobio-chat-settings-category-button") || []).find((item) => item.dataset.category === "animation");
+      if (!button) {
+        button = this.createCategoryButton("Anim-Speed", "animation");
+        const hotkey = panel.querySelector('.blobio-chat-settings-category-button[data-category="hotkey"]');
+        panel.insertBefore(button, hotkey?.nextSibling || null);
       }
       this.bindCategoryButton(button);
       return button;
@@ -3048,6 +3174,39 @@ iframe.blobio-captcha-anchor-hidden,
       category.append(input, list, apply, remove);
       return category;
     }
+    createAnimationSpeedCategory() {
+      const category = this.document.createElement("div");
+      category.classList.add("blobio-chat-settings-category", "blobio-animation-speed-category");
+      category.dataset.category = "animation";
+      const group = this.document.createElement("div");
+      group.classList.add("blobio-ui-setting-group", "blobio-animation-speed-setting");
+      group.dataset.setting = "animation-speed";
+      const toggle = this.document.createElement("button");
+      toggle.type = "button";
+      toggle.classList.add("blobio-chat-font-toggle", "blobio-setting-toggle");
+      const label = this.document.createElement("div");
+      label.classList.add("blobio-chat-font-label");
+      label.textContent = "Animation Speed";
+      const controls = this.document.createElement("div");
+      controls.classList.add("blobio-animation-speed-controls");
+      const slider = this.document.createElement("input");
+      slider.type = "range";
+      slider.classList.add("blobio-animation-speed-range", "blobio-themed-range");
+      slider.min = String(ANIMATION_SPEED_LIMITS.min);
+      slider.max = String(ANIMATION_SPEED_LIMITS.max);
+      slider.step = "1";
+      slider.setAttribute("aria-label", "Animation speed");
+      const value = this.document.createElement("span");
+      value.classList.add("blobio-animation-speed-value");
+      const reset = this.document.createElement("button");
+      reset.type = "button";
+      reset.classList.add("blobio-animation-speed-reset");
+      reset.textContent = "Reset to default";
+      controls.append(slider, value, reset);
+      group.append(toggle, label, controls);
+      category.appendChild(group);
+      return category;
+    }
     bindChatCategory(category) {
       const font = category.querySelector('[data-setting="chat"]');
       const fontToggle = font.querySelector(".blobio-setting-toggle");
@@ -3121,6 +3280,28 @@ iframe.blobio-captcha-anchor-hidden,
         IN_GAME_UI_DEFAULTS.leaderboardOutline
       );
     }
+    bindAnimationSpeedCategory(category) {
+      const group = category.querySelector('[data-setting="animation-speed"]');
+      const toggle = group.querySelector(".blobio-setting-toggle");
+      const slider = group.querySelector(".blobio-animation-speed-range");
+      const reset = group.querySelector(".blobio-animation-speed-reset");
+      toggle.addEventListener("click", () => {
+        const current = getAnimationSpeedSetting(this.storage);
+        setAnimationSpeedSetting(this.storage, { enabled: !current.enabled });
+        this.syncVisualSettingsUi();
+        this.applyAnimationSpeed();
+      });
+      slider.addEventListener("input", () => {
+        setAnimationSpeedSetting(this.storage, { slider: slider.value });
+        this.syncVisualSettingsUi();
+        this.applyAnimationSpeed();
+      });
+      reset.addEventListener("click", () => {
+        setAnimationSpeedSetting(this.storage, { slider: ANIMATION_SPEED_LIMITS.defaultValue });
+        this.syncVisualSettingsUi();
+        this.applyAnimationSpeed();
+      });
+    }
     bindColorSetting(category, name, keys, defaults) {
       const group = category.querySelector(`[data-setting="${name}"]`);
       const toggle = group.querySelector(".blobio-setting-toggle");
@@ -3145,7 +3326,13 @@ iframe.blobio-captcha-anchor-hidden,
     }
     applyRuntimeUi() {
       this.applyChatFontSize();
+      this.applyAnimationSpeed();
       this.uiCustomization?.applyAll?.();
+    }
+    applyAnimationSpeed() {
+      const win = this.document.defaultView || globalThis;
+      const setting = getAnimationSpeedSetting(this.storage);
+      win.__blobioAnimationSpeedRefresh?.(setting.enabled ? setting.speed : 1);
     }
     setOpen(open) {
       if (!this.root) {
@@ -3153,6 +3340,7 @@ iframe.blobio-captcha-anchor-hidden,
       }
       if (open) {
         this.ensureHotkeyLauncher();
+        this.ensureAnimationSpeedLauncher();
       }
       const toggle = this.root.querySelector(".blobio-chat-settings-toggle");
       if (open) {
@@ -3208,6 +3396,7 @@ iframe.blobio-captcha-anchor-hidden,
       this.syncColorSetting("chat-outline", settings.chatOutline);
       this.syncColorSetting("leaderboard-background", settings.leaderboardBackground);
       this.syncColorSetting("leaderboard-outline", settings.leaderboardOutline);
+      this.syncAnimationSpeedSetting(getAnimationSpeedSetting(this.storage));
       this.syncBooleanSetting("smooth-chat", settings.smoothChat);
       this.syncBooleanSetting("captcha-logo", settings.hideCaptchaLogo);
       const chatActive = isChatFontSizeEnabled(this.storage) || settings.chatBackground.enabled || settings.chatOutline.enabled || settings.smoothChat;
@@ -3215,6 +3404,21 @@ iframe.blobio-captcha-anchor-hidden,
       this.root.querySelector('.blobio-chat-settings-category-button[data-category="chat"]')?.classList.toggle("has-active-setting", chatActive);
       this.root.querySelector('.blobio-chat-settings-category-button[data-category="captcha"]')?.classList.toggle("has-active-setting", settings.hideCaptchaLogo);
       this.root.querySelector('.blobio-chat-settings-category-button[data-category="leaderboard"]')?.classList.toggle("has-active-setting", leaderboardActive);
+      this.root.querySelector('.blobio-chat-settings-category-button[data-category="animation"]')?.classList.toggle("has-active-setting", getAnimationSpeedSetting(this.storage).enabled);
+    }
+    syncAnimationSpeedSetting(setting) {
+      const group = this.root?.querySelector('[data-setting="animation-speed"]');
+      if (!group) {
+        return;
+      }
+      const toggle = group.querySelector(".blobio-setting-toggle");
+      const slider = group.querySelector(".blobio-animation-speed-range");
+      const value = group.querySelector(".blobio-animation-speed-value");
+      toggle.textContent = setting.enabled ? "true" : "false";
+      toggle.classList.toggle("is-enabled", setting.enabled);
+      slider.value = String(setting.slider);
+      value.textContent = `${setting.speed.toFixed(1)}x`;
+      group.classList.toggle("is-disabled", !setting.enabled);
     }
     syncFontSetting(name, setting) {
       const group = this.root?.querySelector(`[data-setting="${name}"]`);
@@ -3799,6 +4003,7 @@ iframe.blobio-captcha-anchor-hidden,
         this.positionFrame = null;
       }
       this.document.querySelector?.("#chat")?.classList?.remove("blobio-chat-font-size-enabled");
+      win.__blobioAnimationSpeedRefresh?.(1);
       this.root?.remove();
       this.notificationHost?.remove();
       this.root = null;
@@ -6139,6 +6344,306 @@ html.${className} app-settings .blobio-virus-rotate-input {
   accent-color: #62e77d;
 }
 
+html.${className} app-settings .blobio-background-setting-group {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  min-width: 0;
+}
+
+html.${className} app-settings .blobio-background-setting-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 34px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+html.${className} app-settings .blobio-background-dropdown-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(130, 255, 166, 0.72);
+  border-radius: 5px;
+  outline: none;
+  background: rgba(0, 0, 0, 0.74);
+  color: #ecfff1;
+  text-align: center;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.76), 0 0 12px rgba(77, 255, 126, 0.74);
+  box-shadow: inset 0 0 9px rgba(79, 255, 130, 0.12), 0 0 12px rgba(79, 255, 130, 0.26);
+  cursor: pointer;
+}
+
+html.${className} app-settings .blobio-background-dropdown-button:hover,
+html.${className} app-settings .blobio-background-dropdown-button:focus-visible {
+  border-color: rgba(151, 255, 181, 0.96);
+  box-shadow: inset 0 0 11px rgba(79, 255, 130, 0.18), 0 0 15px rgba(79, 255, 130, 0.42);
+}
+
+html.${className} app-settings .blobio-background-dropdown-symbol {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0 1px;
+  color: inherit;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  text-shadow: inherit;
+  pointer-events: none;
+}
+
+html.${className} app-settings .blobio-background-button-menu {
+  display: grid;
+  gap: 11px;
+  width: 100%;
+  min-width: 0;
+  max-height: 390px;
+  padding: 11px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(142, 255, 174, 0.38);
+  border-radius: 9px;
+  background: linear-gradient(145deg, rgba(3, 31, 19, 0.94), rgba(1, 10, 7, 0.94));
+  box-shadow: inset 0 0 18px rgba(79, 255, 130, 0.12), 0 0 14px rgba(79, 255, 130, 0.16);
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 232, 133, 0.88) rgba(0, 18, 10, 0.72);
+}
+
+html.${className} app-settings .blobio-background-button-menu[hidden] {
+  display: none !important;
+}
+
+html.${className} app-settings .blobio-background-preview {
+  min-height: 54px;
+  border: 1px solid rgba(190, 255, 206, 0.38);
+  border-radius: 8px;
+  background: rgba(34, 34, 34, 1);
+  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.48), 0 0 10px rgba(79, 255, 130, 0.14);
+}
+
+html.${className} app-settings .blobio-background-mode-row {
+  display: grid;
+  grid-template-columns: auto 112px;
+  align-items: center;
+  gap: 10px;
+  color: #dfffe6;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+html.${className} app-settings .blobio-background-mode-button {
+  position: relative;
+  height: 30px;
+  overflow: hidden;
+  border: 1px solid rgba(147, 255, 177, 0.58);
+  border-radius: 999px;
+  background: rgba(0, 18, 10, 0.82);
+  color: #ecfff1;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: inset 0 0 9px rgba(79, 255, 130, 0.12), 0 0 9px rgba(79, 255, 130, 0.2);
+}
+
+html.${className} app-settings .blobio-background-mode-button::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  width: 50px;
+  height: 22px;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #baffca, #35c968);
+  box-shadow: 0 0 9px rgba(79, 255, 130, 0.56);
+  transition: transform 180ms ease;
+}
+
+html.${className} app-settings .blobio-background-mode-button.is-gradient::before {
+  transform: translateX(52px);
+}
+
+html.${className} app-settings .blobio-background-mode-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms ease, opacity 180ms ease;
+  pointer-events: none;
+}
+
+html.${className} app-settings .blobio-background-mode-text.is-solid {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+html.${className} app-settings .blobio-background-mode-text.is-gradient {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+html.${className} app-settings .blobio-background-mode-button.is-gradient .blobio-background-mode-text.is-solid {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+html.${className} app-settings .blobio-background-mode-button.is-gradient .blobio-background-mode-text.is-gradient {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+html.${className} app-settings .blobio-background-solid-section,
+html.${className} app-settings .blobio-background-gradient-section {
+  display: grid;
+  gap: 10px;
+}
+
+html.${className} app-settings .blobio-background-gradient-section[hidden] {
+  display: none !important;
+}
+
+html.${className} app-settings .blobio-background-section-title {
+  color: #c8ffd4;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+html.${className} app-settings .blobio-background-color-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.8fr) minmax(150px, 1.2fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+html.${className} app-settings .blobio-background-control {
+  display: grid;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #dfffe6;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+html.${className} app-settings .blobio-background-color-control {
+  grid-template-columns: auto 42px;
+}
+
+html.${className} app-settings .blobio-background-color-wheel {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  border: 1px solid rgba(232, 255, 238, 0.7);
+  border-radius: 50%;
+  background: conic-gradient(#ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+  box-shadow: 0 0 10px rgba(79, 255, 130, 0.24);
+}
+
+html.${className} app-settings .blobio-background-color-swatch {
+  width: 17px;
+  height: 17px;
+  border: 2px solid rgba(0, 0, 0, 0.78);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.62);
+  pointer-events: none;
+}
+
+html.${className} app-settings .blobio-background-color-input {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0;
+  cursor: pointer;
+}
+
+html.${className} app-settings .blobio-background-alpha-control,
+html.${className} app-settings .blobio-background-angle-row {
+  grid-template-columns: auto minmax(70px, 1fr) 42px;
+}
+
+html.${className} app-settings .blobio-background-angle-row {
+  display: grid;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #dfffe6;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+html.${className} app-settings .blobio-background-alpha-input {
+  width: 100%;
+  min-width: 0;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-runnable-track {
+  height: 6px;
+  border: 1px solid rgba(147, 255, 177, 0.62);
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(13, 76, 34, 0.94), rgba(91, 238, 124, 0.94));
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.58), 0 0 8px rgba(79, 255, 130, 0.28);
+}
+
+html.${className} app-settings .blobio-background-alpha-input::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border: 1px solid rgba(225, 255, 233, 0.96);
+  border-radius: 50%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: linear-gradient(145deg, #c5ffd2, #37cb69);
+  box-shadow: 0 0 10px rgba(79, 255, 130, 0.72), inset 0 0 5px rgba(255, 255, 255, 0.42);
+}
+
+html.${className} app-settings .blobio-background-alpha-input::-moz-range-track {
+  height: 6px;
+  border: 1px solid rgba(147, 255, 177, 0.62);
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(13, 76, 34, 0.94), rgba(91, 238, 124, 0.94));
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.58), 0 0 8px rgba(79, 255, 130, 0.28);
+}
+
+html.${className} app-settings .blobio-background-alpha-input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(225, 255, 233, 0.96);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #c5ffd2, #37cb69);
+  box-shadow: 0 0 10px rgba(79, 255, 130, 0.72), inset 0 0 5px rgba(255, 255, 255, 0.42);
+}
+
+html.${className} app-settings .blobio-background-alpha-value,
+html.${className} app-settings .blobio-background-angle-value {
+  color: #c8ffd4;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 html.${className} app-settings .blobio-extension-setting-row .slider {
   border: 1px solid rgba(214, 255, 224, 0.72);
   background-color: rgba(23, 96, 48, 0.86);
@@ -6570,6 +7075,463 @@ html.${className} .blobio-watermark-extension::after {
 `.trim();
   }
 
+  // src/settings/GameBackgroundSettings.js
+  var GAME_BACKGROUND_KEYS = {
+    enabled: "blobio.settings.backgroundColor.enabled",
+    mode: "blobio.settings.backgroundColor.mode",
+    solidColor: "blobio.settings.backgroundColor.solid.color",
+    solidAlpha: "blobio.settings.backgroundColor.solid.alpha",
+    gradientFromColor: "blobio.settings.backgroundColor.gradient.from.color",
+    gradientFromAlpha: "blobio.settings.backgroundColor.gradient.from.alpha",
+    gradientToColor: "blobio.settings.backgroundColor.gradient.to.color",
+    gradientToAlpha: "blobio.settings.backgroundColor.gradient.to.alpha",
+    gradientAngle: "blobio.settings.backgroundColor.gradient.angle"
+  };
+  var DEFAULT_GAME_BACKGROUND_SETTINGS = Object.freeze({
+    enabled: false,
+    mode: "solid",
+    solid: { color: "#222222", alpha: 1 },
+    gradient: {
+      from: { color: "#141824", alpha: 1 },
+      to: { color: "#007e69", alpha: 1 },
+      angle: 135
+    }
+  });
+  function readBoolean2(value, fallback = false) {
+    if (value === null || value === void 0 || value === "") {
+      return fallback;
+    }
+    return value === true || value === 1 || value === "1" || String(value).toLowerCase() === "true";
+  }
+  function normalizeColor2(value, fallback) {
+    const color = String(value || "").trim().toLowerCase();
+    return /^#[0-9a-f]{6}$/.test(color) ? color : fallback;
+  }
+  function normalizeAlpha2(value, fallback) {
+    const alpha = Number(value);
+    return Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : fallback;
+  }
+  function normalizeAngle(value, fallback) {
+    const angle = Math.round(Number(value));
+    return Number.isFinite(angle) ? Math.max(0, Math.min(360, angle)) : fallback;
+  }
+  function normalizeMode(value) {
+    return value === "gradient" ? "gradient" : "solid";
+  }
+  function normalizeGameBackgroundSettings(settings = {}) {
+    const defaults = DEFAULT_GAME_BACKGROUND_SETTINGS;
+    const source = settings && typeof settings === "object" ? settings : {};
+    const gradient = source.gradient && typeof source.gradient === "object" ? source.gradient : {};
+    const solid = source.solid && typeof source.solid === "object" ? source.solid : {};
+    const from = gradient.from && typeof gradient.from === "object" ? gradient.from : {};
+    const to = gradient.to && typeof gradient.to === "object" ? gradient.to : {};
+    return {
+      enabled: Boolean(source.enabled),
+      mode: normalizeMode(source.mode),
+      solid: {
+        color: normalizeColor2(solid.color, defaults.solid.color),
+        alpha: normalizeAlpha2(solid.alpha, defaults.solid.alpha)
+      },
+      gradient: {
+        from: {
+          color: normalizeColor2(from.color, defaults.gradient.from.color),
+          alpha: normalizeAlpha2(from.alpha, defaults.gradient.from.alpha)
+        },
+        to: {
+          color: normalizeColor2(to.color, defaults.gradient.to.color),
+          alpha: normalizeAlpha2(to.alpha, defaults.gradient.to.alpha)
+        },
+        angle: normalizeAngle(gradient.angle, defaults.gradient.angle)
+      }
+    };
+  }
+  function readGameBackgroundSettings(storage) {
+    try {
+      return normalizeGameBackgroundSettings({
+        enabled: readBoolean2(storage?.getItem?.(GAME_BACKGROUND_KEYS.enabled), DEFAULT_GAME_BACKGROUND_SETTINGS.enabled),
+        mode: storage?.getItem?.(GAME_BACKGROUND_KEYS.mode) || DEFAULT_GAME_BACKGROUND_SETTINGS.mode,
+        solid: {
+          color: storage?.getItem?.(GAME_BACKGROUND_KEYS.solidColor),
+          alpha: storage?.getItem?.(GAME_BACKGROUND_KEYS.solidAlpha)
+        },
+        gradient: {
+          from: {
+            color: storage?.getItem?.(GAME_BACKGROUND_KEYS.gradientFromColor),
+            alpha: storage?.getItem?.(GAME_BACKGROUND_KEYS.gradientFromAlpha)
+          },
+          to: {
+            color: storage?.getItem?.(GAME_BACKGROUND_KEYS.gradientToColor),
+            alpha: storage?.getItem?.(GAME_BACKGROUND_KEYS.gradientToAlpha)
+          },
+          angle: storage?.getItem?.(GAME_BACKGROUND_KEYS.gradientAngle)
+        }
+      });
+    } catch {
+      return normalizeGameBackgroundSettings(DEFAULT_GAME_BACKGROUND_SETTINGS);
+    }
+  }
+  function saveGameBackgroundSettings(storage, settings) {
+    const clean = normalizeGameBackgroundSettings(settings);
+    try {
+      storage?.setItem?.(GAME_BACKGROUND_KEYS.enabled, clean.enabled ? "1" : "0");
+      storage?.setItem?.(GAME_BACKGROUND_KEYS.mode, clean.mode);
+      storage?.setItem?.(GAME_BACKGROUND_KEYS.solidColor, clean.solid.color);
+      storage?.setItem?.(GAME_BACKGROUND_KEYS.solidAlpha, String(clean.solid.alpha));
+      storage?.setItem?.(GAME_BACKGROUND_KEYS.gradientFromColor, clean.gradient.from.color);
+      storage?.setItem?.(GAME_BACKGROUND_KEYS.gradientFromAlpha, String(clean.gradient.from.alpha));
+      storage?.setItem?.(GAME_BACKGROUND_KEYS.gradientToColor, clean.gradient.to.color);
+      storage?.setItem?.(GAME_BACKGROUND_KEYS.gradientToAlpha, String(clean.gradient.to.alpha));
+      storage?.setItem?.(GAME_BACKGROUND_KEYS.gradientAngle, String(clean.gradient.angle));
+    } catch {
+    }
+    return clean;
+  }
+  function backgroundColorToRgba(color, alpha) {
+    const normalized = normalizeColor2(color, "#000000").slice(1);
+    const red = Number.parseInt(normalized.slice(0, 2), 16);
+    const green = Number.parseInt(normalized.slice(2, 4), 16);
+    const blue = Number.parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${red}, ${green}, ${blue}, ${normalizeAlpha2(alpha, 1)})`;
+  }
+  function gameBackgroundCss(settings) {
+    const clean = normalizeGameBackgroundSettings(settings);
+    if (clean.mode === "gradient") {
+      return `linear-gradient(${clean.gradient.angle}deg, ${backgroundColorToRgba(clean.gradient.from.color, clean.gradient.from.alpha)}, ${backgroundColorToRgba(clean.gradient.to.color, clean.gradient.to.alpha)})`;
+    }
+    return backgroundColorToRgba(clean.solid.color, clean.solid.alpha);
+  }
+
+  // src/background/GameBackgroundSettingsUi.js
+  var GameBackgroundSettingsUi = class {
+    constructor({
+      document,
+      storage,
+      showTooltip = null,
+      moveTooltip = null,
+      hideTooltip = null,
+      onOpen = null
+    } = {}) {
+      this.document = document;
+      this.storage = storage;
+      this.showTooltip = showTooltip;
+      this.moveTooltip = moveTooltip;
+      this.hideTooltip = hideTooltip;
+      this.onOpen = onOpen;
+      this.settings = readGameBackgroundSettings(storage);
+      this.listeners = [];
+      this.elements = null;
+    }
+    create() {
+      this.settings = readGameBackgroundSettings(this.storage);
+      const group = this.document.createElement("div");
+      group.classList.add("blobio-background-setting-group");
+      group.setAttribute("_ngcontent-c3", "");
+      const row = this.createHeaderRow();
+      const menu = this.createDropdownMenu();
+      group.append(row, menu);
+      this.elements = {
+        group,
+        row,
+        menu,
+        enabled: row.querySelector("#config-switch-background-color"),
+        arrowButton: row.querySelector(".blobio-background-dropdown-button"),
+        disclosure: row.querySelector(".blobio-background-dropdown-symbol"),
+        preview: menu.querySelector(".blobio-background-preview"),
+        modeButton: menu.querySelector(".blobio-background-mode-button"),
+        gradientSection: menu.querySelector(".blobio-background-gradient-section"),
+        angleInput: menu.querySelector(".blobio-background-angle-input"),
+        angleValue: menu.querySelector(".blobio-background-angle-value"),
+        colorInputs: Array.from(menu.querySelectorAll(".blobio-background-color-input") || []),
+        colorSwatches: Array.from(menu.querySelectorAll(".blobio-background-color-swatch") || []),
+        alphaInputs: Array.from(menu.querySelectorAll(".blobio-background-alpha-input") || []),
+        alphaValues: Array.from(menu.querySelectorAll(".blobio-background-alpha-value") || [])
+      };
+      this.sync();
+      return group;
+    }
+    destroy() {
+      for (const [node, type, listener, options] of this.listeners) {
+        node.removeEventListener?.(type, listener, options);
+      }
+      this.listeners = [];
+      this.elements?.group?.remove?.();
+      this.elements = null;
+    }
+    createHeaderRow() {
+      const row = this.document.createElement("div");
+      row.classList.add("grid-item", "blobio-extension-setting-row", "blobio-background-setting-row");
+      row.dataset.blobioTooltip = "Allows you to customise the background color in-game.";
+      row.setAttribute("_ngcontent-c3", "");
+      const switchLabel = this.document.createElement("label");
+      switchLabel.classList.add("switch");
+      switchLabel.setAttribute("_ngcontent-c3", "");
+      const checkbox = this.document.createElement("input");
+      checkbox.id = "config-switch-background-color";
+      checkbox.type = "checkbox";
+      checkbox.classList.add("ng-untouched", "ng-pristine", "ng-valid");
+      checkbox.setAttribute("_ngcontent-c3", "");
+      const slider = this.document.createElement("span");
+      slider.classList.add("slider");
+      slider.setAttribute("_ngcontent-c3", "");
+      switchLabel.append(checkbox, slider);
+      const textLabel = this.document.createElement("label");
+      textLabel.setAttribute("for", checkbox.id);
+      textLabel.setAttribute("_ngcontent-c3", "");
+      textLabel.textContent = "Background Color";
+      const arrowButton = this.document.createElement("button");
+      arrowButton.type = "button";
+      arrowButton.classList.add("blobio-background-dropdown-button");
+      arrowButton.setAttribute("aria-label", "Open background color settings");
+      arrowButton.setAttribute("aria-expanded", "false");
+      arrowButton.setAttribute("_ngcontent-c3", "");
+      const disclosure = this.document.createElement("span");
+      disclosure.classList.add("blobio-background-dropdown-symbol");
+      disclosure.setAttribute("aria-hidden", "true");
+      disclosure.textContent = "+";
+      arrowButton.appendChild(disclosure);
+      row.append(switchLabel, textLabel, arrowButton);
+      this.installTooltip(row, row.dataset.blobioTooltip);
+      this.listen(checkbox, "change", () => {
+        this.settings = this.save({ enabled: Boolean(checkbox.checked) });
+        this.sync();
+      });
+      this.listen(arrowButton, "click", (event) => {
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        if (this.elements?.menu?.hidden !== false) {
+          this.onOpen?.(this);
+        }
+        this.setOpen(this.elements?.menu?.hidden !== false);
+      });
+      return row;
+    }
+    createDropdownMenu() {
+      const menu = this.document.createElement("div");
+      menu.classList.add("blobio-background-button-menu");
+      menu.hidden = true;
+      menu.setAttribute("_ngcontent-c3", "");
+      const preview = this.document.createElement("div");
+      preview.classList.add("blobio-background-preview");
+      menu.appendChild(preview);
+      const modeRow = this.document.createElement("div");
+      modeRow.classList.add("blobio-background-mode-row");
+      const modeLabel = this.document.createElement("span");
+      modeLabel.textContent = "Mode";
+      const modeButton = this.document.createElement("button");
+      modeButton.type = "button";
+      modeButton.classList.add("blobio-background-mode-button");
+      modeButton.setAttribute("aria-label", "Toggle background color mode");
+      modeButton.append(
+        this.createModeText("Solid", "solid"),
+        this.createModeText("Gradient", "gradient")
+      );
+      modeRow.append(modeLabel, modeButton);
+      menu.appendChild(modeRow);
+      const solidSection = this.document.createElement("div");
+      solidSection.classList.add("blobio-background-solid-section");
+      solidSection.appendChild(this.createColorControl("Solid Color", "solid", this.settings.solid));
+      menu.appendChild(solidSection);
+      const gradientSection = this.document.createElement("div");
+      gradientSection.classList.add("blobio-background-gradient-section");
+      const gradientTitle = this.document.createElement("div");
+      gradientTitle.classList.add("blobio-background-section-title");
+      gradientTitle.textContent = "Gradient Colors";
+      gradientSection.append(
+        gradientTitle,
+        this.createColorControl("From", "gradient.from", this.settings.gradient.from),
+        this.createColorControl("To", "gradient.to", this.settings.gradient.to),
+        this.createAngleControl()
+      );
+      menu.appendChild(gradientSection);
+      this.listen(modeButton, "click", (event) => {
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        this.settings = this.save({
+          mode: this.settings.mode === "gradient" ? "solid" : "gradient"
+        });
+        this.sync();
+      });
+      return menu;
+    }
+    createModeText(text, mode) {
+      const span = this.document.createElement("span");
+      span.classList.add("blobio-background-mode-text", `is-${mode}`);
+      span.textContent = text;
+      return span;
+    }
+    createColorControl(title, path, colorSetting) {
+      const row = this.document.createElement("div");
+      row.classList.add("blobio-background-color-row");
+      row.dataset.colorPath = path;
+      const colorControl = this.document.createElement("label");
+      colorControl.classList.add("blobio-background-control", "blobio-background-color-control");
+      const colorTitle = this.document.createElement("span");
+      colorTitle.textContent = title;
+      const colorWheel = this.document.createElement("span");
+      colorWheel.classList.add("blobio-background-color-wheel");
+      const swatch = this.document.createElement("span");
+      swatch.classList.add("blobio-background-color-swatch");
+      const colorInput = this.document.createElement("input");
+      colorInput.type = "color";
+      colorInput.classList.add("blobio-background-color-input");
+      colorInput.dataset.colorPath = path;
+      colorInput.setAttribute("aria-label", `${title} color`);
+      colorInput.value = colorSetting.color;
+      colorWheel.append(swatch, colorInput);
+      colorControl.append(colorTitle, colorWheel);
+      const alphaControl = this.document.createElement("label");
+      alphaControl.classList.add("blobio-background-control", "blobio-background-alpha-control");
+      const alphaTitle = this.document.createElement("span");
+      alphaTitle.textContent = "Alpha";
+      const alphaInput = this.document.createElement("input");
+      alphaInput.type = "range";
+      alphaInput.min = "0";
+      alphaInput.max = "1";
+      alphaInput.step = "0.01";
+      alphaInput.classList.add("blobio-background-alpha-input");
+      alphaInput.dataset.colorPath = path;
+      alphaInput.setAttribute("aria-label", `${title} alpha`);
+      alphaInput.value = String(colorSetting.alpha);
+      const alphaValue = this.document.createElement("span");
+      alphaValue.classList.add("blobio-background-alpha-value");
+      alphaControl.append(alphaTitle, alphaInput, alphaValue);
+      row.append(colorControl, alphaControl);
+      this.listen(colorInput, "input", () => {
+        this.settings = this.save(this.colorChange(path, { color: colorInput.value }));
+        this.sync();
+      });
+      this.listen(alphaInput, "input", () => {
+        this.settings = this.save(this.colorChange(path, { alpha: alphaInput.value }));
+        this.sync();
+      });
+      return row;
+    }
+    createAngleControl() {
+      const row = this.document.createElement("label");
+      row.classList.add("blobio-background-angle-row");
+      const title = this.document.createElement("span");
+      title.textContent = "Angle";
+      const input = this.document.createElement("input");
+      input.type = "range";
+      input.min = "0";
+      input.max = "360";
+      input.step = "1";
+      input.classList.add("blobio-background-angle-input", "blobio-background-alpha-input");
+      const value = this.document.createElement("span");
+      value.classList.add("blobio-background-angle-value");
+      row.append(title, input, value);
+      this.listen(input, "input", () => {
+        this.settings = this.save({
+          gradient: {
+            ...this.settings.gradient,
+            angle: input.value
+          }
+        });
+        this.sync();
+      });
+      return row;
+    }
+    colorChange(path, changes) {
+      if (path === "solid") {
+        return {
+          solid: {
+            ...this.settings.solid,
+            ...changes
+          }
+        };
+      }
+      const key = path === "gradient.to" ? "to" : "from";
+      return {
+        gradient: {
+          ...this.settings.gradient,
+          [key]: {
+            ...this.settings.gradient[key],
+            ...changes
+          }
+        }
+      };
+    }
+    installTooltip(node, text) {
+      if (!node || !text) {
+        return;
+      }
+      node.dataset.blobioTooltip = text;
+      node.removeAttribute?.("title");
+      if (typeof this.showTooltip !== "function") {
+        return;
+      }
+      this.listen(node, "mouseenter", (event) => this.showTooltip(node, event));
+      this.listen(node, "mousemove", (event) => this.moveTooltip?.(event));
+      this.listen(node, "mouseleave", () => this.hideTooltip?.());
+    }
+    save(changes) {
+      return saveGameBackgroundSettings(this.storage, {
+        ...this.settings,
+        ...changes,
+        gradient: {
+          ...this.settings.gradient,
+          ...changes.gradient || {}
+        },
+        solid: {
+          ...this.settings.solid,
+          ...changes.solid || {}
+        }
+      });
+    }
+    setOpen(open) {
+      if (!this.elements) {
+        return;
+      }
+      this.elements.menu.hidden = !open;
+      this.elements.arrowButton.setAttribute("aria-expanded", String(open));
+      this.elements.disclosure.textContent = open ? "-" : "+";
+      this.elements.group.classList.toggle("is-open", open);
+    }
+    sync() {
+      if (!this.elements) {
+        return;
+      }
+      const isGradient = this.settings.mode === "gradient";
+      this.elements.enabled.checked = this.settings.enabled;
+      this.elements.modeButton.classList.toggle("is-gradient", isGradient);
+      this.elements.modeButton.setAttribute("aria-pressed", String(isGradient));
+      this.elements.gradientSection.hidden = !isGradient;
+      this.elements.preview.style.background = gameBackgroundCss(this.settings);
+      this.elements.preview.style.opacity = this.settings.enabled ? "1" : "0.48";
+      this.elements.angleInput.value = String(this.settings.gradient.angle);
+      this.elements.angleValue.textContent = `${this.settings.gradient.angle}deg`;
+      for (const input of this.elements.colorInputs) {
+        const setting = this.colorSetting(input.dataset.colorPath);
+        input.value = setting.color;
+      }
+      for (const swatch of this.elements.colorSwatches) {
+        const path = swatch.closest?.(".blobio-background-color-row")?.dataset?.colorPath;
+        swatch.style.backgroundColor = this.colorSetting(path).color;
+      }
+      for (const input of this.elements.alphaInputs) {
+        const setting = this.colorSetting(input.dataset.colorPath);
+        input.value = String(setting.alpha);
+      }
+      for (const value of this.elements.alphaValues) {
+        const path = value.closest?.(".blobio-background-color-row")?.dataset?.colorPath;
+        value.textContent = `${Math.round(this.colorSetting(path).alpha * 100)}%`;
+      }
+    }
+    colorSetting(path) {
+      if (path === "solid") {
+        return this.settings.solid;
+      }
+      if (path === "gradient.to") {
+        return this.settings.gradient.to;
+      }
+      return this.settings.gradient.from;
+    }
+    listen(node, type, listener, options) {
+      node.addEventListener?.(type, listener, options);
+      this.listeners.push([node, type, listener, options]);
+    }
+  };
+
   // src/virus/VirusMotherCellSettings.js
   var VIRUS_MOTHER_CELL_KEYS = {
     enabled: "blobio.settings.virusMotherCell.enabled",
@@ -6598,11 +7560,11 @@ html.${className} .blobio-watermark-extension::after {
       return normalizeVirusMotherCellSettings(snapshot);
     }
     return normalizeVirusMotherCellSettings({
-      enabled: readBoolean2(storage, VIRUS_MOTHER_CELL_KEYS.enabled, DEFAULT_VIRUS_MOTHER_CELL_SETTINGS.enabled),
+      enabled: readBoolean3(storage, VIRUS_MOTHER_CELL_KEYS.enabled, DEFAULT_VIRUS_MOTHER_CELL_SETTINGS.enabled),
       maskId: storage?.getItem?.(VIRUS_MOTHER_CELL_KEYS.maskId),
       color: storage?.getItem?.(VIRUS_MOTHER_CELL_KEYS.color),
       alpha: storage?.getItem?.(VIRUS_MOTHER_CELL_KEYS.alpha),
-      rotate: readBoolean2(storage, VIRUS_MOTHER_CELL_KEYS.rotate, DEFAULT_VIRUS_MOTHER_CELL_SETTINGS.rotate)
+      rotate: readBoolean3(storage, VIRUS_MOTHER_CELL_KEYS.rotate, DEFAULT_VIRUS_MOTHER_CELL_SETTINGS.rotate)
     });
   }
   function saveVirusMotherCellSettings(storage, settings, document = globalThis.document) {
@@ -6699,7 +7661,7 @@ html.${className} .blobio-watermark-extension::after {
     } catch {
     }
   }
-  function readBoolean2(storage, key, fallback) {
+  function readBoolean3(storage, key, fallback) {
     const value = storage?.getItem?.(key);
     if (value === null || value === void 0 || value === "") {
       return fallback;
@@ -6721,7 +7683,8 @@ html.${className} .blobio-watermark-extension::after {
       logger = console,
       showTooltip = null,
       moveTooltip = null,
-      hideTooltip = null
+      hideTooltip = null,
+      onOpen = null
     } = {}) {
       this.document = document;
       this.storage = storage;
@@ -6730,6 +7693,7 @@ html.${className} .blobio-watermark-extension::after {
       this.showTooltip = showTooltip;
       this.moveTooltip = moveTooltip;
       this.hideTooltip = hideTooltip;
+      this.onOpen = onOpen;
       this.settings = readVirusMotherCellSettings(storage, document);
       this.listeners = [];
       this.maskImage = null;
@@ -6818,6 +7782,9 @@ html.${className} .blobio-watermark-extension::after {
         event.preventDefault?.();
         event.stopPropagation?.();
         const open = this.elements?.menu?.hidden !== false;
+        if (open) {
+          this.onOpen?.(this);
+        }
         this.setOpen(open);
       });
       return row;
@@ -7181,6 +8148,7 @@ html.${className} .blobio-watermark-extension::after {
       this.unsubscribeAdminUid = null;
       this.unsubscribeFriendHighlight = null;
       this.virusMotherCellSettingsUi = null;
+      this.gameBackgroundSettingsUi = null;
     }
     start() {
       if (this.started) {
@@ -7252,6 +8220,8 @@ html.${className} .blobio-watermark-extension::after {
       this.unsubscribeFriendHighlight = null;
       this.virusMotherCellSettingsUi?.destroy?.();
       this.virusMotherCellSettingsUi = null;
+      this.gameBackgroundSettingsUi?.destroy?.();
+      this.gameBackgroundSettingsUi = null;
       this.cleanupExtensionSettings();
       this.cleanupCustomSkinUi();
       for (const node of this.hiddenOriginalNodes) {
@@ -7837,9 +8807,20 @@ html.${className} .blobio-watermark-extension::after {
         logger: this.logger,
         showTooltip: (row, event) => this.showExtensionTooltip(row, event),
         moveTooltip: (event) => this.moveExtensionTooltip(event),
-        hideTooltip: () => this.hideExtensionTooltip()
+        hideTooltip: () => this.hideExtensionTooltip(),
+        onOpen: (ui) => this.closeExtensionSettingMenus(ui)
       });
       categoryPanels.get("theme").appendChild(this.virusMotherCellSettingsUi.create());
+      this.gameBackgroundSettingsUi?.destroy?.();
+      this.gameBackgroundSettingsUi = new GameBackgroundSettingsUi({
+        document: this.document,
+        storage: this.storage,
+        showTooltip: (row, event) => this.showExtensionTooltip(row, event),
+        moveTooltip: (event) => this.moveExtensionTooltip(event),
+        hideTooltip: () => this.hideExtensionTooltip(),
+        onOpen: (ui) => this.closeExtensionSettingMenus(ui)
+      });
+      categoryPanels.get("theme").appendChild(this.gameBackgroundSettingsUi.create());
       categoryPanels.get("text").append(
         this.createExtensionSwitchRow({
           id: "config-switch-watermark",
@@ -7878,6 +8859,13 @@ html.${className} .blobio-watermark-extension::after {
       this.activateExtensionCategory(panel, EXTENSION_DEFAULT_CATEGORY);
       this.syncAdminSettingVisibility(panel);
       return panel;
+    }
+    closeExtensionSettingMenus(except = null) {
+      for (const ui of [this.virusMotherCellSettingsUi, this.gameBackgroundSettingsUi]) {
+        if (ui && ui !== except) {
+          ui.setOpen?.(false);
+        }
+      }
     }
     activateExtensionCategory(panel, category) {
       if (!panel) {

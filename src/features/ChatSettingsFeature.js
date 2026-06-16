@@ -2,9 +2,12 @@ import { CHAT_SETTINGS_CSS, CHAT_SETTINGS_STYLE_ID } from '../css/ChatSettingsSt
 import { createBlobioStorage } from '../storage/BlobioStorage.js';
 import { HOTKEY_TEXT_LIMIT } from '../hotkeys/HotkeyStore.js';
 import {
+  ANIMATION_SPEED_LIMITS,
   CHAT_FONT_SIZE_LIMITS,
+  getAnimationSpeedSetting,
   getChatFontSize,
   isChatFontSizeEnabled,
+  setAnimationSpeedSetting,
   setChatFontSize,
   setChatFontSizeEnabled,
 } from '../settings/RuntimeSettings.js';
@@ -87,6 +90,7 @@ export class ChatSettingsFeature {
     this.unsubscribeMutedPlayers = this.mutedPlayersStore?.subscribe?.(() => this.syncMutedPlayersUi()) || null;
     this.unsubscribeHotkeys = this.hotkeyStore?.subscribe?.(() => this.syncHotkeyUi()) || null;
     this.applyChatFontSize();
+    this.applyAnimationSpeed();
     this.watchPage();
     return true;
   }
@@ -108,6 +112,7 @@ export class ChatSettingsFeature {
   ensureUi() {
     if (this.root?.parentNode) {
       this.ensureHotkeyLauncher();
+      this.ensureAnimationSpeedLauncher();
       this.syncChatWrapper();
       this.positionUi();
       return;
@@ -129,13 +134,15 @@ export class ChatSettingsFeature {
     const chatButton = this.createCategoryButton('Chat-Settings', 'chat');
     const mutedButton = this.createCategoryButton('Muted-Players', 'muted');
     const hotkeyButton = this.createCategoryButton('HotKey', 'hotkey');
+    const animationButton = this.createCategoryButton('Anim-Speed', 'animation');
     const captchaButton = this.createCategoryButton('Captcha-Logo', 'captcha');
     const leaderboardButton = this.createCategoryButton('Leaderboard-Settings', 'leaderboard');
-    panel.append(chatButton, mutedButton, hotkeyButton, captchaButton, leaderboardButton);
+    panel.append(chatButton, mutedButton, hotkeyButton, animationButton, captchaButton, leaderboardButton);
 
     const chatCategory = this.createChatCategory();
     const mutedCategory = this.createMutedPlayersCategory();
     const hotkeyCategory = this.createHotkeyCategory();
+    const animationCategory = this.createAnimationSpeedCategory();
     const captchaCategory = this.createCaptchaCategory();
     const leaderboardCategory = this.createLeaderboardCategory();
     root.append(
@@ -144,6 +151,7 @@ export class ChatSettingsFeature {
       chatCategory,
       mutedCategory,
       hotkeyCategory,
+      animationCategory,
       captchaCategory,
       leaderboardCategory,
     );
@@ -162,11 +170,13 @@ export class ChatSettingsFeature {
     this.bindCategoryButton(chatButton);
     this.bindCategoryButton(mutedButton);
     this.bindCategoryButton(hotkeyButton);
+    this.bindCategoryButton(animationButton);
     this.bindCategoryButton(captchaButton);
     this.bindCategoryButton(leaderboardButton);
 
     this.bindChatCategory(chatCategory);
     this.bindCaptchaCategory(captchaCategory);
+    this.bindAnimationSpeedCategory(animationCategory);
     this.bindLeaderboardCategory(leaderboardCategory);
 
     const muteToggle = mutedCategory.querySelector('.blobio-muted-players-toggle');
@@ -279,6 +289,7 @@ export class ChatSettingsFeature {
     this.root = root;
     this.notificationHost = notificationHost;
     this.ensureHotkeyLauncher();
+    this.ensureAnimationSpeedLauncher();
     this.syncControls();
     this.syncMutedPlayersUi();
     this.syncHotkeyUi();
@@ -406,6 +417,24 @@ export class ChatSettingsFeature {
     if (!button) {
       button = this.createCategoryButton('HotKey', 'hotkey');
       panel.appendChild(button);
+    }
+
+    this.bindCategoryButton(button);
+    return button;
+  }
+
+  ensureAnimationSpeedLauncher() {
+    const panel = this.root?.querySelector?.('.blobio-chat-settings-panel');
+    if (!panel) {
+      return null;
+    }
+
+    let button = Array.from(panel.querySelectorAll?.('.blobio-chat-settings-category-button') || [])
+      .find((item) => item.dataset.category === 'animation');
+    if (!button) {
+      button = this.createCategoryButton('Anim-Speed', 'animation');
+      const hotkey = panel.querySelector('.blobio-chat-settings-category-button[data-category="hotkey"]');
+      panel.insertBefore(button, hotkey?.nextSibling || null);
     }
 
     this.bindCategoryButton(button);
@@ -610,6 +639,48 @@ export class ChatSettingsFeature {
     return category;
   }
 
+  createAnimationSpeedCategory() {
+    const category = this.document.createElement('div');
+    category.classList.add('blobio-chat-settings-category', 'blobio-animation-speed-category');
+    category.dataset.category = 'animation';
+
+    const group = this.document.createElement('div');
+    group.classList.add('blobio-ui-setting-group', 'blobio-animation-speed-setting');
+    group.dataset.setting = 'animation-speed';
+
+    const toggle = this.document.createElement('button');
+    toggle.type = 'button';
+    toggle.classList.add('blobio-chat-font-toggle', 'blobio-setting-toggle');
+
+    const label = this.document.createElement('div');
+    label.classList.add('blobio-chat-font-label');
+    label.textContent = 'Animation Speed';
+
+    const controls = this.document.createElement('div');
+    controls.classList.add('blobio-animation-speed-controls');
+
+    const slider = this.document.createElement('input');
+    slider.type = 'range';
+    slider.classList.add('blobio-animation-speed-range', 'blobio-themed-range');
+    slider.min = String(ANIMATION_SPEED_LIMITS.min);
+    slider.max = String(ANIMATION_SPEED_LIMITS.max);
+    slider.step = '1';
+    slider.setAttribute('aria-label', 'Animation speed');
+
+    const value = this.document.createElement('span');
+    value.classList.add('blobio-animation-speed-value');
+
+    const reset = this.document.createElement('button');
+    reset.type = 'button';
+    reset.classList.add('blobio-animation-speed-reset');
+    reset.textContent = 'Reset to default';
+
+    controls.append(slider, value, reset);
+    group.append(toggle, label, controls);
+    category.appendChild(group);
+    return category;
+  }
+
   bindChatCategory(category) {
     const font = category.querySelector('[data-setting="chat"]');
     const fontToggle = font.querySelector('.blobio-setting-toggle');
@@ -693,6 +764,32 @@ export class ChatSettingsFeature {
     );
   }
 
+  bindAnimationSpeedCategory(category) {
+    const group = category.querySelector('[data-setting="animation-speed"]');
+    const toggle = group.querySelector('.blobio-setting-toggle');
+    const slider = group.querySelector('.blobio-animation-speed-range');
+    const reset = group.querySelector('.blobio-animation-speed-reset');
+
+    toggle.addEventListener('click', () => {
+      const current = getAnimationSpeedSetting(this.storage);
+      setAnimationSpeedSetting(this.storage, { enabled: !current.enabled });
+      this.syncVisualSettingsUi();
+      this.applyAnimationSpeed();
+    });
+
+    slider.addEventListener('input', () => {
+      setAnimationSpeedSetting(this.storage, { slider: slider.value });
+      this.syncVisualSettingsUi();
+      this.applyAnimationSpeed();
+    });
+
+    reset.addEventListener('click', () => {
+      setAnimationSpeedSetting(this.storage, { slider: ANIMATION_SPEED_LIMITS.defaultValue });
+      this.syncVisualSettingsUi();
+      this.applyAnimationSpeed();
+    });
+  }
+
   bindColorSetting(category, name, keys, defaults) {
     const group = category.querySelector(`[data-setting="${name}"]`);
     const toggle = group.querySelector('.blobio-setting-toggle');
@@ -719,7 +816,14 @@ export class ChatSettingsFeature {
 
   applyRuntimeUi() {
     this.applyChatFontSize();
+    this.applyAnimationSpeed();
     this.uiCustomization?.applyAll?.();
+  }
+
+  applyAnimationSpeed() {
+    const win = this.document.defaultView || globalThis;
+    const setting = getAnimationSpeedSetting(this.storage);
+    win.__blobioAnimationSpeedRefresh?.(setting.enabled ? setting.speed : 1);
   }
 
   setOpen(open) {
@@ -729,6 +833,7 @@ export class ChatSettingsFeature {
 
     if (open) {
       this.ensureHotkeyLauncher();
+      this.ensureAnimationSpeedLauncher();
     }
 
     const toggle = this.root.querySelector('.blobio-chat-settings-toggle');
@@ -792,6 +897,7 @@ export class ChatSettingsFeature {
     this.syncColorSetting('chat-outline', settings.chatOutline);
     this.syncColorSetting('leaderboard-background', settings.leaderboardBackground);
     this.syncColorSetting('leaderboard-outline', settings.leaderboardOutline);
+    this.syncAnimationSpeedSetting(getAnimationSpeedSetting(this.storage));
     this.syncBooleanSetting('smooth-chat', settings.smoothChat);
     this.syncBooleanSetting('captcha-logo', settings.hideCaptchaLogo);
 
@@ -809,6 +915,25 @@ export class ChatSettingsFeature {
       ?.classList.toggle('has-active-setting', settings.hideCaptchaLogo);
     this.root.querySelector('.blobio-chat-settings-category-button[data-category="leaderboard"]')
       ?.classList.toggle('has-active-setting', leaderboardActive);
+    this.root.querySelector('.blobio-chat-settings-category-button[data-category="animation"]')
+      ?.classList.toggle('has-active-setting', getAnimationSpeedSetting(this.storage).enabled);
+  }
+
+  syncAnimationSpeedSetting(setting) {
+    const group = this.root?.querySelector('[data-setting="animation-speed"]');
+    if (!group) {
+      return;
+    }
+
+    const toggle = group.querySelector('.blobio-setting-toggle');
+    const slider = group.querySelector('.blobio-animation-speed-range');
+    const value = group.querySelector('.blobio-animation-speed-value');
+
+    toggle.textContent = setting.enabled ? 'true' : 'false';
+    toggle.classList.toggle('is-enabled', setting.enabled);
+    slider.value = String(setting.slider);
+    value.textContent = `${setting.speed.toFixed(1)}x`;
+    group.classList.toggle('is-disabled', !setting.enabled);
   }
 
   syncFontSetting(name, setting) {
@@ -1483,6 +1608,7 @@ export class ChatSettingsFeature {
     }
 
     this.document.querySelector?.('#chat')?.classList?.remove('blobio-chat-font-size-enabled');
+    win.__blobioAnimationSpeedRefresh?.(1);
     this.root?.remove();
     this.notificationHost?.remove();
     this.root = null;

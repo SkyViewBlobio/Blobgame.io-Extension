@@ -624,6 +624,52 @@ export const CHAT_SETTINGS_CSS = `
   opacity: 0.5;
 }
 
+.blobio-animation-speed-category {
+  display: block;
+}
+
+.blobio-animation-speed-controls {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+}
+
+.blobio-animation-speed-value {
+  color: #ecfff1;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+  text-shadow: 0 0 8px rgba(77, 255, 126, 0.68);
+  font-variant-numeric: tabular-nums;
+}
+
+.blobio-animation-speed-reset {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  min-height: 30px;
+  border: 1px solid rgba(147, 255, 177, 0.52);
+  border-radius: 6px;
+  background: rgba(0, 18, 10, 0.78);
+  color: #dfffe6;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.12), 0 0 8px rgba(79, 255, 130, 0.18);
+}
+
+.blobio-animation-speed-reset:hover,
+.blobio-animation-speed-reset:focus-visible {
+  border-color: rgba(196, 255, 211, 0.78);
+  background: rgba(5, 48, 25, 0.9);
+}
+
+.blobio-animation-speed-setting.is-disabled .blobio-animation-speed-controls {
+  opacity: 0.68;
+}
+
 .blobio-themed-range {
   width: 100%;
   height: 18px;
