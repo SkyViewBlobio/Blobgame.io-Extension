@@ -1,5 +1,6 @@
 import { buildMenuCss } from '../css/MenuFeatureStyles.js';
 import { GameBackgroundSettingsUi } from '../background/GameBackgroundSettingsUi.js';
+import { VirusPelletColorSettingsUi } from '../cellColors/VirusPelletColorSettingsUi.js';
 import { createBlobioStorage } from '../storage/BlobioStorage.js';
 import { isHideAdminMdEnabled, setHideAdminMdEnabled } from '../roles/RoleSettings.js';
 import { isFpsUncapEnabled, setFpsUncapEnabled } from '../settings/RuntimeSettings.js';
@@ -167,6 +168,7 @@ export class MenuFeature {
     this.unsubscribeFriendHighlight = null;
     this.virusMotherCellSettingsUi = null;
     this.gameBackgroundSettingsUi = null;
+    this.virusPelletColorSettingsUi = null;
   }
 
   start() {
@@ -253,6 +255,8 @@ export class MenuFeature {
     this.virusMotherCellSettingsUi = null;
     this.gameBackgroundSettingsUi?.destroy?.();
     this.gameBackgroundSettingsUi = null;
+    this.virusPelletColorSettingsUi?.destroy?.();
+    this.virusPelletColorSettingsUi = null;
     this.cleanupExtensionSettings();
     this.cleanupCustomSkinUi();
 
@@ -987,6 +991,19 @@ export class MenuFeature {
     });
     categoryPanels.get('theme').appendChild(this.gameBackgroundSettingsUi.create());
 
+    this.virusPelletColorSettingsUi?.destroy?.();
+    this.virusPelletColorSettingsUi = new VirusPelletColorSettingsUi({
+      document: this.document,
+      storage: this.storage,
+      assets: this.assets,
+      logger: this.logger,
+      showTooltip: (row, event) => this.showExtensionTooltip(row, event),
+      moveTooltip: (event) => this.moveExtensionTooltip(event),
+      hideTooltip: () => this.hideExtensionTooltip(),
+      onOpen: (ui) => this.closeExtensionSettingMenus(ui),
+    });
+    categoryPanels.get('theme').appendChild(this.virusPelletColorSettingsUi.create());
+
     categoryPanels.get('text').append(
       this.createExtensionSwitchRow({
         id: 'config-switch-watermark',
@@ -1030,7 +1047,7 @@ export class MenuFeature {
   }
 
   closeExtensionSettingMenus(except = null) {
-    for (const ui of [this.virusMotherCellSettingsUi, this.gameBackgroundSettingsUi]) {
+    for (const ui of [this.virusMotherCellSettingsUi, this.gameBackgroundSettingsUi, this.virusPelletColorSettingsUi]) {
       if (ui && ui !== except) {
         ui.setOpen?.(false);
       }

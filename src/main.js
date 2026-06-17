@@ -10,6 +10,10 @@ import virusPreviewUrl from '../assets/virus_preview.png';
 import virusHaloUrl from '../assets/virus_glow_1 _mask.png';
 import virusRingUrl from '../assets/virus_glow_3 _mask.png';
 import virusRotateUrl from '../assets/viurs_glow_2_random_rotate_mask.png';
+import virusPelletPreviewUrl from '../assets/virus_pellet_preview.png';
+import originalVirusNoColorUrl from '../assets/original_virus_no_color.png';
+import { readVirusPelletColorSettings } from './cellColors/VirusPelletColorSettings.js';
+import { pageVirusPelletColorsBootstrap } from './cellColors/pageVirusPelletColorsBootstrap.js';
 import { MutedPlayersStore } from './chat/MutedPlayersStore.js';
 import { BackgroundFeature } from './features/BackgroundFeature.js';
 import { ChatRoleFeature } from './features/ChatRoleFeature.js';
@@ -70,6 +74,7 @@ class BlobioExtension {
     const logger = this.window.console || console;
     if (hostMode === 'runtime') {
       this.installVirusMotherCellFallback(document, logger);
+      this.installVirusPelletColorsFallback(document, logger);
     }
 
     this.roleRegistry = new RoleRegistry({ document, logger });
@@ -89,6 +94,8 @@ class BlobioExtension {
       virusHalo: virusHaloUrl,
       virusRotate: virusRotateUrl,
       virusRing: virusRingUrl,
+      virusPelletPreview: virusPelletPreviewUrl,
+      originalVirusNoColor: originalVirusNoColorUrl,
     };
 
     if (hostMode === 'frontpage') {
@@ -228,6 +235,48 @@ class BlobioExtension {
       status.reason = 'bundle-bootstrap-error';
       status.error = error?.message || String(error);
       logger.warn?.('[Blobio] Virus | Mother-cell fallback failed.', error);
+      return false;
+    }
+  }
+
+  installVirusPelletColorsFallback(document, logger) {
+    const windowRef = this.window;
+    if (windowRef.__blobioVirusPelletColorInstalled) {
+      return true;
+    }
+
+    const storage = createBlobioStorage(document);
+    const settings = readVirusPelletColorSettings(storage, document);
+    const existingStatus = windowRef.__blobioVirusPelletColorLoaderStatus || {};
+    const status = {
+      ...existingStatus,
+      version: EXTENSION_VERSION,
+      enabled: settings.enabled,
+      attemptedByBundle: false,
+      installedByBundle: false,
+      reason: settings.enabled ? 'loader-runtime-missing' : 'disabled',
+    };
+    windowRef.__blobioVirusPelletColorLoaderStatus = status;
+
+    if (!settings.enabled) {
+      return false;
+    }
+
+    status.attemptedByBundle = true;
+    try {
+      status.installedByBundle = Boolean(pageVirusPelletColorsBootstrap({
+        ...settings,
+        version: EXTENSION_VERSION,
+      }, windowRef));
+      status.reason = status.installedByBundle ? 'installed-by-bundle-fallback' : 'bundle-bootstrap-returned-false';
+      if (!status.installedByBundle) {
+        logger.warn?.('[Blobio] Virus | Pellets Colors runtime did not start. Update or reinstall the Tampermonkey loader, then reload the game tab.');
+      }
+      return status.installedByBundle;
+    } catch (error) {
+      status.reason = 'bundle-bootstrap-error';
+      status.error = error?.message || String(error);
+      logger.warn?.('[Blobio] Virus | Pellets Colors fallback failed.', error);
       return false;
     }
   }

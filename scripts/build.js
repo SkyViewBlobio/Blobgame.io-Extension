@@ -7,6 +7,7 @@ const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const outputFile = resolve(rootDir, 'dist/blobio-extension.bundle.js');
 const loaderFile = resolve(rootDir, 'loader/blobio-loader.user.js');
 const virusRuntimeFile = resolve(rootDir, 'src/virus/pageVirusMotherCellBootstrap.js');
+const virusPelletColorRuntimeFile = resolve(rootDir, 'src/cellColors/pageVirusPelletColorsBootstrap.js');
 const virusAssetFiles = {
   halo: resolve(rootDir, 'assets/virus_glow_1 _mask.png'),
   rotate: resolve(rootDir, 'assets/viurs_glow_2_random_rotate_mask.png'),
@@ -29,9 +30,17 @@ await build({
   },
 });
 
-const [loaderSource, runtimeSource, virusHalo, virusRotate, virusRing] = await Promise.all([
+const [
+  loaderSource,
+  runtimeSource,
+  virusPelletColorRuntimeSource,
+  virusHalo,
+  virusRotate,
+  virusRing,
+] = await Promise.all([
   readFile(loaderFile, 'utf8'),
   readFile(virusRuntimeFile, 'utf8'),
+  readFile(virusPelletColorRuntimeFile, 'utf8'),
   readFile(virusAssetFiles.halo),
   readFile(virusAssetFiles.rotate),
   readFile(virusAssetFiles.ring),
@@ -53,6 +62,27 @@ const embeddedRuntime = runtimeSource
   .join('\n');
 
 let nextLoader = `${loaderSource.slice(0, runtimeStartIndex)}${runtimeStartMarker}\n${embeddedRuntime}\n${runtimeEndMarker}${loaderSource.slice(runtimeEndIndex + runtimeEndMarker.length)}`;
+
+const virusPelletColorRuntimeStartMarker = '  /* VIRUS_PELLET_COLOR_RUNTIME_START */';
+const virusPelletColorRuntimeEndMarker = '  /* VIRUS_PELLET_COLOR_RUNTIME_END */';
+const virusPelletColorRuntimeStartIndex = nextLoader.indexOf(virusPelletColorRuntimeStartMarker);
+const virusPelletColorRuntimeEndIndex = nextLoader.indexOf(virusPelletColorRuntimeEndMarker);
+if (
+  virusPelletColorRuntimeStartIndex === -1
+  || virusPelletColorRuntimeEndIndex === -1
+  || virusPelletColorRuntimeEndIndex < virusPelletColorRuntimeStartIndex
+) {
+  throw new Error('Virus pellet color runtime markers are missing from the loader.');
+}
+
+const embeddedVirusPelletColorRuntime = virusPelletColorRuntimeSource
+  .replace(/export\s+function\s+pageVirusPelletColorsBootstrap/, 'function pageVirusPelletColorsBootstrap')
+  .trim()
+  .split('\n')
+  .map((line) => `  ${line}`)
+  .join('\n');
+
+nextLoader = `${nextLoader.slice(0, virusPelletColorRuntimeStartIndex)}${virusPelletColorRuntimeStartMarker}\n${embeddedVirusPelletColorRuntime}\n${virusPelletColorRuntimeEndMarker}${nextLoader.slice(virusPelletColorRuntimeEndIndex + virusPelletColorRuntimeEndMarker.length)}`;
 
 const assetStartMarker = '  /* VIRUS_ASSETS_START */';
 const assetEndMarker = '  /* VIRUS_ASSETS_END */';

@@ -68,6 +68,8 @@
   };
   const VIRUS_MOTHER_CELL_SNAPSHOT_KEY = 'blobio.settings.virusMotherCell.snapshot';
   const VIRUS_MOTHER_CELL_COOKIE_NAME = 'blobioVirusMotherCell';
+  const VIRUS_PELLET_COLOR_SNAPSHOT_KEY = 'blobio.settings.virusPelletColors.snapshot';
+  const VIRUS_PELLET_COLOR_COOKIE_NAME = 'blobioVirusPelletColors';
   /* VIRUS_ASSETS_START */
   const VIRUS_MOTHER_CELL_ASSET_URLS = {
     halo: 'data:image/png;base64,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',
@@ -409,6 +411,106 @@
         cookieSnapshotPresent: Boolean(cookieSnapshot),
         cookieSnapshotUpdatedAt: cookieSnapshot?.updatedAt || 0,
         individualEnabled,
+      },
+    };
+  }
+
+  const DEFAULT_VIRUS_PELLET_COLOR_RUNTIME_SETTINGS = {
+    enabled: false,
+    virus: {
+      mode: 'solid',
+      alpha: 100,
+      solid: '#00d25a',
+      gradient: {
+        from: '#00ff8c',
+        to: '#0078ff',
+        angle: 135,
+      },
+    },
+    pellets: {
+      mode: 'solid',
+      alpha: 100,
+      solid: '#ffb450',
+      gradient: {
+        from: '#ff50a0',
+        to: '#46dcff',
+        angle: 45,
+      },
+    },
+  };
+
+  function normalizeVirusPelletColorRuntimeSnapshot(value) {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    const updatedAt = Number(value.updatedAt);
+    return {
+      enabled: readBooleanValue(value.enabled),
+      virus: normalizeVirusPelletColorRuntimeTarget(
+        value.virus,
+        DEFAULT_VIRUS_PELLET_COLOR_RUNTIME_SETTINGS.virus,
+      ),
+      pellets: normalizeVirusPelletColorRuntimeTarget(
+        value.pellets,
+        DEFAULT_VIRUS_PELLET_COLOR_RUNTIME_SETTINGS.pellets,
+      ),
+      updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : 0,
+    };
+  }
+
+  function normalizeVirusPelletColorRuntimeTarget(value, fallback) {
+    const source = value && typeof value === 'object' ? value : {};
+    const gradient = source.gradient && typeof source.gradient === 'object' ? source.gradient : {};
+    return {
+      mode: source.mode === 'gradient' ? 'gradient' : 'solid',
+      alpha: normalizePercentAlpha(source.alpha, fallback.alpha),
+      solid: normalizeHexColor(source.solid, fallback.solid),
+      gradient: {
+        from: normalizeHexColor(gradient.from, fallback.gradient.from),
+        to: normalizeHexColor(gradient.to, fallback.gradient.to),
+        angle: normalizeGradientAngle(gradient.angle, fallback.gradient.angle),
+      },
+    };
+  }
+
+  function parseVirusPelletColorRuntimeSnapshot(value) {
+    if (!value) {
+      return null;
+    }
+    try {
+      return normalizeVirusPelletColorRuntimeSnapshot(typeof value === 'string' ? JSON.parse(value) : value);
+    } catch {
+      return null;
+    }
+  }
+
+  function readVirusPelletColorRuntimeSettings() {
+    const sharedSnapshotRaw = getSharedValue(VIRUS_PELLET_COLOR_SNAPSHOT_KEY);
+    const sharedSnapshot = parseVirusPelletColorRuntimeSnapshot(sharedSnapshotRaw);
+    const cookieSnapshotRaw = getCookieValue(VIRUS_PELLET_COLOR_COOKIE_NAME);
+    const cookieSnapshot = parseVirusPelletColorRuntimeSnapshot(cookieSnapshotRaw);
+    const fallback = normalizeVirusPelletColorRuntimeSnapshot(DEFAULT_VIRUS_PELLET_COLOR_RUNTIME_SETTINGS);
+
+    const candidates = [
+      sharedSnapshot && { source: 'gm-snapshot', value: sharedSnapshot },
+      cookieSnapshot && { source: 'domain-cookie', value: cookieSnapshot },
+    ].filter(Boolean).sort((left, right) => right.value.updatedAt - left.value.updatedAt);
+    const selected = candidates[0] || { source: 'defaults', value: fallback };
+
+    if (selected.source === 'domain-cookie'
+      && (!sharedSnapshot || cookieSnapshot.updatedAt > sharedSnapshot.updatedAt)) {
+      setSharedValue(VIRUS_PELLET_COLOR_SNAPSHOT_KEY, JSON.stringify(cookieSnapshot));
+    }
+
+    return {
+      ...selected.value,
+      source: selected.source,
+      diagnostics: {
+        sharedSnapshotPresent: Boolean(sharedSnapshot),
+        sharedSnapshotUpdatedAt: sharedSnapshot?.updatedAt || 0,
+        cookieSnapshotPresent: Boolean(cookieSnapshot),
+        cookieSnapshotUpdatedAt: cookieSnapshot?.updatedAt || 0,
       },
     };
   }
@@ -3072,6 +3174,751 @@
   }
   /* VIRUS_RUNTIME_END */
 
+  /* VIRUS_PELLET_COLOR_RUNTIME_START */
+  const CACHE_SCRIPT_RE = /\/html\/[a-f0-9]{32}\.cache\.js(?:[?#].*)?$/i;
+  const FOOD_DRAW_RE = /case 2:case 5:case 0:g\.K\.a\s*=\s*(?:0\.75|\.75|0\.7500000+);([$A-Za-z_][$\w]*)\(a\.c,g\.K\);([$A-Za-z_][$\w]*)\(a\.c,([$A-Za-z_][$\w]*),g\.R-g\.M,g\.S-g\.M,g\.N,g\.N\);/;
+  const FOOD_ALPHA_RE = /case 2:case 5:case 0:g\.K\.a\s*=\s*(?:0\.75|\.75|0\.7500000+);/;
+  const FOOD_CASE_RE = /case 2:case 5:case 0:/;
+  const FOOD_BRANCH_HOOK = 'if(g.c&&g.c.M==2&&$wnd.__BlobCellColorizer&&$wnd.__BlobCellColorizer.foodGradient){$wnd.__BlobCellColorizer.foodBranch(g)}';
+  const VIRUS_BRANCH_RE = /case 4:case 3:if\(g\.q\)\{if\(g\.P\)\{h=g\.P;([$A-Za-z_][$\w]*)\(\);([$A-Za-z_][$\w]*)\(a\.c,g\.K\);([$A-Za-z_][$\w]*)\(a\.c,h,g\.R-g\.M,g\.S-g\.M,g\.N,g\.N\)\}\}else\{\1\(\);\2\(a\.c,g\.K\);\3\(a\.c,(a\.[$A-Za-z_][$\w]*),g\.R-g\.M,g\.S-g\.M,g\.N,g\.N\)\}break;/;
+  const FALLBACK_RENDER_RE = /function ([$A-Za-z_][$\w]*)\(a,b\)\{var c;if\(b\.q\)\{c=b\.P;([$A-Za-z_][$\w]*)\(\);([$A-Za-z_][$\w]*)\(a\.c,b\.K\);([$A-Za-z_][$\w]*)\(a\.c,c,b\.R-b\.M,b\.S-b\.M,b\.N,b\.N\)\}else if\(b\.P\)\{\3\(a\.c,b\.K\);\4\(a\.c,b\.P,b\.R-b\.M,b\.S-b\.M,b\.N,b\.N\)\}else\{b\.K\.a=0\.75;\3\(a\.c,b\.K\);\4\(a\.c,([$A-Za-z_][$\w]*),b\.R-b\.M,b\.S-b\.M,b\.N,b\.N\)\}\}/;
+
+  const PAGE_HOOK = '__BlobCellColorizer';
+  const STATE_KEY = '__blobCellColorState';
+  const INV_255 = 1 / 255;
+  const DEBUG_SAMPLE_MASK = 4095;
+  const METRICS_REFRESH_MASK = 4095;
+  const DEFAULT_SETTINGS = Object.freeze({
+    enabled: false,
+    virus: {
+      mode: 'solid',
+      alpha: 100,
+      solid: '#00d25a',
+      gradient: {
+        from: '#00ff8c',
+        to: '#0078ff',
+        angle: 135,
+      },
+    },
+    pellets: {
+      mode: 'solid',
+      alpha: 100,
+      solid: '#ffb450',
+      gradient: {
+        from: '#ff50a0',
+        to: '#46dcff',
+        angle: 45,
+      },
+    },
+  });
+
+  function pageVirusPelletColorsBootstrap(initialSettings, pageWindow = globalThis) {
+    const win = pageWindow;
+    const doc = win.document;
+    const settings = normalizeVirusPelletColorSettings(initialSettings);
+    const loaderStatus = win.__blobioVirusPelletColorLoaderStatus || {};
+    loaderStatus.bootstrapEntered = true;
+    loaderStatus.bootstrapHost = win.location?.hostname || '';
+    loaderStatus.bootstrapEnabled = settings.enabled;
+    win.__blobioVirusPelletColorLoaderStatus = loaderStatus;
+
+    if (!settings.enabled || win.location?.hostname !== 'custom.client.blobgame.io') {
+      loaderStatus.bootstrapResult = 'skipped';
+      exposeDisabledDebug(win, settings, loaderStatus);
+      return false;
+    }
+
+    if (win.__blobioVirusPelletColorInstalled) {
+      win.__blobioVirusPelletColorRefresh?.(settings);
+      return true;
+    }
+    win.__blobioVirusPelletColorInstalled = true;
+
+    let renderConfig = buildRenderConfig(settings);
+    let activeProfile = null;
+    const gradientMetrics = {
+      canvas: null,
+      width: 1280,
+      height: 720,
+      centerX: 640,
+      centerY: 360,
+      invLength: 1 / Math.sqrt(1280 * 1280 + 720 * 720),
+      checks: 0,
+    };
+    const state = getState(win);
+    loaderStatus.bootstrapResult = 'installing';
+
+    win.addEventListener?.('resize', () => {
+      gradientMetrics.canvas = null;
+      gradientMetrics.checks = 0;
+    }, { passive: true });
+
+    exposePageHook();
+    installDebugCommand();
+    installGameScriptPatch();
+    loaderStatus.bootstrapResult = 'installed';
+    return true;
+
+    function refresh(nextSettings) {
+      renderConfig = buildRenderConfig(normalizeVirusPelletColorSettings(nextSettings));
+      exposePageHook();
+    }
+
+    function buildRenderConfig(source) {
+      return {
+        virus: buildRenderTarget(source.virus, 'virus', 'lastVirus'),
+        pellets: buildRenderTarget(source.pellets, 'pellets', 'lastPellet'),
+      };
+    }
+
+    function buildRenderTarget(target, hitKey, lastKey) {
+      const mode = target.mode === 'gradient' ? 'gradient' : 'solid';
+      return {
+        hitKey,
+        lastKey,
+        enabled: true,
+        solid: mode === 'solid',
+        gradient: mode === 'gradient',
+        solidColor: toGwtColor(target.solid, target.alpha),
+        gradientColor: buildGradientColor(target.gradient, target.alpha),
+      };
+    }
+
+    function toGwtColor(color, alpha) {
+      const clean = String(color || '#000000').slice(1);
+      const red = Number.parseInt(clean.slice(0, 2), 16) || 0;
+      const green = Number.parseInt(clean.slice(2, 4), 16) || 0;
+      const blue = Number.parseInt(clean.slice(4, 6), 16) || 0;
+      return {
+        d: red * INV_255,
+        c: green * INV_255,
+        b: blue * INV_255,
+        a: alpha / 100,
+        r: red,
+        g: green,
+        blue,
+        alpha,
+      };
+    }
+
+    function buildGradientColor(gradient, alpha) {
+      const angle = gradient.angle * Math.PI / 180;
+      const from = toGwtColor(gradient.from, alpha);
+      const to = toGwtColor(gradient.to, alpha);
+
+      return {
+        cos: Math.cos(angle),
+        sin: Math.sin(angle),
+        fromD: from.d,
+        fromC: from.c,
+        fromB: from.b,
+        fromA: from.a,
+        deltaD: to.d - from.d,
+        deltaC: to.c - from.c,
+        deltaB: to.b - from.b,
+        deltaA: to.a - from.a,
+      };
+    }
+
+    function exposePageHook() {
+      const virus = renderConfig.virus;
+      const pellets = renderConfig.pellets;
+      win[PAGE_HOOK] = {
+        virusEnabled: true,
+        virusSolidColor: virus.solid ? virus.solidColor : null,
+        virusGradient: virus.gradient,
+        foodEnabled: true,
+        foodSolidColor: pellets.solid ? pellets.solidColor : null,
+        foodGradient: pellets.gradient,
+        virus: (object) => applyObjectColor(virus, object, 4),
+        food: (object) => applyObjectColor(pellets, object, 2),
+        virusBranch: (object) => applyBranchObjectColor(virus, object),
+        foodBranch: (object) => applyBranchObjectColor(pellets, object),
+      };
+      win.__blobioVirusPelletColorRefresh = refresh;
+    }
+
+    function getState() {
+      const existing = win[STATE_KEY] && typeof win[STATE_KEY] === 'object' ? win[STATE_KEY] : {};
+      const next = Object.assign({
+        version: initialSettings?.version || '',
+        patchInstalled: false,
+        wrappedCallback: false,
+        seenCacheScripts: 0,
+        callbackCalls: 0,
+        patchedChunks: 0,
+        lastPatchResult: null,
+        lastChangedPatchResult: null,
+        patchResults: [],
+        lastPatchTime: 0,
+        metricsRefreshes: 0,
+        lastProfile: null,
+        hits: {
+          virus: 0,
+          pellets: 0,
+          ignoredByType: 0,
+          disabled: 0,
+        },
+        lastVirus: null,
+        lastPellet: null,
+        lastIgnored: null,
+        errors: [],
+      }, existing);
+
+      next.version = initialSettings?.version || next.version;
+      next.hits = Object.assign({
+        virus: 0,
+        pellets: 0,
+        ignoredByType: 0,
+        disabled: 0,
+      }, next.hits || {});
+      next.patchResults = Array.isArray(next.patchResults) ? next.patchResults : [];
+      next.errors = Array.isArray(next.errors) ? next.errors : [];
+      next.metricsRefreshes = Number(next.metricsRefreshes) || 0;
+      win[STATE_KEY] = next;
+      return next;
+    }
+
+    function installDebugCommand() {
+      const debug = () => ({
+        version: initialSettings?.version || state.version,
+        page: win.location?.href || '',
+        hasPageHook: Boolean(win[PAGE_HOOK]),
+        settings: normalizeVirusPelletColorSettings({
+          enabled: true,
+          virus: initialSettings.virus,
+          pellets: initialSettings.pellets,
+        }),
+        loaderStatus: { ...loaderStatus },
+        state: {
+          patchInstalled: state.patchInstalled,
+          wrappedCallback: state.wrappedCallback,
+          seenCacheScripts: state.seenCacheScripts,
+          callbackCalls: state.callbackCalls,
+          patchedChunks: state.patchedChunks,
+          lastPatchResult: state.lastPatchResult,
+          lastChangedPatchResult: state.lastChangedPatchResult,
+          patchResults: state.patchResults.slice(-8),
+          lastPatchTime: state.lastPatchTime,
+          metricsRefreshes: state.metricsRefreshes,
+          lastProfile: state.lastProfile,
+          hits: { ...state.hits },
+          lastVirus: state.lastVirus,
+          lastPellet: state.lastPellet,
+          lastIgnored: state.lastIgnored,
+          errors: state.errors.slice(),
+        },
+      });
+
+      win.blobCellColorsDebug = debug;
+      win.__blobCellColorsDebug = debug;
+      win.blobCellColorsProfile = (durationMs) => startProfile(durationMs);
+      win.__blobCellColorsProfile = win.blobCellColorsProfile;
+    }
+
+    function rememberError(error) {
+      const message = error?.message || String(error);
+      state.errors.push(message);
+      state.errors = state.errors.slice(-8);
+      win.console?.warn?.('[Blobio] Virus | Pellets Colors', message);
+    }
+
+    function applyObjectColor(target, object, allowedType) {
+      const profile = activeProfile;
+      const profileStart = profile ? nowMs() : 0;
+
+      if (!object || !object.K) {
+        state.hits.ignoredByType += 1;
+        sampleIgnoredObject(object);
+        recordProfileCall(profile, 'ignored', 'ignored', profileStart);
+        return false;
+      }
+
+      if (allowedType !== null && getObjectType(object) !== allowedType) {
+        state.hits.ignoredByType += 1;
+        sampleIgnoredObject(object);
+        recordProfileCall(profile, target.hitKey, 'ignored', profileStart);
+        return false;
+      }
+
+      if (target.gradient) {
+        const amount = setGradientGwtColor(object.K, target.gradientColor, object);
+        recordColorHit(target, object, amount);
+        recordProfileCall(profile, target.hitKey, 'gradient', profileStart);
+      } else {
+        setRuntimeGwtColor(object.K, target.solidColor);
+        recordColorHit(target, object, null);
+        recordProfileCall(profile, target.hitKey, 'solid', profileStart);
+      }
+
+      return true;
+    }
+
+    function applyBranchObjectColor(target, object) {
+      const profile = activeProfile;
+      const profileStart = profile ? nowMs() : 0;
+
+      if (!object || !object.K) {
+        state.hits.ignoredByType += 1;
+        sampleIgnoredObject(object);
+        recordProfileCall(profile, 'ignored', 'ignored', profileStart);
+        return false;
+      }
+
+      const amount = setGradientGwtColor(object.K, target.gradientColor, object);
+      recordColorHit(target, object, amount);
+      recordProfileCall(profile, target.hitKey, 'gradient', profileStart);
+      return true;
+    }
+
+    function startProfile(durationMs) {
+      if (activeProfile?.promise) {
+        return activeProfile.promise;
+      }
+
+      const requested = Number(durationMs);
+      const duration = Number.isFinite(requested) ? requested : 2000;
+      const clampedDuration = Math.min(10000, Math.max(250, Math.round(duration)));
+      const profile = {
+        startedAt: nowMs(),
+        durationMs: clampedDuration,
+        startHits: { ...state.hits },
+        startMetricsRefreshes: state.metricsRefreshes,
+        targets: {
+          pellets: createProfileBucket(),
+          virus: createProfileBucket(),
+          ignored: createProfileBucket(),
+        },
+        promise: null,
+      };
+
+      profile.promise = new Promise((resolve) => {
+        win.setTimeout(() => {
+          const summary = summarizeProfile(profile);
+          if (activeProfile === profile) {
+            activeProfile = null;
+          }
+          state.lastProfile = summary;
+          resolve(summary);
+        }, clampedDuration);
+      });
+
+      activeProfile = profile;
+      return profile.promise;
+    }
+
+    function createProfileBucket() {
+      return {
+        calls: 0,
+        gradient: 0,
+        solid: 0,
+        ignored: 0,
+        disabled: 0,
+        totalMs: 0,
+        maxMs: 0,
+      };
+    }
+
+    function recordProfileCall(profile, targetName, path, startedAt) {
+      if (!profile) {
+        return;
+      }
+
+      const bucket = profile.targets[targetName] || profile.targets.ignored;
+      const elapsed = nowMs() - startedAt;
+      bucket.calls += 1;
+      bucket[path] = (bucket[path] || 0) + 1;
+      bucket.totalMs += elapsed;
+      bucket.maxMs = Math.max(bucket.maxMs, elapsed);
+    }
+
+    function summarizeProfile(profile) {
+      const elapsed = Math.max(1, nowMs() - profile.startedAt);
+      const hitDelta = {
+        virus: state.hits.virus - (profile.startHits.virus || 0),
+        pellets: state.hits.pellets - (profile.startHits.pellets || 0),
+        ignoredByType: state.hits.ignoredByType - (profile.startHits.ignoredByType || 0),
+        disabled: state.hits.disabled - (profile.startHits.disabled || 0),
+      };
+
+      return {
+        durationMs: Math.round(elapsed),
+        hitDelta,
+        callsPerSecond: {
+          virus: roundProfileNumber(hitDelta.virus / elapsed * 1000),
+          pellets: roundProfileNumber(hitDelta.pellets / elapsed * 1000),
+        },
+        metricsRefreshes: state.metricsRefreshes - profile.startMetricsRefreshes,
+        targets: {
+          pellets: summarizeProfileBucket(profile.targets.pellets, elapsed),
+          virus: summarizeProfileBucket(profile.targets.virus, elapsed),
+          ignored: summarizeProfileBucket(profile.targets.ignored, elapsed),
+        },
+      };
+    }
+
+    function summarizeProfileBucket(bucket, elapsed) {
+      return {
+        calls: bucket.calls,
+        callsPerSecond: roundProfileNumber(bucket.calls / elapsed * 1000),
+        gradient: bucket.gradient,
+        solid: bucket.solid,
+        ignored: bucket.ignored,
+        disabled: bucket.disabled,
+        totalMs: roundProfileNumber(bucket.totalMs),
+        avgMs: roundProfileNumber(bucket.calls ? bucket.totalMs / bucket.calls : 0),
+        maxMs: roundProfileNumber(bucket.maxMs),
+      };
+    }
+
+    function roundProfileNumber(value) {
+      return Math.round(value * 1000) / 1000;
+    }
+
+    function nowMs() {
+      return typeof win.performance?.now === 'function' ? win.performance.now() : Date.now();
+    }
+
+    function getObjectType(object) {
+      const type = object?.c?.M;
+      const number = Number(type);
+      return Number.isFinite(number) ? number : type;
+    }
+
+    function debugObject(object, color) {
+      if (!object) {
+        return null;
+      }
+
+      return {
+        id: object.n,
+        type: getObjectType(object),
+        rawType: object.c?.M,
+        x: object.R,
+        y: object.S,
+        size: object.N,
+        color: color ? { ...color } : null,
+        time: Date.now(),
+      };
+    }
+
+    function sampleIgnoredObject(object) {
+      if ((state.hits.ignoredByType & DEBUG_SAMPLE_MASK) === 0) {
+        state.lastIgnored = debugObject(object, null);
+      }
+    }
+
+    function setRuntimeGwtColor(target, color) {
+      target.d = color.d;
+      target.c = color.c;
+      target.b = color.b;
+      target.a = color.a;
+    }
+
+    function setGradientGwtColor(target, gradient, object) {
+      const metrics = getGradientMetrics();
+      const x = object.R || 0;
+      const y = object.S || 0;
+      const projected = ((x - metrics.centerX) * gradient.cos + (y - metrics.centerY) * gradient.sin) * metrics.invLength + 0.5;
+      const amount = projected < 0 ? 0 : projected > 1 ? 1 : projected;
+
+      target.d = gradient.fromD + gradient.deltaD * amount;
+      target.c = gradient.fromC + gradient.deltaC * amount;
+      target.b = gradient.fromB + gradient.deltaB * amount;
+      target.a = gradient.fromA + gradient.deltaA * amount;
+      return amount;
+    }
+
+    function getGradientMetrics() {
+      if (!gradientMetrics.canvas || (gradientMetrics.checks++ & METRICS_REFRESH_MASK) === 0) {
+        refreshGradientMetrics();
+      }
+      return gradientMetrics;
+    }
+
+    function refreshGradientMetrics() {
+      state.metricsRefreshes += 1;
+      let canvas = gradientMetrics.canvas;
+      if (!canvas || canvas.isConnected === false) {
+        canvas = doc.querySelector?.('#embed-html canvas, canvas') || null;
+        gradientMetrics.canvas = canvas;
+      }
+
+      const width = canvas && (canvas.width || canvas.clientWidth) || win.innerWidth || 1280;
+      const height = canvas && (canvas.height || canvas.clientHeight) || win.innerHeight || 720;
+      gradientMetrics.width = width;
+      gradientMetrics.height = height;
+      gradientMetrics.centerX = width / 2;
+      gradientMetrics.centerY = height / 2;
+      gradientMetrics.invLength = 1 / (Math.sqrt(width * width + height * height) || 1);
+    }
+
+    function recordColorHit(target, object, amount) {
+      const hits = state.hits[target.hitKey] + 1;
+      state.hits[target.hitKey] = hits;
+
+      if ((hits & DEBUG_SAMPLE_MASK) !== 0) {
+        return;
+      }
+
+      state[target.lastKey] = debugObject(object, amount === null
+        ? runtimeColorToDebug(target.solidColor)
+        : gradientColorToDebug(target.gradientColor, amount));
+    }
+
+    function runtimeColorToDebug(color) {
+      return {
+        r: color.r,
+        g: color.g,
+        b: color.blue,
+        a: color.alpha,
+      };
+    }
+
+    function gradientColorToDebug(gradient, amount) {
+      return {
+        r: Math.round((gradient.fromD + gradient.deltaD * amount) * 255),
+        g: Math.round((gradient.fromC + gradient.deltaC * amount) * 255),
+        b: Math.round((gradient.fromB + gradient.deltaB * amount) * 255),
+        a: Math.round((gradient.fromA + gradient.deltaA * amount) * 100),
+      };
+    }
+
+    function installGameScriptPatch() {
+      const NodeCtor = win.Node;
+      if (!NodeCtor?.prototype || NodeCtor.prototype.__blobCellColorPatchInstalled) {
+        return;
+      }
+
+      const originalAppendChild = NodeCtor.prototype.appendChild;
+      const originalInsertBefore = NodeCtor.prototype.insertBefore;
+
+      NodeCtor.prototype.appendChild = function appendChildBlobCellColor(node) {
+        if (shouldPatchScript(node)) {
+          node.dataset.blobCellColorPatch = 'seen';
+          state.seenCacheScripts += 1;
+          installGwtCallbackPatch();
+        }
+        return originalAppendChild.call(this, node);
+      };
+
+      NodeCtor.prototype.insertBefore = function insertBeforeBlobCellColor(node, child) {
+        if (shouldPatchScript(node)) {
+          node.dataset.blobCellColorPatch = 'seen';
+          state.seenCacheScripts += 1;
+          installGwtCallbackPatch();
+        }
+        return originalInsertBefore.call(this, node, child);
+      };
+
+      NodeCtor.prototype.__blobCellColorPatchInstalled = true;
+      state.patchInstalled = true;
+      installGwtCallbackPatch();
+
+      const callbackPatchTimer = win.setInterval?.(() => {
+        if (installGwtCallbackPatch()) {
+          win.clearInterval?.(callbackPatchTimer);
+        }
+      }, 10);
+      win.setTimeout?.(() => {
+        win.clearInterval?.(callbackPatchTimer);
+      }, 30000);
+    }
+
+    function shouldPatchScript(node) {
+      return node
+        && node.tagName === 'SCRIPT'
+        && node.src
+        && !node.dataset.blobCellColorPatch
+        && CACHE_SCRIPT_RE.test(node.src);
+    }
+
+    function installGwtCallbackPatch() {
+      const html = win.html;
+      if (!html || html.__blobCellColorsWrapped || typeof html.onScriptDownloaded !== 'function') {
+        return false;
+      }
+
+      const originalOnScriptDownloaded = html.onScriptDownloaded;
+      html.onScriptDownloaded = function blobCellColorsOnScriptDownloaded(chunks) {
+        state.callbackCalls += 1;
+        let patchedChunks = chunks;
+        try {
+          patchedChunks = patchDownloadedChunks(chunks);
+        } catch (error) {
+          rememberError(error);
+        }
+        return originalOnScriptDownloaded.call(this, patchedChunks);
+      };
+
+      html.__blobCellColorsWrapped = true;
+      state.wrappedCallback = true;
+      return true;
+    }
+
+    function patchDownloadedChunks(chunks) {
+      if (Array.isArray(chunks)) {
+        return chunks.map(patchDownloadedChunk);
+      }
+      return patchDownloadedChunk(chunks);
+    }
+
+    function patchDownloadedChunk(chunk) {
+      if (typeof chunk !== 'string') {
+        return chunk;
+      }
+
+      const patched = patchGameCode(chunk);
+      if (!patched.changed) {
+        return chunk;
+      }
+
+      state.patchedChunks += 1;
+      state.lastPatchTime = Date.now();
+      return patched.code;
+    }
+
+    function patchGameCode(code) {
+      let patched = code;
+      let foodPatched = false;
+      let foodPatchMode = 'none';
+      const foodCaseSeen = patched.includes('case 2:case 5:case 0:');
+      const foodDrawSeen = FOOD_DRAW_RE.test(patched);
+      const foodAlphaSeen = FOOD_ALPHA_RE.test(patched);
+      let virusPatched = false;
+      let fallbackFoodPatched = false;
+      let fallbackVirusPatched = false;
+
+      if (!patched.includes('$wnd.__BlobCellColorizer.foodBranch(g)') && foodDrawSeen) {
+        patched = patched.replace(FOOD_DRAW_RE, (match, setColor, drawRegion, foodTexture) => {
+          foodPatched = true;
+          foodPatchMode = 'draw-branch';
+          return 'case 2:case 5:case 0:g.K.a=0.75;'
+            + `if($wnd.__BlobCellColorizer&&$wnd.__BlobCellColorizer.foodSolidColor&&g.c&&g.c.M==2){${setColor}(a.c,$wnd.__BlobCellColorizer.foodSolidColor)}`
+            + `else{if($wnd.__BlobCellColorizer&&$wnd.__BlobCellColorizer.foodGradient&&g.c&&g.c.M==2){$wnd.__BlobCellColorizer.foodBranch(g)}${setColor}(a.c,g.K)}`
+            + `${drawRegion}(a.c,${foodTexture},g.R-g.M,g.S-g.M,g.N,g.N);`;
+        });
+      } else if (!patched.includes('$wnd.__BlobCellColorizer.foodBranch(g)') && foodAlphaSeen) {
+        patched = patched.replace(FOOD_ALPHA_RE, (match) => {
+          foodPatched = true;
+          foodPatchMode = 'after-alpha';
+          return match + FOOD_BRANCH_HOOK;
+        });
+      } else if (!patched.includes('$wnd.__BlobCellColorizer.foodBranch(g)') && foodCaseSeen) {
+        patched = patched.replace(FOOD_CASE_RE, (match) => {
+          foodPatched = true;
+          foodPatchMode = 'after-case-label';
+          return match + FOOD_BRANCH_HOOK;
+        });
+      }
+
+      if (VIRUS_BRANCH_RE.test(patched)) {
+        patched = patched.replace(VIRUS_BRANCH_RE, (match, initDrawState, setColor, drawRegion, virusTexture) => {
+          virusPatched = true;
+          return 'case 4:case 3:'
+            + `if($wnd.__BlobCellColorizer&&$wnd.__BlobCellColorizer.virusSolidColor){${initDrawState}();${setColor}(a.c,$wnd.__BlobCellColorizer.virusSolidColor);${drawRegion}(a.c,${virusTexture},g.R-g.M,g.S-g.M,g.N,g.N)}`
+            + `else if($wnd.__BlobCellColorizer&&$wnd.__BlobCellColorizer.virusGradient&&$wnd.__BlobCellColorizer.virusBranch(g)){${initDrawState}();${setColor}(a.c,g.K);${drawRegion}(a.c,${virusTexture},g.R-g.M,g.S-g.M,g.N,g.N)}`
+            + `else if(g.q){if(g.P){h=g.P;${initDrawState}();${setColor}(a.c,g.K);${drawRegion}(a.c,h,g.R-g.M,g.S-g.M,g.N,g.N)}}`
+            + `else{${initDrawState}();${setColor}(a.c,g.K);${drawRegion}(a.c,${virusTexture},g.R-g.M,g.S-g.M,g.N,g.N)}break;`;
+        });
+      }
+
+      if (FALLBACK_RENDER_RE.test(patched)) {
+        patched = patched.replace(FALLBACK_RENDER_RE, (match, fallbackName, initDrawState, setColor, drawRegion, defaultTexture) => {
+          fallbackVirusPatched = true;
+          fallbackFoodPatched = true;
+          return `function ${fallbackName}(a,b){var c;if(b.c&&(b.c.M==4||b.c.M==3)&&$wnd.__BlobCellColorizer&&$wnd.__BlobCellColorizer.virusSolidColor){${setColor}(a.c,$wnd.__BlobCellColorizer.virusSolidColor);${drawRegion}(a.c,${defaultTexture},b.R-b.M,b.S-b.M,b.N,b.N)}`
+            + `else if(b.c&&(b.c.M==4||b.c.M==3)&&$wnd.__BlobCellColorizer&&$wnd.__BlobCellColorizer.virusGradient&&$wnd.__BlobCellColorizer.virusBranch(b)){${setColor}(a.c,b.K);${drawRegion}(a.c,${defaultTexture},b.R-b.M,b.S-b.M,b.N,b.N)}`
+            + `else if(b.c&&b.c.M==2&&$wnd.__BlobCellColorizer&&$wnd.__BlobCellColorizer.foodSolidColor){${setColor}(a.c,$wnd.__BlobCellColorizer.foodSolidColor);${drawRegion}(a.c,${defaultTexture},b.R-b.M,b.S-b.M,b.N,b.N)}`
+            + `else{if(b.c&&b.c.M==2&&$wnd.__BlobCellColorizer&&$wnd.__BlobCellColorizer.foodGradient){$wnd.__BlobCellColorizer.foodBranch(b)}`
+            + `if(b.q){c=b.P;${initDrawState}();${setColor}(a.c,b.K);${drawRegion}(a.c,c,b.R-b.M,b.S-b.M,b.N,b.N)}`
+            + `else if(b.P){${setColor}(a.c,b.K);${drawRegion}(a.c,b.P,b.R-b.M,b.S-b.M,b.N,b.N)}`
+            + `else{b.K.a=0.75;${setColor}(a.c,b.K);${drawRegion}(a.c,${defaultTexture},b.R-b.M,b.S-b.M,b.N,b.N)}}}`;
+        });
+      }
+
+      const result = {
+        changed: foodPatched || virusPatched || fallbackFoodPatched || fallbackVirusPatched,
+        foodCaseSeen,
+        foodDrawSeen,
+        foodAlphaSeen,
+        foodPatched,
+        foodPatchMode,
+        fallbackFoodPatched,
+        virusPatched,
+        fallbackVirusPatched,
+      };
+      state.lastPatchResult = result;
+      state.patchResults.push(result);
+      state.patchResults = state.patchResults.slice(-12);
+      if (result.changed) {
+        state.lastChangedPatchResult = result;
+      }
+
+      return {
+        code: patched,
+        changed: result.changed,
+      };
+    }
+  }
+
+  function exposeDisabledDebug(win, settings, loaderStatus) {
+    if (typeof win.blobCellColorsDebug === 'function') {
+      return;
+    }
+
+    win.blobCellColorsDebug = () => ({
+      enabled: false,
+      settings,
+      loaderStatus: { ...loaderStatus },
+    });
+    win.__blobCellColorsDebug = win.blobCellColorsDebug;
+  }
+
+  function normalizeVirusPelletColorSettings(settings = {}) {
+    const source = settings && typeof settings === 'object' ? settings : {};
+    return {
+      enabled: Boolean(source.enabled),
+      virus: normalizeTargetSettings(source.virus, DEFAULT_SETTINGS.virus),
+      pellets: normalizeTargetSettings(source.pellets, DEFAULT_SETTINGS.pellets),
+    };
+  }
+
+  function normalizeTargetSettings(value, fallback) {
+    const source = value && typeof value === 'object' ? value : {};
+    const gradient = source.gradient && typeof source.gradient === 'object' ? source.gradient : {};
+
+    return {
+      mode: source.mode === 'gradient' ? 'gradient' : 'solid',
+      alpha: normalizeAlpha(source.alpha, fallback.alpha),
+      solid: normalizeColor(source.solid, fallback.solid),
+      gradient: {
+        from: normalizeColor(gradient.from, fallback.gradient.from),
+        to: normalizeColor(gradient.to, fallback.gradient.to),
+        angle: normalizeAngle(gradient.angle, fallback.gradient.angle),
+      },
+    };
+  }
+
+  function normalizeColor(value, fallback) {
+    const color = String(value || '').trim().toLowerCase();
+    return /^#[0-9a-f]{6}$/.test(color) ? color : fallback;
+  }
+
+  function normalizeAlpha(value, fallback) {
+    const alpha = Number(value);
+    return Number.isFinite(alpha) ? Math.max(0, Math.min(100, Math.round(alpha))) : fallback;
+  }
+
+  function normalizeAngle(value, fallback) {
+    const angle = Number(value);
+    if (!Number.isFinite(angle)) {
+      return fallback;
+    }
+    return Math.max(0, Math.min(360, Math.round(angle)));
+  }
+  /* VIRUS_PELLET_COLOR_RUNTIME_END */
+
   function getVirusResourceUrl(maskId) {
     const normalizedMaskId = Object.hasOwn(VIRUS_MOTHER_CELL_ASSET_URLS, maskId) ? maskId : 'halo';
     return VIRUS_MOTHER_CELL_ASSET_URLS[normalizedMaskId] || '';
@@ -3145,6 +3992,60 @@
       status.reason = 'install-error';
       status.error = error?.message || String(error);
       logError('Failed to install Virus | Mother-cell runtime.', error);
+    }
+  }
+
+  function installVirusPelletColorRuntime() {
+    if (location.hostname !== CUSTOM_CLIENT_HOST) {
+      return;
+    }
+
+    const pageWindow = typeof unsafeWindow === 'object' && unsafeWindow ? unsafeWindow : globalThis;
+    const status = {
+      version: VERSION,
+      host: location.hostname,
+      attempted: false,
+      installed: false,
+      enabled: false,
+      reason: 'not-started',
+      error: '',
+    };
+    pageWindow.__blobioVirusPelletColorLoaderStatus = status;
+
+    const installDebugFallback = () => {
+      if (typeof pageWindow.blobCellColorsDebug === 'function') {
+        return;
+      }
+      pageWindow.blobCellColorsDebug = () => ({
+        ...status,
+        runtimeState: pageWindow.__blobCellColorState || null,
+      });
+      pageWindow.__blobCellColorsDebug = pageWindow.blobCellColorsDebug;
+    };
+    installDebugFallback();
+
+    try {
+      const runtimeSettings = readVirusPelletColorRuntimeSettings();
+      status.enabled = runtimeSettings.enabled;
+      status.storageSource = runtimeSettings.source;
+      status.storageDiagnostics = runtimeSettings.diagnostics;
+      if (!status.enabled) {
+        status.reason = 'disabled';
+        return;
+      }
+
+      status.attempted = true;
+      status.installed = Boolean(pageVirusPelletColorsBootstrap({
+        enabled: true,
+        virus: runtimeSettings.virus,
+        pellets: runtimeSettings.pellets,
+        version: VERSION,
+      }, pageWindow));
+      status.reason = status.installed ? 'installed' : 'bootstrap-returned-false';
+    } catch (error) {
+      status.reason = 'install-error';
+      status.error = error?.message || String(error);
+      logError('Failed to install Virus | Pellets Colors runtime.', error);
     }
   }
 
@@ -3307,6 +4208,7 @@
   installEarlyKeyboardRuntime();
   installSharedStorageBridge();
   installVirusMotherCellRuntime();
+  installVirusPelletColorRuntime();
   installAnimationSpeedRuntime();
   installGameBackgroundRuntime();
   installFpsUncapRuntime();
