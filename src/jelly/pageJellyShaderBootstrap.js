@@ -34,7 +34,7 @@ export function pageJellyShaderBootstrap(initialSettings, pageWindow = globalThi
   win.__blobioJellyShaderStatus = status;
   win.__blobioJellyShaderRefresh = refresh;
 
-  disableVanillaJellyIfNeeded();
+  prepareVanillaJellyShaderPath();
   installShaderHook();
   retryShaderHook();
   return true;
@@ -43,7 +43,10 @@ export function pageJellyShaderBootstrap(initialSettings, pageWindow = globalThi
     const previous = settings;
     settings = normalizeJellyShaderRuntimeSettings(nextSettings);
     status.enabled = settings.enabled;
-    disableVanillaJellyIfNeeded();
+    prepareVanillaJellyShaderPath();
+    if (settings.enabled && status.shaderSourcesPatched > 0) {
+      markVanillaJellyDisabled();
+    }
     if (
       status.shaderSourcesSeen > 0
       && (
@@ -56,7 +59,17 @@ export function pageJellyShaderBootstrap(initialSettings, pageWindow = globalThi
     }
   }
 
-  function disableVanillaJellyIfNeeded() {
+  function prepareVanillaJellyShaderPath() {
+    if (!settings.enabled) {
+      return;
+    }
+
+    try {
+      win.localStorage?.setItem?.(JELLY_SHADER_VANILLA_KEY, 'true');
+    } catch {}
+  }
+
+  function markVanillaJellyDisabled() {
     if (!settings.enabled) {
       return;
     }
@@ -95,6 +108,7 @@ export function pageJellyShaderBootstrap(initialSettings, pageWindow = globalThi
           if (patched.noSkinPatched) {
             status.noSkinShaderPatches += 1;
           }
+          markVanillaJellyDisabled();
           return nativeShaderSource.call(this, shader, patched.source);
         }
         return nativeShaderSource.call(this, shader, source);

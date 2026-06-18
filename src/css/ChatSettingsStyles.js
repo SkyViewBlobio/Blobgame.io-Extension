@@ -96,7 +96,7 @@ export const CHAT_SETTINGS_CSS = `
 .blobio-chat-settings-category {
   position: absolute;
   left: calc(100% + 10px);
-  top: 0;
+  top: var(--blobio-chat-settings-category-top, 0px);
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 8px 10px;
@@ -658,13 +658,17 @@ export const CHAT_SETTINGS_CSS = `
   font-size: 12px;
   font-weight: 900;
   cursor: pointer;
-  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.12), 0 0 9px rgba(79, 255, 130, 0.2);
+  outline: 1px solid rgba(176, 255, 198, 0.32);
+  outline-offset: 2px;
+  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.12), 0 0 11px rgba(79, 255, 130, 0.34);
 }
 
 .blobio-animation-speed-mode:hover,
 .blobio-animation-speed-mode:focus-visible {
   border-color: rgba(196, 255, 211, 0.82);
   background: rgba(5, 48, 25, 0.92);
+  outline-color: rgba(217, 255, 226, 0.72);
+  box-shadow: inset 0 0 9px rgba(79, 255, 130, 0.18), 0 0 15px rgba(79, 255, 130, 0.52);
 }
 
 .blobio-animation-speed-mode[data-mode="unsafe"] {
@@ -722,13 +726,17 @@ export const CHAT_SETTINGS_CSS = `
   font-size: 12px;
   font-weight: 900;
   cursor: pointer;
-  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.12), 0 0 9px rgba(79, 255, 130, 0.2);
+  outline: 1px solid rgba(176, 255, 198, 0.32);
+  outline-offset: 2px;
+  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.12), 0 0 11px rgba(79, 255, 130, 0.34);
 }
 
 .blobio-hud-mode-button:hover,
 .blobio-hud-mode-button:focus-visible {
   border-color: rgba(196, 255, 211, 0.82);
   background: rgba(5, 48, 25, 0.92);
+  outline-color: rgba(217, 255, 226, 0.72);
+  box-shadow: inset 0 0 9px rgba(79, 255, 130, 0.18), 0 0 15px rgba(79, 255, 130, 0.52);
 }
 
 .blobio-hud-mode-button[data-mode="advanced"] {

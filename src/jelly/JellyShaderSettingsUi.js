@@ -4,6 +4,7 @@ import {
 } from './JellyShaderSettings.js';
 
 const DESCRIPTION = 'When enabled, this disables Blobgame.io\'s vanilla Jelly Physics option and adds a different lightweight jelly physics shader.';
+const VANILLA_JELLY_KEY = 'config-switch-jelly-physics';
 
 export class JellyShaderSettingsUi {
   constructor({
@@ -104,6 +105,9 @@ export class JellyShaderSettingsUi {
 
     this.listen(checkbox, 'change', () => {
       this.settings = this.save({ enabled: Boolean(checkbox.checked) });
+      if (this.settings.enabled) {
+        this.disableVanillaJellyPhysics({ notify: true });
+      }
       this.sync();
     });
 
@@ -190,10 +194,38 @@ export class JellyShaderSettingsUi {
     this.elements.enabled.checked = this.settings.enabled;
     this.elements.skinCells.checked = this.settings.skinCells;
     this.elements.noSkinCells.checked = this.settings.noSkinCells;
+    if (this.settings.enabled) {
+      this.disableVanillaJellyPhysics({ notify: false });
+    }
   }
 
   listen(node, type, listener, options) {
     node.addEventListener?.(type, listener, options);
     this.listeners.push([node, type, listener, options]);
+  }
+
+  disableVanillaJellyPhysics({ notify = false } = {}) {
+    const win = this.document?.defaultView || globalThis;
+    try {
+      win.localStorage?.setItem?.(VANILLA_JELLY_KEY, 'false');
+    } catch {}
+
+    const checkbox = this.document?.getElementById?.(VANILLA_JELLY_KEY);
+    if (!checkbox) {
+      return;
+    }
+
+    const changed = Boolean(checkbox.checked);
+    checkbox.checked = false;
+    checkbox.setAttribute?.('aria-checked', 'false');
+    if (!notify || !changed) {
+      return;
+    }
+
+    const EventCtor = win.Event || globalThis.Event;
+    for (const type of ['input', 'change']) {
+      const event = EventCtor ? new EventCtor(type, { bubbles: true }) : { type, bubbles: true };
+      checkbox.dispatchEvent?.(event);
+    }
   }
 }

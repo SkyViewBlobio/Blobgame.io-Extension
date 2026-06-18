@@ -335,12 +335,16 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
     scheduleRender();
   }
 
-  function updatePingFromSocket(ping) {
+  function updatePingFromSocket(ping, source = 'passive') {
     const number = Number(ping);
     if (!Number.isFinite(number) || number <= 0 || number > 5000) {
       return;
     }
     const value = Math.max(1, Math.round(number));
+    if (source === 'passive') {
+      expirePingIfStale(Date.now(), true);
+      return;
+    }
     state.latest.ping = value;
     state.latest.pingUpdatedAt = Date.now();
     hudInfoPushSample(state.pingSamples, value);
@@ -436,7 +440,7 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
       win.clearTimeout?.(timeout);
       state.pingProbeInFlight = false;
       if (Number.isFinite(latency)) {
-        updatePingFromSocket(latency);
+        updatePingFromSocket(latency, 'probe');
       } else {
         expirePingIfStale(Date.now(), true);
       }
@@ -537,7 +541,7 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
       } catch {}
     }
     if (sentAt) {
-      updatePingFromSocket(hudInfoNowMs() - sentAt);
+      updatePingFromSocket(hudInfoNowMs() - sentAt, 'passive');
     }
   }
 

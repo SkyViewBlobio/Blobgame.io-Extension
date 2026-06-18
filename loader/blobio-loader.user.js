@@ -4030,7 +4030,7 @@
     win.__blobioJellyShaderStatus = status;
     win.__blobioJellyShaderRefresh = refresh;
 
-    disableVanillaJellyIfNeeded();
+    prepareVanillaJellyShaderPath();
     installShaderHook();
     retryShaderHook();
     return true;
@@ -4039,7 +4039,10 @@
       const previous = settings;
       settings = normalizeJellyShaderRuntimeSettings(nextSettings);
       status.enabled = settings.enabled;
-      disableVanillaJellyIfNeeded();
+      prepareVanillaJellyShaderPath();
+      if (settings.enabled && status.shaderSourcesPatched > 0) {
+        markVanillaJellyDisabled();
+      }
       if (
         status.shaderSourcesSeen > 0
         && (
@@ -4052,7 +4055,17 @@
       }
     }
 
-    function disableVanillaJellyIfNeeded() {
+    function prepareVanillaJellyShaderPath() {
+      if (!settings.enabled) {
+        return;
+      }
+
+      try {
+        win.localStorage?.setItem?.(JELLY_SHADER_VANILLA_KEY, 'true');
+      } catch {}
+    }
+
+    function markVanillaJellyDisabled() {
       if (!settings.enabled) {
         return;
       }
@@ -4091,6 +4104,7 @@
             if (patched.noSkinPatched) {
               status.noSkinShaderPatches += 1;
             }
+            markVanillaJellyDisabled();
             return nativeShaderSource.call(this, shader, patched.source);
           }
           return nativeShaderSource.call(this, shader, source);
@@ -4549,12 +4563,16 @@
       scheduleRender();
     }
 
-    function updatePingFromSocket(ping) {
+    function updatePingFromSocket(ping, source = 'passive') {
       const number = Number(ping);
       if (!Number.isFinite(number) || number <= 0 || number > 5000) {
         return;
       }
       const value = Math.max(1, Math.round(number));
+      if (source === 'passive') {
+        expirePingIfStale(Date.now(), true);
+        return;
+      }
       state.latest.ping = value;
       state.latest.pingUpdatedAt = Date.now();
       hudInfoPushSample(state.pingSamples, value);
@@ -4650,7 +4668,7 @@
         win.clearTimeout?.(timeout);
         state.pingProbeInFlight = false;
         if (Number.isFinite(latency)) {
-          updatePingFromSocket(latency);
+          updatePingFromSocket(latency, 'probe');
         } else {
           expirePingIfStale(Date.now(), true);
         }
@@ -4751,7 +4769,7 @@
         } catch {}
       }
       if (sentAt) {
-        updatePingFromSocket(hudInfoNowMs() - sentAt);
+        updatePingFromSocket(hudInfoNowMs() - sentAt, 'passive');
       }
     }
 

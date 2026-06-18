@@ -1781,7 +1781,8 @@ export class ChatSettingsFeature {
     }
 
     const rootOpen = this.root.classList.contains('is-open');
-    const categoryOpen = Boolean(this.root.querySelector('.blobio-chat-settings-category.is-open'));
+    const activeCategory = this.root.querySelector('.blobio-chat-settings-category.is-open');
+    const categoryOpen = Boolean(activeCategory);
     let totalWidth = TOGGLE_WIDTH;
 
     if (rootOpen) {
@@ -1797,10 +1798,35 @@ export class ChatSettingsFeature {
       ? Math.max(4, rect.left - totalWidth - CHAT_GAP)
       : preferredLeft;
 
+    const top = Math.max(4, Math.round(rect.top));
+    const categoryTop = this.categoryViewportOffset(activeCategory, top);
+
     this.setStyle('--blobio-chat-settings-left', `${Math.round(left)}px`);
-    this.setStyle('--blobio-chat-settings-top', `${Math.max(4, Math.round(rect.top))}px`);
+    this.setStyle('--blobio-chat-settings-top', `${top}px`);
+    this.setStyle('--blobio-chat-settings-category-top', `${categoryTop}px`);
     this.setStyle('--blobio-chat-settings-bottom', 'auto');
     this.positionNotifications();
+  }
+
+  categoryViewportOffset(category, rootTop) {
+    if (!category) {
+      return 0;
+    }
+
+    const win = this.document.defaultView || globalThis;
+    const viewportHeight = Number(win.innerHeight) || 0;
+    const rect = category.getBoundingClientRect?.();
+    const height = Number(rect?.height) || Number(category.offsetHeight) || 0;
+    if (!viewportHeight || !height) {
+      return 0;
+    }
+
+    const overflow = rootTop + height - (viewportHeight - 4);
+    if (overflow <= 0) {
+      return 0;
+    }
+
+    return -Math.round(Math.min(overflow, Math.max(0, rootTop - 4)));
   }
 
   positionNotifications() {

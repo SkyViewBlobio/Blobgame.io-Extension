@@ -2088,7 +2088,7 @@ html.${this.className} body::before {
 .blobio-chat-settings-category {
   position: absolute;
   left: calc(100% + 10px);
-  top: 0;
+  top: var(--blobio-chat-settings-category-top, 0px);
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 8px 10px;
@@ -2650,13 +2650,17 @@ html.${this.className} body::before {
   font-size: 12px;
   font-weight: 900;
   cursor: pointer;
-  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.12), 0 0 9px rgba(79, 255, 130, 0.2);
+  outline: 1px solid rgba(176, 255, 198, 0.32);
+  outline-offset: 2px;
+  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.12), 0 0 11px rgba(79, 255, 130, 0.34);
 }
 
 .blobio-animation-speed-mode:hover,
 .blobio-animation-speed-mode:focus-visible {
   border-color: rgba(196, 255, 211, 0.82);
   background: rgba(5, 48, 25, 0.92);
+  outline-color: rgba(217, 255, 226, 0.72);
+  box-shadow: inset 0 0 9px rgba(79, 255, 130, 0.18), 0 0 15px rgba(79, 255, 130, 0.52);
 }
 
 .blobio-animation-speed-mode[data-mode="unsafe"] {
@@ -2714,13 +2718,17 @@ html.${this.className} body::before {
   font-size: 12px;
   font-weight: 900;
   cursor: pointer;
-  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.12), 0 0 9px rgba(79, 255, 130, 0.2);
+  outline: 1px solid rgba(176, 255, 198, 0.32);
+  outline-offset: 2px;
+  box-shadow: inset 0 0 8px rgba(79, 255, 130, 0.12), 0 0 11px rgba(79, 255, 130, 0.34);
 }
 
 .blobio-hud-mode-button:hover,
 .blobio-hud-mode-button:focus-visible {
   border-color: rgba(196, 255, 211, 0.82);
   background: rgba(5, 48, 25, 0.92);
+  outline-color: rgba(217, 255, 226, 0.72);
+  box-shadow: inset 0 0 9px rgba(79, 255, 130, 0.18), 0 0 15px rgba(79, 255, 130, 0.52);
 }
 
 .blobio-hud-mode-button[data-mode="advanced"] {
@@ -5198,7 +5206,8 @@ iframe.blobio-captcha-anchor-hidden,
         return;
       }
       const rootOpen = this.root.classList.contains("is-open");
-      const categoryOpen = Boolean(this.root.querySelector(".blobio-chat-settings-category.is-open"));
+      const activeCategory = this.root.querySelector(".blobio-chat-settings-category.is-open");
+      const categoryOpen = Boolean(activeCategory);
       let totalWidth = TOGGLE_WIDTH;
       if (rootOpen) {
         totalWidth += CHAT_GAP + MAIN_PANEL_WIDTH;
@@ -5209,10 +5218,30 @@ iframe.blobio-captcha-anchor-hidden,
       const viewportWidth = this.document.defaultView?.innerWidth || 0;
       const preferredLeft = rect.right + CHAT_GAP;
       const left = viewportWidth > 0 && preferredLeft + totalWidth > viewportWidth - 4 ? Math.max(4, rect.left - totalWidth - CHAT_GAP) : preferredLeft;
+      const top = Math.max(4, Math.round(rect.top));
+      const categoryTop = this.categoryViewportOffset(activeCategory, top);
       this.setStyle("--blobio-chat-settings-left", `${Math.round(left)}px`);
-      this.setStyle("--blobio-chat-settings-top", `${Math.max(4, Math.round(rect.top))}px`);
+      this.setStyle("--blobio-chat-settings-top", `${top}px`);
+      this.setStyle("--blobio-chat-settings-category-top", `${categoryTop}px`);
       this.setStyle("--blobio-chat-settings-bottom", "auto");
       this.positionNotifications();
+    }
+    categoryViewportOffset(category, rootTop) {
+      if (!category) {
+        return 0;
+      }
+      const win = this.document.defaultView || globalThis;
+      const viewportHeight = Number(win.innerHeight) || 0;
+      const rect = category.getBoundingClientRect?.();
+      const height = Number(rect?.height) || Number(category.offsetHeight) || 0;
+      if (!viewportHeight || !height) {
+        return 0;
+      }
+      const overflow = rootTop + height - (viewportHeight - 4);
+      if (overflow <= 0) {
+        return 0;
+      }
+      return -Math.round(Math.min(overflow, Math.max(0, rootTop - 4)));
     }
     positionNotifications() {
       const rect = this.chatWrapper?.getBoundingClientRect?.();
@@ -9840,6 +9869,7 @@ html.${className} .blobio-watermark-extension::after {
 
   // src/jelly/JellyShaderSettingsUi.js
   var DESCRIPTION = "When enabled, this disables Blobgame.io's vanilla Jelly Physics option and adds a different lightweight jelly physics shader.";
+  var VANILLA_JELLY_KEY = "config-switch-jelly-physics";
   var JellyShaderSettingsUi = class {
     constructor({
       document,
@@ -9924,6 +9954,9 @@ html.${className} .blobio-watermark-extension::after {
       this.installTooltip(row, DESCRIPTION);
       this.listen(checkbox, "change", () => {
         this.settings = this.save({ enabled: Boolean(checkbox.checked) });
+        if (this.settings.enabled) {
+          this.disableVanillaJellyPhysics({ notify: true });
+        }
         this.sync();
       });
       this.listen(arrowButton, "click", (event) => {
@@ -9998,10 +10031,35 @@ html.${className} .blobio-watermark-extension::after {
       this.elements.enabled.checked = this.settings.enabled;
       this.elements.skinCells.checked = this.settings.skinCells;
       this.elements.noSkinCells.checked = this.settings.noSkinCells;
+      if (this.settings.enabled) {
+        this.disableVanillaJellyPhysics({ notify: false });
+      }
     }
     listen(node, type, listener, options) {
       node.addEventListener?.(type, listener, options);
       this.listeners.push([node, type, listener, options]);
+    }
+    disableVanillaJellyPhysics({ notify = false } = {}) {
+      const win = this.document?.defaultView || globalThis;
+      try {
+        win.localStorage?.setItem?.(VANILLA_JELLY_KEY, "false");
+      } catch {
+      }
+      const checkbox = this.document?.getElementById?.(VANILLA_JELLY_KEY);
+      if (!checkbox) {
+        return;
+      }
+      const changed = Boolean(checkbox.checked);
+      checkbox.checked = false;
+      checkbox.setAttribute?.("aria-checked", "false");
+      if (!notify || !changed) {
+        return;
+      }
+      const EventCtor = win.Event || globalThis.Event;
+      for (const type of ["input", "change"]) {
+        const event = EventCtor ? new EventCtor(type, { bubbles: true }) : { type, bubbles: true };
+        checkbox.dispatchEvent?.(event);
+      }
     }
   };
 
@@ -13657,12 +13715,16 @@ html.${className} .blobio-watermark-extension::after {
       state.latest.averageScore = hudInfoAverageMass(state.latest.score, count);
       scheduleRender();
     }
-    function updatePingFromSocket(ping) {
+    function updatePingFromSocket(ping, source = "passive") {
       const number = Number(ping);
       if (!Number.isFinite(number) || number <= 0 || number > 5e3) {
         return;
       }
       const value = Math.max(1, Math.round(number));
+      if (source === "passive") {
+        expirePingIfStale(Date.now(), true);
+        return;
+      }
       state.latest.ping = value;
       state.latest.pingUpdatedAt = Date.now();
       hudInfoPushSample(state.pingSamples, value);
@@ -13750,7 +13812,7 @@ html.${className} .blobio-watermark-extension::after {
         win.clearTimeout?.(timeout);
         state.pingProbeInFlight = false;
         if (Number.isFinite(latency)) {
-          updatePingFromSocket(latency);
+          updatePingFromSocket(latency, "probe");
         } else {
           expirePingIfStale(Date.now(), true);
         }
@@ -13845,7 +13907,7 @@ html.${className} .blobio-watermark-extension::after {
         }
       }
       if (sentAt) {
-        updatePingFromSocket(hudInfoNowMs() - sentAt);
+        updatePingFromSocket(hudInfoNowMs() - sentAt, "passive");
       }
     }
     function patchGameCode(code) {
@@ -14254,7 +14316,7 @@ html.${className} .blobio-watermark-extension::after {
     };
     win.__blobioJellyShaderStatus = status;
     win.__blobioJellyShaderRefresh = refresh;
-    disableVanillaJellyIfNeeded();
+    prepareVanillaJellyShaderPath();
     installShaderHook();
     retryShaderHook();
     return true;
@@ -14262,12 +14324,24 @@ html.${className} .blobio-watermark-extension::after {
       const previous = settings;
       settings = normalizeJellyShaderRuntimeSettings(nextSettings);
       status.enabled = settings.enabled;
-      disableVanillaJellyIfNeeded();
+      prepareVanillaJellyShaderPath();
+      if (settings.enabled && status.shaderSourcesPatched > 0) {
+        markVanillaJellyDisabled();
+      }
       if (status.shaderSourcesSeen > 0 && (previous.enabled !== settings.enabled || previous.skinCells !== settings.skinCells || previous.noSkinCells !== settings.noSkinCells)) {
         status.reloadNeeded = true;
       }
     }
-    function disableVanillaJellyIfNeeded() {
+    function prepareVanillaJellyShaderPath() {
+      if (!settings.enabled) {
+        return;
+      }
+      try {
+        win.localStorage?.setItem?.(JELLY_SHADER_VANILLA_KEY, "true");
+      } catch {
+      }
+    }
+    function markVanillaJellyDisabled() {
       if (!settings.enabled) {
         return;
       }
@@ -14302,6 +14376,7 @@ html.${className} .blobio-watermark-extension::after {
             if (patched.noSkinPatched) {
               status.noSkinShaderPatches += 1;
             }
+            markVanillaJellyDisabled();
             return nativeShaderSource.call(this, shader, patched.source);
           }
           return nativeShaderSource.call(this, shader, source);
