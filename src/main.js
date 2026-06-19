@@ -12,9 +12,18 @@ import virusRingUrl from '../assets/virus_glow_3 _mask.png';
 import virusRotateUrl from '../assets/viurs_glow_2_random_rotate_mask.png';
 import virusPelletPreviewUrl from '../assets/virus_pellet_preview.png';
 import originalVirusNoColorUrl from '../assets/original_virus_no_color.png';
+import emoteCoolUrl from '../assets/emote_cool.png';
+import emoteHiUrl from '../assets/emote_hi.png';
+import emoteNiceUrl from '../assets/emote_nice.png';
+import emotePopUrl from '../assets/emote_pop.png';
+import emoteThxUrl from '../assets/emote_thx.png';
+import emoteWhyUrl from '../assets/emote_why.png';
+import emoteYoUrl from '../assets/emote_yo.png';
 import { readVirusPelletColorSettings } from './cellColors/VirusPelletColorSettings.js';
 import { pageVirusPelletColorsBootstrap } from './cellColors/pageVirusPelletColorsBootstrap.js';
 import { MutedPlayersStore } from './chat/MutedPlayersStore.js';
+import { EmoteSkinFeature } from './emotes/EmoteSkinFeature.js';
+import { pageEmoteSkinBootstrap } from './emotes/pageEmoteSkinBootstrap.js';
 import { BackgroundFeature } from './features/BackgroundFeature.js';
 import { ChatRoleFeature } from './features/ChatRoleFeature.js';
 import { ChatSettingsFeature } from './features/ChatSettingsFeature.js';
@@ -41,6 +50,15 @@ import { pageVirusMotherCellBootstrap } from './virus/pageVirusMotherCellBootstr
 const INSTANCE_KEY = '__blobioExtension';
 const EXTENSION_VERSION = '0.1.83';
 const VIP_BADGE_URL = 'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/main/assets/VIP_icon_plus.png';
+const EMOTE_SKIN_ASSETS = {
+  cool: emoteCoolUrl,
+  hi: emoteHiUrl,
+  nice: emoteNiceUrl,
+  pop: emotePopUrl,
+  thx: emoteThxUrl,
+  why: emoteWhyUrl,
+  yo: emoteYoUrl,
+};
 
 class BlobioExtension {
   constructor(windowRef = globalThis) {
@@ -77,6 +95,7 @@ class BlobioExtension {
 
     const logger = this.window.console || console;
     if (hostMode === 'runtime') {
+      this.installEmoteSkinFallback(document, logger);
       this.installJellyShaderFallback(document, logger);
       this.installHudInfoFallback(document, logger);
       this.installVirusMotherCellFallback(document, logger);
@@ -166,6 +185,11 @@ class BlobioExtension {
         }),
         uiCustomization,
         chatSettings,
+        new EmoteSkinFeature({
+          document,
+          logger,
+          assets: EMOTE_SKIN_ASSETS,
+        }),
         new PlayerMuteFeature({
           document,
           logger,
@@ -241,6 +265,23 @@ class BlobioExtension {
       status.reason = 'bundle-bootstrap-error';
       status.error = error?.message || String(error);
       logger.warn?.('[Blobio] Virus | Mother-cell fallback failed.', error);
+      return false;
+    }
+  }
+
+  installEmoteSkinFallback(_document, logger) {
+    const windowRef = this.window;
+    if (windowRef.__blobioEmoteSkinInstalled) {
+      return true;
+    }
+
+    try {
+      return Boolean(pageEmoteSkinBootstrap({
+        assets: EMOTE_SKIN_ASSETS,
+        version: EXTENSION_VERSION,
+      }, windowRef));
+    } catch (error) {
+      logger.warn?.('[Blobio] Emote Skin Display fallback failed.', error);
       return false;
     }
   }

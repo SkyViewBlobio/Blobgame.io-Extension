@@ -10,10 +10,20 @@ const virusRuntimeFile = resolve(rootDir, 'src/virus/pageVirusMotherCellBootstra
 const virusPelletColorRuntimeFile = resolve(rootDir, 'src/cellColors/pageVirusPelletColorsBootstrap.js');
 const jellyShaderRuntimeFile = resolve(rootDir, 'src/jelly/pageJellyShaderBootstrap.js');
 const hudInfoRuntimeFile = resolve(rootDir, 'src/hud/pageHudInfoBootstrap.js');
+const emoteSkinRuntimeFile = resolve(rootDir, 'src/emotes/pageEmoteSkinBootstrap.js');
 const virusAssetFiles = {
   halo: resolve(rootDir, 'assets/virus_glow_1 _mask.png'),
   rotate: resolve(rootDir, 'assets/viurs_glow_2_random_rotate_mask.png'),
   ring: resolve(rootDir, 'assets/virus_glow_3 _mask.png'),
+};
+const emoteSkinAssetFiles = {
+  cool: resolve(rootDir, 'assets/emote_cool.png'),
+  hi: resolve(rootDir, 'assets/emote_hi.png'),
+  nice: resolve(rootDir, 'assets/emote_nice.png'),
+  pop: resolve(rootDir, 'assets/emote_pop.png'),
+  thx: resolve(rootDir, 'assets/emote_thx.png'),
+  why: resolve(rootDir, 'assets/emote_why.png'),
+  yo: resolve(rootDir, 'assets/emote_yo.png'),
 };
 
 await mkdir(dirname(outputFile), { recursive: true });
@@ -38,18 +48,34 @@ const [
   virusPelletColorRuntimeSource,
   jellyShaderRuntimeSource,
   hudInfoRuntimeSource,
+  emoteSkinRuntimeSource,
   virusHalo,
   virusRotate,
   virusRing,
+  emoteCool,
+  emoteHi,
+  emoteNice,
+  emotePop,
+  emoteThx,
+  emoteWhy,
+  emoteYo,
 ] = await Promise.all([
   readFile(loaderFile, 'utf8'),
   readFile(virusRuntimeFile, 'utf8'),
   readFile(virusPelletColorRuntimeFile, 'utf8'),
   readFile(jellyShaderRuntimeFile, 'utf8'),
   readFile(hudInfoRuntimeFile, 'utf8'),
+  readFile(emoteSkinRuntimeFile, 'utf8'),
   readFile(virusAssetFiles.halo),
   readFile(virusAssetFiles.rotate),
   readFile(virusAssetFiles.ring),
+  readFile(emoteSkinAssetFiles.cool),
+  readFile(emoteSkinAssetFiles.hi),
+  readFile(emoteSkinAssetFiles.nice),
+  readFile(emoteSkinAssetFiles.pop),
+  readFile(emoteSkinAssetFiles.thx),
+  readFile(emoteSkinAssetFiles.why),
+  readFile(emoteSkinAssetFiles.yo),
 ]);
 
 function embedRuntime(loader, startMarker, endMarker, source, exportName) {
@@ -123,6 +149,14 @@ nextLoader = embedRuntime(
   'pageHudInfoBootstrap',
 );
 
+nextLoader = embedRuntime(
+  nextLoader,
+  '  /* EMOTE_SKIN_RUNTIME_START */',
+  '  /* EMOTE_SKIN_RUNTIME_END */',
+  emoteSkinRuntimeSource,
+  'pageEmoteSkinBootstrap',
+);
+
 const assetStartMarker = '  /* VIRUS_ASSETS_START */';
 const assetEndMarker = '  /* VIRUS_ASSETS_END */';
 const assetStartIndex = nextLoader.indexOf(assetStartMarker);
@@ -135,4 +169,16 @@ const toDataUrl = (buffer) => `data:image/png;base64,${buffer.toString('base64')
 const embeddedAssets = `${assetStartMarker}\n  const VIRUS_MOTHER_CELL_ASSET_URLS = {\n    halo: '${toDataUrl(virusHalo)}',\n    rotate: '${toDataUrl(virusRotate)}',\n    ring: '${toDataUrl(virusRing)}',\n  };\n  ${assetEndMarker}`;
 
 nextLoader = `${nextLoader.slice(0, assetStartIndex)}${embeddedAssets}${nextLoader.slice(assetEndIndex + assetEndMarker.length)}`;
+
+const emoteAssetStartMarker = '  /* EMOTE_SKIN_ASSETS_START */';
+const emoteAssetEndMarker = '  /* EMOTE_SKIN_ASSETS_END */';
+const emoteAssetStartIndex = nextLoader.indexOf(emoteAssetStartMarker);
+const emoteAssetEndIndex = nextLoader.indexOf(emoteAssetEndMarker);
+if (emoteAssetStartIndex === -1 || emoteAssetEndIndex === -1 || emoteAssetEndIndex < emoteAssetStartIndex) {
+  throw new Error('Emote Skin asset markers are missing from the loader.');
+}
+
+const embeddedEmoteAssets = `${emoteAssetStartMarker}\n  const EMOTE_SKIN_ASSET_URLS = {\n    cool: '${toDataUrl(emoteCool)}',\n    hi: '${toDataUrl(emoteHi)}',\n    nice: '${toDataUrl(emoteNice)}',\n    pop: '${toDataUrl(emotePop)}',\n    thx: '${toDataUrl(emoteThx)}',\n    why: '${toDataUrl(emoteWhy)}',\n    yo: '${toDataUrl(emoteYo)}',\n  };\n  ${emoteAssetEndMarker}`;
+
+nextLoader = `${nextLoader.slice(0, emoteAssetStartIndex)}${embeddedEmoteAssets}${nextLoader.slice(emoteAssetEndIndex + emoteAssetEndMarker.length)}`;
 await writeFile(loaderFile, nextLoader);
