@@ -117,7 +117,7 @@ export class HotkeyFeature {
     event.preventDefault?.();
     event.stopImmediatePropagation?.();
     event.stopPropagation?.();
-    this.trigger(hotkey);
+    this.trigger(hotkey, event);
     return true;
   }
 
@@ -142,7 +142,7 @@ export class HotkeyFeature {
     return !this.sending && now - this.lastTriggeredAt >= this.cooldownMs;
   }
 
-  async trigger(hotkey) {
+  async trigger(hotkey, sourceEvent = null) {
     if (!hotkey?.text || !this.canTrigger()) {
       return false;
     }
@@ -158,6 +158,7 @@ export class HotkeyFeature {
       this.logger?.warn?.('[Blobio] Hotkey text could not be sent.', error);
       return false;
     } finally {
+      this.releaseSourceKey(sourceEvent);
       this.sending = false;
     }
   }
@@ -308,28 +309,83 @@ export class HotkeyFeature {
     }
   }
 
-  createKeyboardEvent(type) {
+  releaseSourceKey(sourceEvent) {
+    const code = sourceEvent?.code;
+    if (!code) {
+      return;
+    }
+
+    const targets = [
+      sourceEvent.target,
+      this.document.activeElement,
+      this.document,
+      this.document.defaultView || globalThis,
+    ];
+    const seen = new Set();
+    for (const target of targets) {
+      if (!target?.dispatchEvent || seen.has(target)) {
+        continue;
+      }
+
+      seen.add(target);
+      target.dispatchEvent(this.createKeyboardEvent('keyup', {
+        key: sourceEvent.key || this.keyFromCode(code),
+        code,
+        keyCode: sourceEvent.keyCode || sourceEvent.which || this.keyCodeFromCode(code),
+      }));
+    }
+  }
+
+  createKeyboardEvent(type, details = {}) {
     const win = this.document.defaultView || globalThis;
+    const key = details.key || 'Enter';
+    const code = details.code || 'Enter';
+    const keyCode = Number(details.keyCode) || this.keyCodeFromCode(code);
     let event;
 
     try {
       event = new win.KeyboardEvent(type, {
-        key: 'Enter',
-        code: 'Enter',
+        key,
+        code,
         bubbles: true,
         cancelable: true,
       });
     } catch {
-      event = { type, key: 'Enter', code: 'Enter', bubbles: true, cancelable: true };
+      event = { type, key, code, bubbles: true, cancelable: true };
     }
 
     try {
       Object.defineProperties(event, {
-        keyCode: { configurable: true, get: () => 13 },
-        which: { configurable: true, get: () => 13 },
+        keyCode: { configurable: true, get: () => keyCode },
+        which: { configurable: true, get: () => keyCode },
       });
     } catch {}
     return event;
+  }
+
+  keyFromCode(code) {
+    if (code === 'Space') {
+      return ' ';
+    }
+    if (code === 'Enter') {
+      return 'Enter';
+    }
+    if (/^Key[A-Z]$/.test(code)) {
+      return code.slice(3).toLowerCase();
+    }
+    if (/^Digit\d$/.test(code)) {
+      return code.slice(5);
+    }
+    return code;
+  }
+
+  keyCodeFromCode(code) {
+    if (code === 'Space') return 32;
+    if (code === 'Enter') return 13;
+    if (code === 'Escape') return 27;
+    if (/^Key[A-Z]$/.test(code)) return code.charCodeAt(3);
+    if (/^Digit\d$/.test(code)) return code.charCodeAt(5);
+    return 0;
   }
 
   waitForUi() {

@@ -34,6 +34,19 @@ export class EmoteSkinFeature {
     this.inputKeydownHandler = null;
     this.sendingTrigger = false;
     this.localTriggers = [];
+    this.debug = {
+      startedAt: Date.now(),
+      insertedEmojis: 0,
+      assetSends: 0,
+      ownTriggerAttempts: 0,
+      remoteTriggerAttempts: 0,
+      runtimeTriggerSuccess: 0,
+      runtimeTriggerMisses: 0,
+      lastSend: null,
+      lastTrigger: null,
+      lastRuntimeTargets: [],
+      errors: [],
+    };
     this.randomEmoji = EMOTE_SKIN_EMOJIS[Math.floor(Math.random() * EMOTE_SKIN_EMOJIS.length)] || '😀';
     this.started = false;
   }
@@ -46,6 +59,7 @@ export class EmoteSkinFeature {
     this.started = true;
     this.ensureStyle();
     this.ensureUi();
+    this.installDebugApi();
     this.syncInput();
     this.attachChatObserver();
     this.watchPage();
@@ -287,6 +301,7 @@ export class EmoteSkinFeature {
     const nextCursor = Math.min(next.length, start + emoji.length);
     input.setSelectionRange?.(nextCursor, nextCursor);
     this.dispatchInput(input, emoji);
+    this.debug.insertedEmojis += 1;
     return true;
   }
 
@@ -298,6 +313,13 @@ export class EmoteSkinFeature {
 
     this.insertEmoji(trigger.emoji);
     const text = String(input.value || '');
+    this.debug.assetSends += 1;
+    this.debug.lastSend = {
+      emoteId: trigger.id,
+      emoji: trigger.emoji,
+      text,
+      at: Date.now(),
+    };
     this.rememberLocalTrigger(trigger, text);
     if (isEmoteSkinEnabled(this.storage)) {
       this.triggerOwnEmote(trigger);
@@ -352,7 +374,8 @@ export class EmoteSkinFeature {
   }
 
   triggerOwnEmote(trigger) {
-    this.triggerRuntimeEmote({
+    this.debug.ownTriggerAttempts += 1;
+    return this.triggerRuntimeEmote({
       emoteId: trigger.id,
       emoji: trigger.emoji,
       own: true,
@@ -362,16 +385,14 @@ export class EmoteSkinFeature {
 
   triggerRuntimeEmote(event) {
     let triggered = false;
-    const targets = [];
-    const addTarget = (target) => {
-      if (target && !targets.includes(target)) {
-        targets.push(target);
-      }
-    };
-
-    addTarget(this.document.defaultView);
-    addTarget(globalThis.unsafeWindow);
-    addTarget(globalThis);
+    const targets = this.getRuntimeTargets();
+    this.debug.lastRuntimeTargets = targets.map((target) => ({
+      hasTrigger: typeof target.__BlobioSkinEmoteTrigger === 'function',
+      hasRuntimeDebug: typeof target.__BlobioSkinEmoteDebug === 'function',
+      isDefaultView: target === this.document.defaultView,
+      isUnsafeWindow: target === globalThis.unsafeWindow,
+      isGlobalThis: target === globalThis,
+    }));
 
     for (const target of targets) {
       const trigger = target.__BlobioSkinEmoteTrigger;
@@ -382,7 +403,95 @@ export class EmoteSkinFeature {
       triggered = Boolean(trigger.call(target, event)) || triggered;
     }
 
+    this.debug.lastTrigger = {
+      ...event,
+      triggered,
+      at: Date.now(),
+    };
+    if (triggered) {
+      this.debug.runtimeTriggerSuccess += 1;
+    } else {
+      this.debug.runtimeTriggerMisses += 1;
+    }
+
     return triggered;
+  }
+
+  getRuntimeTargets() {
+    const targets = [];
+    const addTarget = (target) => {
+      if (target && !targets.includes(target)) {
+        targets.push(target);
+      }
+    };
+
+    addTarget(this.document.defaultView);
+    addTarget(globalThis.unsafeWindow);
+    addTarget(globalThis);
+    return targets;
+  }
+
+  installDebugApi() {
+    const report = () => {
+      const snapshot = this.getDebugReport();
+      this.logger?.log?.('[Blobio Emote Skin] debug', snapshot);
+      try {
+        this.logger?.log?.('[Blobio Emote Skin] JSON:', JSON.stringify(snapshot));
+      } catch {}
+      return snapshot;
+    };
+
+    for (const target of this.getRuntimeTargets()) {
+      try {
+        target.BlobioEmoteSkinDebug = report;
+      } catch {}
+    }
+  }
+
+  getDebugReport() {
+    const input = this.input || this.document.querySelector?.(INPUT_SELECTOR);
+    let pageRuntime = null;
+    for (const target of this.getRuntimeTargets()) {
+      if (typeof target.__BlobioSkinEmoteDebug === 'function') {
+        try {
+          pageRuntime = target.__BlobioSkinEmoteDebug();
+          break;
+        } catch (error) {
+          pageRuntime = { error: error?.message || String(error) };
+        }
+      }
+    }
+
+    return {
+      version: '0.1.1',
+      url: this.document.defaultView?.location?.href || globalThis.location?.href || '',
+      uptimeMs: Date.now() - this.debug.startedAt,
+      enabled: isEmoteSkinEnabled(this.storage),
+      input: {
+        exists: Boolean(input),
+        visible: input ? this.isVisible(input) : false,
+        valueLength: input ? String(input.value || '').length : 0,
+      },
+      panel: {
+        exists: Boolean(this.panel),
+        className: this.panel?.className || '',
+      },
+      runtime: {
+        pageRuntime,
+        targets: this.debug.lastRuntimeTargets,
+      },
+      counters: {
+        insertedEmojis: this.debug.insertedEmojis,
+        assetSends: this.debug.assetSends,
+        ownTriggerAttempts: this.debug.ownTriggerAttempts,
+        remoteTriggerAttempts: this.debug.remoteTriggerAttempts,
+        runtimeTriggerSuccess: this.debug.runtimeTriggerSuccess,
+        runtimeTriggerMisses: this.debug.runtimeTriggerMisses,
+      },
+      lastSend: this.debug.lastSend,
+      lastTrigger: this.debug.lastTrigger,
+      errors: this.debug.errors.slice(-8),
+    };
   }
 
   attachChatObserver() {
@@ -446,6 +555,7 @@ export class EmoteSkinFeature {
       return;
     }
 
+    this.debug.remoteTriggerAttempts += 1;
     this.triggerRuntimeEmote({
       emoteId: trigger.id,
       emoji: trigger.emoji,
@@ -534,6 +644,7 @@ export class EmoteSkinFeature {
         target.dispatchEvent?.(this.createKeyboardEvent(type));
       }
     } catch (error) {
+      this.debug.errors.push(error?.message || String(error));
       this.logger?.warn?.('[Blobio] Emote send keydown failed.', error);
     } finally {
       this.dispatchKeyUp(target);

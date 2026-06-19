@@ -43,6 +43,7 @@ import { VipBadgeFeature } from './features/VipBadgeFeature.js';
 import { getBlobioHostMode } from './hostRules.js';
 import { ProfileUidDetector } from './roles/ProfileUidDetector.js';
 import { RoleRegistry } from './roles/RoleRegistry.js';
+import { getTampermonkeyPageWindow } from './runtimePageWindow.js';
 import { createBlobioStorage } from './storage/BlobioStorage.js';
 import { readVirusMotherCellSettings } from './virus/VirusMotherCellSettings.js';
 import { pageVirusMotherCellBootstrap } from './virus/pageVirusMotherCellBootstrap.js';
@@ -271,7 +272,8 @@ class BlobioExtension {
 
   installEmoteSkinFallback(_document, logger) {
     const windowRef = this.window;
-    if (windowRef.__blobioEmoteSkinInstalled) {
+    const pageWindow = getTampermonkeyPageWindow(windowRef);
+    if (pageWindow.__blobioEmoteSkinInstalled) {
       return true;
     }
 
@@ -279,7 +281,7 @@ class BlobioExtension {
       return Boolean(pageEmoteSkinBootstrap({
         assets: EMOTE_SKIN_ASSETS,
         version: EXTENSION_VERSION,
-      }, windowRef));
+      }, pageWindow));
     } catch (error) {
       logger.warn?.('[Blobio] Emote Skin Display fallback failed.', error);
       return false;

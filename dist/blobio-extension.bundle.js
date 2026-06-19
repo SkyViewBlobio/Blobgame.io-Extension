@@ -1590,13 +1590,7 @@
     "\u{1F60C}",
     "\u{1F60D}",
     "\u{1F618}",
-    "\u{1F617}",
-    "\u{1F619}",
-    "\u{1F61A}",
-    "\u{1F60B}",
-    "\u{1F61C}",
     "\u{1F61D}",
-    "\u{1F61B}",
     "\u{1F911}",
     "\u{1F917}",
     "\u{1F913}",
@@ -1680,6 +1674,19 @@
       this.inputKeydownHandler = null;
       this.sendingTrigger = false;
       this.localTriggers = [];
+      this.debug = {
+        startedAt: Date.now(),
+        insertedEmojis: 0,
+        assetSends: 0,
+        ownTriggerAttempts: 0,
+        remoteTriggerAttempts: 0,
+        runtimeTriggerSuccess: 0,
+        runtimeTriggerMisses: 0,
+        lastSend: null,
+        lastTrigger: null,
+        lastRuntimeTargets: [],
+        errors: []
+      };
       this.randomEmoji = EMOTE_SKIN_EMOJIS[Math.floor(Math.random() * EMOTE_SKIN_EMOJIS.length)] || "\u{1F600}";
       this.started = false;
     }
@@ -1690,6 +1697,7 @@
       this.started = true;
       this.ensureStyle();
       this.ensureUi();
+      this.installDebugApi();
       this.syncInput();
       this.attachChatObserver();
       this.watchPage();
@@ -1897,6 +1905,7 @@
       const nextCursor = Math.min(next.length, start + emoji.length);
       input.setSelectionRange?.(nextCursor, nextCursor);
       this.dispatchInput(input, emoji);
+      this.debug.insertedEmojis += 1;
       return true;
     }
     async sendEmoteTrigger(trigger) {
@@ -1906,6 +1915,13 @@
       }
       this.insertEmoji(trigger.emoji);
       const text = String(input.value || "");
+      this.debug.assetSends += 1;
+      this.debug.lastSend = {
+        emoteId: trigger.id,
+        emoji: trigger.emoji,
+        text,
+        at: Date.now()
+      };
       this.rememberLocalTrigger(trigger, text);
       if (isEmoteSkinEnabled(this.storage)) {
         this.triggerOwnEmote(trigger);
@@ -1948,7 +1964,8 @@
       return this.localTriggers.some((item) => item.emoteId === trigger.id && (!item.text || String(text || "").includes(item.emoji)));
     }
     triggerOwnEmote(trigger) {
-      this.triggerRuntimeEmote({
+      this.debug.ownTriggerAttempts += 1;
+      return this.triggerRuntimeEmote({
         emoteId: trigger.id,
         emoji: trigger.emoji,
         own: true,
@@ -1957,6 +1974,34 @@
     }
     triggerRuntimeEmote(event) {
       let triggered = false;
+      const targets = this.getRuntimeTargets();
+      this.debug.lastRuntimeTargets = targets.map((target) => ({
+        hasTrigger: typeof target.__BlobioSkinEmoteTrigger === "function",
+        hasRuntimeDebug: typeof target.__BlobioSkinEmoteDebug === "function",
+        isDefaultView: target === this.document.defaultView,
+        isUnsafeWindow: target === globalThis.unsafeWindow,
+        isGlobalThis: target === globalThis
+      }));
+      for (const target of targets) {
+        const trigger = target.__BlobioSkinEmoteTrigger;
+        if (typeof trigger !== "function") {
+          continue;
+        }
+        triggered = Boolean(trigger.call(target, event)) || triggered;
+      }
+      this.debug.lastTrigger = {
+        ...event,
+        triggered,
+        at: Date.now()
+      };
+      if (triggered) {
+        this.debug.runtimeTriggerSuccess += 1;
+      } else {
+        this.debug.runtimeTriggerMisses += 1;
+      }
+      return triggered;
+    }
+    getRuntimeTargets() {
       const targets = [];
       const addTarget = (target) => {
         if (target && !targets.includes(target)) {
@@ -1966,14 +2011,68 @@
       addTarget(this.document.defaultView);
       addTarget(globalThis.unsafeWindow);
       addTarget(globalThis);
-      for (const target of targets) {
-        const trigger = target.__BlobioSkinEmoteTrigger;
-        if (typeof trigger !== "function") {
-          continue;
+      return targets;
+    }
+    installDebugApi() {
+      const report = () => {
+        const snapshot = this.getDebugReport();
+        this.logger?.log?.("[Blobio Emote Skin] debug", snapshot);
+        try {
+          this.logger?.log?.("[Blobio Emote Skin] JSON:", JSON.stringify(snapshot));
+        } catch {
         }
-        triggered = Boolean(trigger.call(target, event)) || triggered;
+        return snapshot;
+      };
+      for (const target of this.getRuntimeTargets()) {
+        try {
+          target.BlobioEmoteSkinDebug = report;
+        } catch {
+        }
       }
-      return triggered;
+    }
+    getDebugReport() {
+      const input = this.input || this.document.querySelector?.(INPUT_SELECTOR);
+      let pageRuntime = null;
+      for (const target of this.getRuntimeTargets()) {
+        if (typeof target.__BlobioSkinEmoteDebug === "function") {
+          try {
+            pageRuntime = target.__BlobioSkinEmoteDebug();
+            break;
+          } catch (error) {
+            pageRuntime = { error: error?.message || String(error) };
+          }
+        }
+      }
+      return {
+        version: "0.1.1",
+        url: this.document.defaultView?.location?.href || globalThis.location?.href || "",
+        uptimeMs: Date.now() - this.debug.startedAt,
+        enabled: isEmoteSkinEnabled(this.storage),
+        input: {
+          exists: Boolean(input),
+          visible: input ? this.isVisible(input) : false,
+          valueLength: input ? String(input.value || "").length : 0
+        },
+        panel: {
+          exists: Boolean(this.panel),
+          className: this.panel?.className || ""
+        },
+        runtime: {
+          pageRuntime,
+          targets: this.debug.lastRuntimeTargets
+        },
+        counters: {
+          insertedEmojis: this.debug.insertedEmojis,
+          assetSends: this.debug.assetSends,
+          ownTriggerAttempts: this.debug.ownTriggerAttempts,
+          remoteTriggerAttempts: this.debug.remoteTriggerAttempts,
+          runtimeTriggerSuccess: this.debug.runtimeTriggerSuccess,
+          runtimeTriggerMisses: this.debug.runtimeTriggerMisses
+        },
+        lastSend: this.debug.lastSend,
+        lastTrigger: this.debug.lastTrigger,
+        errors: this.debug.errors.slice(-8)
+      };
     }
     attachChatObserver() {
       const chatList = this.document.querySelector?.("#chat > ul") || this.document.querySelector?.("#chat ul");
@@ -2027,6 +2126,7 @@
       if (this.shouldSuppressLocalTrigger(trigger, parsed.text)) {
         return;
       }
+      this.debug.remoteTriggerAttempts += 1;
       this.triggerRuntimeEmote({
         emoteId: trigger.id,
         emoji: trigger.emoji,
@@ -2104,6 +2204,7 @@
           target.dispatchEvent?.(this.createKeyboardEvent(type));
         }
       } catch (error) {
+        this.debug.errors.push(error?.message || String(error));
         this.logger?.warn?.("[Blobio] Emote send keydown failed.", error);
       } finally {
         this.dispatchKeyUp(target);
@@ -2227,7 +2328,16 @@
       seenCacheScripts: 0,
       wrappedCallback: false,
       errors: [],
-      lastPatchResult: null
+      lastPatchResult: null,
+      counters: {
+        triggerAttempts: 0,
+        triggerAccepted: 0,
+        beginFrames: 0,
+        renderCalls: 0,
+        renderDrawn: 0
+      },
+      lastTrigger: null,
+      lastRender: null
     };
     exposeApi();
     installStyle();
@@ -2260,22 +2370,41 @@
       win.__BlobioSkinEmoteTrigger = triggerEmote;
       win.__BlobioSkinEmoteBeginFrame = beginFrame;
       win.__BlobioSkinEmoteRenderCell = renderCell;
+      win.__BlobioSkinEmoteDebug = debugReport;
+      win.BlobioEmoteSkinRuntimeDebug = debugReport;
     }
     function triggerEmote(event = {}) {
+      state.counters.triggerAttempts += 1;
       const emoteId = normalizeEmoteId(event.emoteId);
+      state.lastTrigger = {
+        emoteId,
+        own: Boolean(event.own),
+        name: normalizeName2(event.name),
+        accepted: false,
+        reason: "",
+        at: Date.now()
+      };
       if (!emoteId || !state.assets[assetKeyForEmote(emoteId)]) {
+        state.lastTrigger.reason = !emoteId ? "unknown-emote-id" : "missing-asset";
         return false;
       }
       const expiresAt = Date.now() + clampDuration(event.durationMs);
       if (event.own) {
         state.ownEmote = { emoteId, expiresAt };
+        state.counters.triggerAccepted += 1;
+        state.lastTrigger.accepted = true;
+        state.lastTrigger.reason = "own-emote";
         return true;
       }
       const name = normalizeName2(event.name);
       if (!name) {
+        state.lastTrigger.reason = "missing-name";
         return false;
       }
       state.emotesByName.set(name, { emoteId, expiresAt });
+      state.counters.triggerAccepted += 1;
+      state.lastTrigger.accepted = true;
+      state.lastTrigger.reason = "remote-emote";
       return true;
     }
     function normalizeEmoteId(value) {
@@ -2304,6 +2433,7 @@
       }
     }
     function beginFrame() {
+      state.counters.beginFrames += 1;
       state.frameSeen = true;
       expireEmotes();
       if (!ensureOverlay()) {
@@ -2316,18 +2446,43 @@
       }
     }
     function renderCell(cellId, rawName, centerX, centerY, cellSize, radius, isOwn) {
+      state.counters.renderCalls += 1;
       const active = findActiveEmote(rawName, isOwn);
       if (!active || !ensureOverlay()) {
+        state.lastRender = {
+          cellId,
+          isOwn: Boolean(isOwn),
+          active: Boolean(active),
+          drawn: false,
+          reason: active ? "overlay-unavailable" : "no-active-emote",
+          at: Date.now()
+        };
         return false;
       }
       const x = Number(centerX);
       const y = Number(centerY);
       const r = Math.max(0, Number(radius) || Number(cellSize) / 2 || 0);
       if (!Number.isFinite(x) || !Number.isFinite(y) || !isPointNearViewport(x, y, r)) {
+        state.lastRender = {
+          cellId,
+          isOwn: Boolean(isOwn),
+          active: true,
+          drawn: false,
+          reason: "outside-viewport",
+          at: Date.now()
+        };
         return false;
       }
       const image = state.images.get(assetKeyForEmote(active.emoteId));
       if (!image || !image.complete && !image.naturalWidth) {
+        state.lastRender = {
+          cellId,
+          isOwn: Boolean(isOwn),
+          active: true,
+          drawn: false,
+          reason: "image-not-ready",
+          at: Date.now()
+        };
         return false;
       }
       const size = Math.max(24, Math.min(128, r * 1.16 || Number(cellSize) * 0.58 || 42));
@@ -2336,6 +2491,17 @@
       state.context.globalAlpha = fadeFor(active.expiresAt);
       state.context.drawImage(image, drawX, drawY, size, size);
       state.context.globalAlpha = 1;
+      state.counters.renderDrawn += 1;
+      state.lastRender = {
+        cellId,
+        isOwn: Boolean(isOwn),
+        emoteId: active.emoteId,
+        drawn: true,
+        x,
+        y,
+        size,
+        at: Date.now()
+      };
       return true;
     }
     function findActiveEmote(rawName, isOwn) {
@@ -2469,6 +2635,9 @@
       if (src && !EMOTE_SKIN_CACHE_SCRIPT_RE.test(src)) {
         return;
       }
+      if (src) {
+        state.seenCacheScripts += 1;
+      }
       if (typeof node.textContent === "string" && node.textContent.includes("function ose(a)")) {
         const result = patchGameBundle(node.textContent);
         state.lastPatchResult = compactPatchResult(result);
@@ -2537,6 +2706,43 @@
         changed: Boolean(result.changed),
         reason: result.reason || "",
         sourceLength: typeof result.source === "string" ? result.source.length : 0
+      };
+    }
+    function debugReport() {
+      return {
+        installed: true,
+        assetKeys: Object.fromEntries(Object.entries(state.assets).map(([key, value]) => [key, Boolean(value)])),
+        images: Object.fromEntries(Array.from(state.images.entries()).map(([key, image]) => [
+          key,
+          {
+            complete: Boolean(image.complete),
+            naturalWidth: Number(image.naturalWidth) || 0
+          }
+        ])),
+        ownEmote: state.ownEmote ? {
+          emoteId: state.ownEmote.emoteId,
+          remainingMs: Math.max(0, state.ownEmote.expiresAt - Date.now())
+        } : null,
+        remoteEmotes: state.emotesByName.size,
+        overlay: state.overlay ? {
+          connected: Boolean(state.overlay.parentNode),
+          width: state.overlay.width,
+          height: state.overlay.height
+        } : null,
+        targetCanvas: state.targetCanvas ? {
+          width: state.targetCanvas.width || 0,
+          height: state.targetCanvas.height || 0
+        } : null,
+        patch: {
+          patchedChunks: state.patchedChunks,
+          seenCacheScripts: state.seenCacheScripts,
+          wrappedCallback: state.wrappedCallback,
+          lastPatchResult: state.lastPatchResult
+        },
+        counters: { ...state.counters },
+        lastTrigger: state.lastTrigger,
+        lastRender: state.lastRender,
+        errors: state.errors.slice(-8)
       };
     }
   }
@@ -5862,11 +6068,30 @@ iframe.blobio-captcha-anchor-hidden,
         for (const button of this.root.querySelectorAll(".blobio-chat-settings-category-button")) {
           button.setAttribute("aria-expanded", "false");
         }
+        this.releaseFocusToGame();
       }
       toggle.textContent = open ? "-" : "+";
       toggle.setAttribute("aria-label", open ? "Close chat settings" : "Open chat settings");
       toggle.setAttribute("aria-expanded", String(open));
       this.positionUi();
+    }
+    releaseFocusToGame() {
+      const active = this.document.activeElement;
+      if (active && this.root?.contains?.(active)) {
+        active.blur?.();
+      }
+      if (this.document.activeElement && this.root?.contains?.(this.document.activeElement)) {
+        return;
+      }
+      const canvas = this.document.querySelector?.("canvas");
+      if (canvas && typeof canvas.focus === "function") {
+        if (!canvas.hasAttribute?.("tabindex")) {
+          canvas.tabIndex = -1;
+        }
+        canvas.focus({ preventScroll: true });
+        return;
+      }
+      (this.document.body || this.document.documentElement)?.focus?.({ preventScroll: true });
     }
     toggleCategory(categoryName) {
       if (!this.root) {
@@ -7595,7 +7820,7 @@ iframe.blobio-captcha-anchor-hidden,
       event.preventDefault?.();
       event.stopImmediatePropagation?.();
       event.stopPropagation?.();
-      this.trigger(hotkey);
+      this.trigger(hotkey, event);
       return true;
     }
     handleMousedown(event) {
@@ -7615,7 +7840,7 @@ iframe.blobio-captcha-anchor-hidden,
     canTrigger(now = Date.now()) {
       return !this.sending && now - this.lastTriggeredAt >= this.cooldownMs;
     }
-    async trigger(hotkey) {
+    async trigger(hotkey, sourceEvent = null) {
       if (!hotkey?.text || !this.canTrigger()) {
         return false;
       }
@@ -7630,6 +7855,7 @@ iframe.blobio-captcha-anchor-hidden,
         this.logger?.warn?.("[Blobio] Hotkey text could not be sent.", error);
         return false;
       } finally {
+        this.releaseSourceKey(sourceEvent);
         this.sending = false;
       }
     }
@@ -7748,27 +7974,77 @@ iframe.blobio-captcha-anchor-hidden,
         eventTarget.dispatchEvent(this.createKeyboardEvent(type));
       }
     }
-    createKeyboardEvent(type) {
+    releaseSourceKey(sourceEvent) {
+      const code = sourceEvent?.code;
+      if (!code) {
+        return;
+      }
+      const targets = [
+        sourceEvent.target,
+        this.document.activeElement,
+        this.document,
+        this.document.defaultView || globalThis
+      ];
+      const seen = /* @__PURE__ */ new Set();
+      for (const target of targets) {
+        if (!target?.dispatchEvent || seen.has(target)) {
+          continue;
+        }
+        seen.add(target);
+        target.dispatchEvent(this.createKeyboardEvent("keyup", {
+          key: sourceEvent.key || this.keyFromCode(code),
+          code,
+          keyCode: sourceEvent.keyCode || sourceEvent.which || this.keyCodeFromCode(code)
+        }));
+      }
+    }
+    createKeyboardEvent(type, details = {}) {
       const win = this.document.defaultView || globalThis;
+      const key = details.key || "Enter";
+      const code = details.code || "Enter";
+      const keyCode = Number(details.keyCode) || this.keyCodeFromCode(code);
       let event;
       try {
         event = new win.KeyboardEvent(type, {
-          key: "Enter",
-          code: "Enter",
+          key,
+          code,
           bubbles: true,
           cancelable: true
         });
       } catch {
-        event = { type, key: "Enter", code: "Enter", bubbles: true, cancelable: true };
+        event = { type, key, code, bubbles: true, cancelable: true };
       }
       try {
         Object.defineProperties(event, {
-          keyCode: { configurable: true, get: () => 13 },
-          which: { configurable: true, get: () => 13 }
+          keyCode: { configurable: true, get: () => keyCode },
+          which: { configurable: true, get: () => keyCode }
         });
       } catch {
       }
       return event;
+    }
+    keyFromCode(code) {
+      if (code === "Space") {
+        return " ";
+      }
+      if (code === "Enter") {
+        return "Enter";
+      }
+      if (/^Key[A-Z]$/.test(code)) {
+        return code.slice(3).toLowerCase();
+      }
+      if (/^Digit\d$/.test(code)) {
+        return code.slice(5);
+      }
+      return code;
+    }
+    keyCodeFromCode(code) {
+      if (code === "Space") return 32;
+      if (code === "Enter") return 13;
+      if (code === "Escape") return 27;
+      if (/^Key[A-Z]$/.test(code)) return code.charCodeAt(3);
+      if (/^Digit\d$/.test(code)) return code.charCodeAt(5);
+      return 0;
     }
     waitForUi() {
       const win = this.document.defaultView || globalThis;
@@ -16817,6 +17093,17 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
     }
   };
 
+  // src/runtimePageWindow.js
+  function getTampermonkeyPageWindow(windowRef = globalThis) {
+    if (windowRef?.unsafeWindow && typeof windowRef.unsafeWindow === "object") {
+      return windowRef.unsafeWindow;
+    }
+    if (globalThis.unsafeWindow && typeof globalThis.unsafeWindow === "object") {
+      return globalThis.unsafeWindow;
+    }
+    return windowRef || globalThis;
+  }
+
   // src/virus/pageVirusMotherCellBootstrap.js
   function pageVirusMotherCellBootstrap(initialConfig, pageWindow) {
     "use strict";
@@ -17548,7 +17835,7 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
     }
     installEmoteSkinFallback(_document, logger) {
       const windowRef = this.window;
-      const pageWindow = windowRef.unsafeWindow && typeof windowRef.unsafeWindow === "object" ? windowRef.unsafeWindow : windowRef;
+      const pageWindow = getTampermonkeyPageWindow(windowRef);
       if (pageWindow.__blobioEmoteSkinInstalled) {
         return true;
       }

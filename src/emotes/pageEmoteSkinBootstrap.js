@@ -31,6 +31,15 @@ export function pageEmoteSkinBootstrap(initialConfig = {}, pageWindow = globalTh
     wrappedCallback: false,
     errors: [],
     lastPatchResult: null,
+    counters: {
+      triggerAttempts: 0,
+      triggerAccepted: 0,
+      beginFrames: 0,
+      renderCalls: 0,
+      renderDrawn: 0,
+    },
+    lastTrigger: null,
+    lastRender: null,
   };
 
   exposeApi();
@@ -69,26 +78,45 @@ export function pageEmoteSkinBootstrap(initialConfig = {}, pageWindow = globalTh
     win.__BlobioSkinEmoteTrigger = triggerEmote;
     win.__BlobioSkinEmoteBeginFrame = beginFrame;
     win.__BlobioSkinEmoteRenderCell = renderCell;
+    win.__BlobioSkinEmoteDebug = debugReport;
+    win.BlobioEmoteSkinRuntimeDebug = debugReport;
   }
 
   function triggerEmote(event = {}) {
+    state.counters.triggerAttempts += 1;
     const emoteId = normalizeEmoteId(event.emoteId);
+    state.lastTrigger = {
+      emoteId,
+      own: Boolean(event.own),
+      name: normalizeName(event.name),
+      accepted: false,
+      reason: '',
+      at: Date.now(),
+    };
     if (!emoteId || !state.assets[assetKeyForEmote(emoteId)]) {
+      state.lastTrigger.reason = !emoteId ? 'unknown-emote-id' : 'missing-asset';
       return false;
     }
 
     const expiresAt = Date.now() + clampDuration(event.durationMs);
     if (event.own) {
       state.ownEmote = { emoteId, expiresAt };
+      state.counters.triggerAccepted += 1;
+      state.lastTrigger.accepted = true;
+      state.lastTrigger.reason = 'own-emote';
       return true;
     }
 
     const name = normalizeName(event.name);
     if (!name) {
+      state.lastTrigger.reason = 'missing-name';
       return false;
     }
 
     state.emotesByName.set(name, { emoteId, expiresAt });
+    state.counters.triggerAccepted += 1;
+    state.lastTrigger.accepted = true;
+    state.lastTrigger.reason = 'remote-emote';
     return true;
   }
 
@@ -124,6 +152,7 @@ export function pageEmoteSkinBootstrap(initialConfig = {}, pageWindow = globalTh
   }
 
   function beginFrame() {
+    state.counters.beginFrames += 1;
     state.frameSeen = true;
     expireEmotes();
     if (!ensureOverlay()) {
@@ -138,8 +167,17 @@ export function pageEmoteSkinBootstrap(initialConfig = {}, pageWindow = globalTh
   }
 
   function renderCell(cellId, rawName, centerX, centerY, cellSize, radius, isOwn) {
+    state.counters.renderCalls += 1;
     const active = findActiveEmote(rawName, isOwn);
     if (!active || !ensureOverlay()) {
+      state.lastRender = {
+        cellId,
+        isOwn: Boolean(isOwn),
+        active: Boolean(active),
+        drawn: false,
+        reason: active ? 'overlay-unavailable' : 'no-active-emote',
+        at: Date.now(),
+      };
       return false;
     }
 
@@ -147,11 +185,27 @@ export function pageEmoteSkinBootstrap(initialConfig = {}, pageWindow = globalTh
     const y = Number(centerY);
     const r = Math.max(0, Number(radius) || Number(cellSize) / 2 || 0);
     if (!Number.isFinite(x) || !Number.isFinite(y) || !isPointNearViewport(x, y, r)) {
+      state.lastRender = {
+        cellId,
+        isOwn: Boolean(isOwn),
+        active: true,
+        drawn: false,
+        reason: 'outside-viewport',
+        at: Date.now(),
+      };
       return false;
     }
 
     const image = state.images.get(assetKeyForEmote(active.emoteId));
     if (!image || (!image.complete && !image.naturalWidth)) {
+      state.lastRender = {
+        cellId,
+        isOwn: Boolean(isOwn),
+        active: true,
+        drawn: false,
+        reason: 'image-not-ready',
+        at: Date.now(),
+      };
       return false;
     }
 
@@ -161,6 +215,17 @@ export function pageEmoteSkinBootstrap(initialConfig = {}, pageWindow = globalTh
     state.context.globalAlpha = fadeFor(active.expiresAt);
     state.context.drawImage(image, drawX, drawY, size, size);
     state.context.globalAlpha = 1;
+    state.counters.renderDrawn += 1;
+    state.lastRender = {
+      cellId,
+      isOwn: Boolean(isOwn),
+      emoteId: active.emoteId,
+      drawn: true,
+      x,
+      y,
+      size,
+      at: Date.now(),
+    };
     return true;
   }
 
@@ -319,6 +384,9 @@ export function pageEmoteSkinBootstrap(initialConfig = {}, pageWindow = globalTh
     if (src && !EMOTE_SKIN_CACHE_SCRIPT_RE.test(src)) {
       return;
     }
+    if (src) {
+      state.seenCacheScripts += 1;
+    }
 
     if (typeof node.textContent === 'string' && node.textContent.includes('function ose(a)')) {
       const result = patchGameBundle(node.textContent);
@@ -397,6 +465,44 @@ export function pageEmoteSkinBootstrap(initialConfig = {}, pageWindow = globalTh
       changed: Boolean(result.changed),
       reason: result.reason || '',
       sourceLength: typeof result.source === 'string' ? result.source.length : 0,
+    };
+  }
+
+  function debugReport() {
+    return {
+      installed: true,
+      assetKeys: Object.fromEntries(Object.entries(state.assets).map(([key, value]) => [key, Boolean(value)])),
+      images: Object.fromEntries(Array.from(state.images.entries()).map(([key, image]) => [
+        key,
+        {
+          complete: Boolean(image.complete),
+          naturalWidth: Number(image.naturalWidth) || 0,
+        },
+      ])),
+      ownEmote: state.ownEmote ? {
+        emoteId: state.ownEmote.emoteId,
+        remainingMs: Math.max(0, state.ownEmote.expiresAt - Date.now()),
+      } : null,
+      remoteEmotes: state.emotesByName.size,
+      overlay: state.overlay ? {
+        connected: Boolean(state.overlay.parentNode),
+        width: state.overlay.width,
+        height: state.overlay.height,
+      } : null,
+      targetCanvas: state.targetCanvas ? {
+        width: state.targetCanvas.width || 0,
+        height: state.targetCanvas.height || 0,
+      } : null,
+      patch: {
+        patchedChunks: state.patchedChunks,
+        seenCacheScripts: state.seenCacheScripts,
+        wrappedCallback: state.wrappedCallback,
+        lastPatchResult: state.lastPatchResult,
+      },
+      counters: { ...state.counters },
+      lastTrigger: state.lastTrigger,
+      lastRender: state.lastRender,
+      errors: state.errors.slice(-8),
     };
   }
 }

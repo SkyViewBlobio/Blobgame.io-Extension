@@ -1185,12 +1185,35 @@ export class ChatSettingsFeature {
       for (const button of this.root.querySelectorAll('.blobio-chat-settings-category-button')) {
         button.setAttribute('aria-expanded', 'false');
       }
+      this.releaseFocusToGame();
     }
 
     toggle.textContent = open ? '-' : '+';
     toggle.setAttribute('aria-label', open ? 'Close chat settings' : 'Open chat settings');
     toggle.setAttribute('aria-expanded', String(open));
     this.positionUi();
+  }
+
+  releaseFocusToGame() {
+    const active = this.document.activeElement;
+    if (active && this.root?.contains?.(active)) {
+      active.blur?.();
+    }
+
+    if (this.document.activeElement && this.root?.contains?.(this.document.activeElement)) {
+      return;
+    }
+
+    const canvas = this.document.querySelector?.('canvas');
+    if (canvas && typeof canvas.focus === 'function') {
+      if (!canvas.hasAttribute?.('tabindex')) {
+        canvas.tabIndex = -1;
+      }
+      canvas.focus({ preventScroll: true });
+      return;
+    }
+
+    (this.document.body || this.document.documentElement)?.focus?.({ preventScroll: true });
   }
 
   toggleCategory(categoryName) {
