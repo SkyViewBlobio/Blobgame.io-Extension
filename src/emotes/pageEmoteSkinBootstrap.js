@@ -255,7 +255,7 @@ export function pageEmoteSkinBootstrap(initialConfig = {}, pageWindow = globalTh
       return {
         x: projected.x,
         y: projected.y,
-        size: Math.max(24, Math.min(128, projectedRadius * 1.16 || 42)),
+        size: Math.max(1, projectedRadius * 2 || 42),
         projected: true,
       };
     }
@@ -263,7 +263,7 @@ export function pageEmoteSkinBootstrap(initialConfig = {}, pageWindow = globalTh
     return {
       x,
       y,
-      size: Math.max(24, Math.min(128, radius * 1.16 || cellSize * 0.58 || 42)),
+      size: Math.max(1, radius * 2 || cellSize || 42),
       projected: false,
     };
   }
