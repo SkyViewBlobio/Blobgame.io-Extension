@@ -55,12 +55,16 @@
     showScore: 'blobio.chat.hudInfo.showScore',
     showCells: 'blobio.chat.hudInfo.showCells',
     showPing: 'blobio.chat.hudInfo.showPing',
+    showBoosters: 'blobio.chat.hudInfo.showBoosters',
     positionMode: 'blobio.chat.hudInfo.positionMode',
     layoutMode: 'blobio.chat.hudInfo.layoutMode',
     styleMode: 'blobio.chat.hudInfo.styleMode',
     fpsMode: 'blobio.chat.hudInfo.fpsMode',
     scoreMode: 'blobio.chat.hudInfo.scoreMode',
     pingMode: 'blobio.chat.hudInfo.pingMode',
+    boosterNameMode: 'blobio.chat.hudInfo.boosterNameMode',
+    boosterDurationMode: 'blobio.chat.hudInfo.boosterDurationMode',
+    boosterLastSecFlash: 'blobio.chat.hudInfo.boosterLastSecFlash',
     fontSize: 'blobio.chat.hudInfo.fontSize',
     color: 'blobio.chat.hudInfo.color',
     alpha: 'blobio.chat.hudInfo.alpha',
@@ -363,6 +367,7 @@
       showScore: readBooleanValue(getSharedValue(HUD_INFO_KEYS.showScore), true),
       showCells: readBooleanValue(getSharedValue(HUD_INFO_KEYS.showCells), true),
       showPing: readBooleanValue(getSharedValue(HUD_INFO_KEYS.showPing), true),
+      showBoosters: readBooleanValue(getSharedValue(HUD_INFO_KEYS.showBoosters), true),
       positionMode: normalizeHudInfoRuntimeMode(
         getSharedValue(HUD_INFO_KEYS.positionMode),
         ['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right'],
@@ -373,6 +378,9 @@
       fpsMode: normalizeHudInfoRuntimeMode(getSharedValue(HUD_INFO_KEYS.fpsMode), ['default', 'advanced', 'dev'], 'default'),
       scoreMode: normalizeHudInfoRuntimeMode(getSharedValue(HUD_INFO_KEYS.scoreMode), ['default', 'advanced', 'dev'], 'default'),
       pingMode: normalizeHudInfoRuntimeMode(getSharedValue(HUD_INFO_KEYS.pingMode), ['default', 'advanced', 'dev'], 'default'),
+      boosterNameMode: normalizeHudInfoRuntimeMode(getSharedValue(HUD_INFO_KEYS.boosterNameMode), ['simple', 'solid'], 'simple'),
+      boosterDurationMode: normalizeHudInfoRuntimeMode(getSharedValue(HUD_INFO_KEYS.boosterDurationMode), ['simple', 'solid'], 'simple'),
+      boosterLastSecFlash: readBooleanValue(getSharedValue(HUD_INFO_KEYS.boosterLastSecFlash), false),
       fontSize: Math.round(normalizeHudInfoRuntimeNumber(getSharedValue(HUD_INFO_KEYS.fontSize), 10, 32, 17)),
       color: normalizeHudInfoRuntimeColor(getSharedValue(HUD_INFO_KEYS.color)),
       alpha: normalizeHudInfoRuntimeNumber(getSharedValue(HUD_INFO_KEYS.alpha), 0, 1, 1),
@@ -4348,6 +4356,17 @@
       nativeWebSocket: null,
       gameSocketUrl: '',
       gameSocketProtocols: undefined,
+      patch: {
+        seenChunks: 0,
+        patchedChunks: 0,
+        boosterPatched: 0,
+        hudPatched: 0,
+        cellsPatched: 0,
+        socketPatched: 0,
+        socketSendPatched: 0,
+        wrappedCallback: false,
+        lastResult: null,
+      },
       renderSettingsKey: '',
       renderDataKey: '',
       originalAppendChild: null,
@@ -4379,6 +4398,8 @@
       win.__BlobioHudInfoSocketSend = noteGameSocketSend;
       win.__BlobioHudInfoSocketMessage = noteGameSocketMessage;
       win.__blobioHudInfoRefresh = refresh;
+      win.__BlobioHudInfoDebug = debugReport;
+      win.BlobioHudInfoDebug = debugReport;
     }
 
     function startUi() {
@@ -4573,6 +4594,39 @@
       span.textContent = text;
       parent.appendChild(span);
       return span;
+    }
+
+    function debugReport() {
+      const boosterRow = state.rows?.boosters || null;
+      const boosterValue = state.rows?.boostersValue || null;
+      return {
+        installed: true,
+        url: win.location?.href || '',
+        uptimeMs: Date.now() - state.startedAt,
+        settings: { ...state.settings },
+        latest: {
+          score: state.latest.score,
+          fps: state.latest.fps,
+          ping: state.latest.ping,
+          cells: state.latest.cells,
+          boosters: state.latest.boosters.map((booster) => ({ ...booster })),
+        },
+        dom: {
+          rootExists: Boolean(state.root?.parentNode),
+          rootHidden: Boolean(state.root?.hidden),
+          rootClassName: state.root?.className || '',
+          boosterRowExists: Boolean(boosterRow?.parentNode),
+          boosterRowClassName: boosterRow?.className || '',
+          boosterText: boosterValue?.textContent || '',
+        },
+        patch: {
+          patchApplied: state.patchApplied,
+          ...state.patch,
+        },
+        timers: {
+          msSinceBoosterGame: state.lastBoosterGameAt ? Date.now() - state.lastBoosterGameAt : null,
+        },
+      };
     }
 
     function getChatFontFamily() {
@@ -4884,11 +4938,20 @@
 
       let patched = code;
       let changed = false;
+      const result = {
+        codeLength: code.length,
+        boosterPatched: false,
+        hudPatched: false,
+        cellsPatched: false,
+        socketPatched: false,
+        socketSendPatched: false,
+      };
       const boosterNeedle = "function Tqe(a,b){var c,d;bt(a.a);for(c=0;c<b.length;c++){d=b[c];if(!d){break}Gm(a.c,a.a,d.LW(),$b.a.width*f0e,$b.a.height-10-c*20)}jt(a.a)}";
-      const boosterReplacement = "function Tqe(a,b){var c,d,e,f;f=[];bt(a.a);for(c=0;c<b.length;c++){d=b[c];if(!d){break}e=d.LW();f[f.length]=e;Gm(a.c,a.a,e,$b.a.width*f0e,$b.a.height-10-c*20)}$wnd.__BlobioHudInfoBoosters&&$wnd.__BlobioHudInfoBoosters(f);jt(a.a)}";
+      const boosterReplacement = "function Tqe(a,b){var c,d,e,f;f=[];bt(a.a);for(c=0;c<b.length;c++){d=b[c];if(!d){break}e=d.LW();f[f.length]=e}$wnd.__BlobioHudInfoBoosters&&$wnd.__BlobioHudInfoBoosters(f);jt(a.a)}";
       if (patched.includes(boosterNeedle) && !patched.includes('__BlobioHudInfoBoosters')) {
         patched = patched.replace(boosterNeedle, boosterReplacement);
         changed = true;
+        result.boosterPatched = true;
       }
 
       const hudNeedle = "function Tqe(a){var b;bt(a.a);b=((Yse(),Qse)?'Replay: ':'Score: ')+((sxe(),qxe).g/100|0);if(Nye(qxe.f,(Ize(),zze))){Wqe(a);b=_Ee(b,' | '+y1d(a.d)+' fps')}qxe.I.d&&(b='Replay ended');Gm(a.c,a.a,b,10,$b.a.height-10);jt(a.a)}";
@@ -4896,6 +4959,7 @@
       if (patched.includes(hudNeedle) && !patched.includes('__BlobioHudInfoUpdate')) {
         patched = patched.replace(hudNeedle, hudReplacement);
         changed = true;
+        result.hudPatched = true;
       }
 
       const cellsNeedle = "function zxe(a){var b,c,d,e,f,g,h;g=0;b=0;h=TIe(a.A.a);for(d=(f=(new JJe(a.A.a)).a.iX().Rd(),new PJe(f));d.a.Td();){c=(e=d.a.Ud(),e.WX());g+=c.w*c.w;b+=c.w}a.g=g;h>1&&(a.a=b/h|0)}";
@@ -4903,6 +4967,7 @@
       if (patched.includes(cellsNeedle) && !patched.includes('__BlobioHudInfoCells')) {
         patched = patched.replace(cellsNeedle, cellsReplacement);
         changed = true;
+        result.cellsPatched = true;
       }
 
       const socketNeedle = "function kxe(e,b,c){var d=e;d.ws&&d.ws.close(X0e);d.ws=new WebSocket(b,c);d.ws.onopen=function(){d.uW()};d.ws.binaryType=xsf;d.ws.onclose=function(a){d.qW(a.code,a.reason)};d.ws.onerror=function(a){d.rW(a.type,a.toString())};d.ws.onmessage=function(a){typeof a.data==USe?d.tW(a.data):d.sW(a.data)}}";
@@ -4910,6 +4975,7 @@
       if (patched.includes(socketNeedle) && !patched.includes('__BlobioHudInfoSocketCreated')) {
         patched = patched.replace(socketNeedle, socketReplacement);
         changed = true;
+        result.socketPatched = true;
       }
 
       const socketSendNeedle = "_.pW=function BVd(b){var c,d,e;d=fme(b.length);c=new Int8Array(d);c.set(b,0);try{this.ws&&this.ws.send(d)}catch(a){a=Yke(a);if(q1d(a,36)){e=a;throw Zke(new fVd(e))}else throw Zke(a)}};";
@@ -4917,15 +4983,24 @@
       if (patched.includes(socketSendNeedle) && !patched.includes('__BlobioHudInfoSocketSend')) {
         patched = patched.replace(socketSendNeedle, socketSendReplacement);
         changed = true;
+        result.socketSendPatched = true;
       }
 
+      state.patch.lastResult = { ...result, changed };
       return { code: patched, changed };
     }
 
     function patchDownloadedChunk(chunk) {
+      state.patch.seenChunks += 1;
       const result = patchGameCode(chunk);
       if (result.changed) {
         state.patchApplied = true;
+        state.patch.patchedChunks += 1;
+        if (state.patch.lastResult?.boosterPatched) state.patch.boosterPatched += 1;
+        if (state.patch.lastResult?.hudPatched) state.patch.hudPatched += 1;
+        if (state.patch.lastResult?.cellsPatched) state.patch.cellsPatched += 1;
+        if (state.patch.lastResult?.socketPatched) state.patch.socketPatched += 1;
+        if (state.patch.lastResult?.socketSendPatched) state.patch.socketSendPatched += 1;
       }
       return result.code;
     }
@@ -4943,6 +5018,7 @@
         return original.call(this, patched);
       };
       html.__blobioHudInfoWrapped = true;
+      state.patch.wrappedCallback = true;
       return true;
     }
 
