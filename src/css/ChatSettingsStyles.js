@@ -561,6 +561,10 @@ export const CHAT_SETTINGS_CSS = `
   box-sizing: border-box;
 }
 
+.blobio-ui-setting-group.is-hidden {
+  display: none;
+}
+
 .blobio-ui-setting-group + .blobio-ui-setting-group {
   margin-top: 10px;
   padding-top: 10px;

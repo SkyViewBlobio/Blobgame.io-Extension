@@ -4,20 +4,30 @@ const HUD_INFO_PING_PROBE_INTERVAL_MS = 3000;
 const HUD_INFO_PING_PROBE_TIMEOUT_MS = 2500;
 const HUD_INFO_PING_STALE_MS = 9000;
 const HUD_INFO_MAX_SAMPLES = 240;
+const HUD_INFO_BOOSTER_GAME_STALE_MS = 1200;
 
 const HUD_INFO_STYLE_MODES = new Set(['solid', 'simple']);
 const HUD_INFO_DATA_MODES = new Set(['default', 'advanced', 'dev']);
 const HUD_INFO_POSITION_MODES_SET = new Set(['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right']);
 const HUD_INFO_LAYOUT_MODES_SET = new Set(['line', 'below']);
+const HUD_INFO_BOOSTER_COLOR_MODES = new Set(['solid', 'simple']);
 const HUD_INFO_STYLE_CLASSES = [...HUD_INFO_STYLE_MODES].map((mode) => `is-${mode}`);
 const HUD_INFO_POSITION_CLASSES = [...HUD_INFO_POSITION_MODES_SET].map((mode) => `position-${mode}`);
 const HUD_INFO_ANCHOR_CLASSES = ['anchor-left', 'anchor-center', 'anchor-right'];
 const HUD_INFO_LAYOUT_CLASSES = [...HUD_INFO_LAYOUT_MODES_SET].map((mode) => `is-layout-${mode}`);
+const HUD_INFO_BOOSTER_TYPES = ['SPEED', 'MERGE', 'VIRUS'];
+const HUD_INFO_BOOSTER_PATTERN = /\b(SPEED|MERGE|VIRUS)\s*:\s*(\d+(?:\.\d+)?)\s*s\b/gi;
 
 const HUD_INFO_MASS_COLORS = {
   red: 'rgb(255, 74, 74)',
   yellow: 'rgb(255, 220, 74)',
   green: 'rgb(83, 255, 119)',
+};
+
+const HUD_INFO_BOOSTER_NAME_CLASSES = {
+  SPEED: 'is-speed',
+  MERGE: 'is-merge',
+  VIRUS: 'is-virus',
 };
 
 const DEFAULT_HUD_INFO_RUNTIME_SETTINGS = Object.freeze({
@@ -26,10 +36,14 @@ const DEFAULT_HUD_INFO_RUNTIME_SETTINGS = Object.freeze({
   showFps: true,
   showPing: true,
   showCells: true,
+  showBoosters: true,
   styleMode: 'simple',
   scoreMode: 'default',
   fpsMode: 'default',
   pingMode: 'default',
+  boosterNameMode: 'simple',
+  boosterDurationMode: 'simple',
+  boosterLastSecFlash: false,
   positionMode: 'top-left',
   layoutMode: 'below',
   fontSize: 17,
@@ -42,6 +56,7 @@ const HUD_INFO_ROWS = [
   { key: 'fps', label: 'FPS', show: 'showFps', mode: 'fpsMode', format: hudInfoFormatFpsValue, color: (data) => hudInfoColorForFps(data.fps) },
   { key: 'ping', label: 'Ping', show: 'showPing', mode: 'pingMode', format: hudInfoFormatPingValue, color: (data) => hudInfoColorForPing(data.ping) },
   { key: 'cells', label: 'Cells', show: 'showCells', format: hudInfoFormatCellsValue, color: () => HUD_INFO_MASS_COLORS.green },
+  { key: 'boosters', label: '', show: 'showBoosters', booster: true },
 ];
 
 export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
@@ -76,8 +91,11 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
       peakPing: 0,
       pingUpdatedAt: 0,
       cells: 0,
+      boosters: [],
       replayEnded: false,
     },
+    boosterDurations: {},
+    lastBoosterGameAt: 0,
     fpsSamples: [],
     pingSamples: [],
     renderFrame: null,
@@ -116,6 +134,7 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
   function exposeApi() {
     win.__BlobioHudInfoUpdate = updateFromGame;
     win.__BlobioHudInfoCells = updateCellsFromGame;
+    win.__BlobioHudInfoBoosters = (boosters) => updateBoostersFromSource(boosters, 'game');
     win.__BlobioHudInfoSocketOpening = noteGameSocketOpening;
     win.__BlobioHudInfoSocketCreated = noteGameSocketCreated;
     win.__BlobioHudInfoSocketSend = noteGameSocketSend;
@@ -205,7 +224,7 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
     const settings = state.settings;
     const data = state.latest;
     const fontFamily = getChatFontFamily();
-    const nextSettingsKey = hudInfoRenderSettingsKey(settings, fontFamily);
+    const nextSettingsKey = hudInfoRenderSettingsKey(settings, fontFamily, data);
     const nextDataKey = hudInfoRenderDataKey(data, settings);
     const hasData = state.dataUpdates > 0;
 
@@ -216,7 +235,7 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
 
     if (state.renderSettingsKey !== nextSettingsKey) {
       state.renderSettingsKey = nextSettingsKey;
-      renderHudSettings(settings, fontFamily);
+      renderHudSettings(settings, fontFamily, data);
     }
 
     if (state.renderDataKey !== nextDataKey) {
@@ -227,9 +246,13 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
     hudInfoToggleClass(state.root, 'has-data', hasData);
   }
 
-  function renderHudSettings(settings, fontFamily) {
+  function renderHudSettings(settings, fontFamily, data) {
     const separatorItems = [];
-    const isEmpty = HUD_INFO_ROWS.every((row) => !settings[row.show]);
+    const visibleRows = HUD_INFO_ROWS.map((row) => ({
+      row,
+      visible: hudInfoIsRowVisible(row, settings, data),
+    }));
+    const isEmpty = visibleRows.every((item) => !item.visible);
     state.root.classList.remove(
       ...HUD_INFO_STYLE_CLASSES,
       ...HUD_INFO_POSITION_CLASSES,
@@ -248,8 +271,7 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
     state.root.style.setProperty('--blobio-hud-font-size', `${settings.fontSize}px`);
     state.root.style.setProperty('--blobio-hud-font', fontFamily);
 
-    for (const row of HUD_INFO_ROWS) {
-      const visible = settings[row.show];
+    for (const { row, visible } of visibleRows) {
       hudInfoSetRowVisible(state.rows[row.key], visible);
       hudInfoSetText(state.rows[`${row.key}Label`], hudInfoLabelTextFor(row.label, settings));
       separatorItems.push({ separator: state.rows[`${row.key}Separator`], visible });
@@ -262,9 +284,56 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
     const useValueColors = settings.styleMode === 'simple';
     for (const row of HUD_INFO_ROWS) {
       const valueNode = state.rows[`${row.key}Value`];
+      if (row.booster) {
+        renderBoosterValue(valueNode, data.boosters, settings);
+        continue;
+      }
       hudInfoSetText(valueNode, row.format(data, settings[row.mode]));
       hudInfoSetStyleColor(valueNode, useValueColors ? row.color(data) : '');
     }
+  }
+
+  function renderBoosterValue(valueNode, boosters, settings) {
+    if (!valueNode) {
+      return;
+    }
+
+    valueNode.textContent = '';
+    hudInfoSetStyleColor(valueNode, '');
+
+    const active = hudInfoVisibleBoosters({ boosters });
+    if (!active.length) {
+      return;
+    }
+
+    appendBoosterText(valueNode, '[', 'blobio-hud-info-booster-punctuation');
+    active.forEach((booster, index) => {
+      if (index > 0) {
+        appendBoosterText(valueNode, ', ', 'blobio-hud-info-booster-punctuation');
+      }
+
+      const name = appendBoosterText(valueNode, `${booster.type}:`, 'blobio-hud-info-booster-name');
+      name.classList.add(settings.boosterNameMode === 'simple'
+        ? HUD_INFO_BOOSTER_NAME_CLASSES[booster.type]
+        : 'is-solid-color');
+
+      const duration = appendBoosterText(valueNode, ` ${hudInfoNumberText(booster.seconds)}s`, 'blobio-hud-info-booster-duration');
+      if (settings.boosterDurationMode === 'simple') {
+        duration.classList.add(hudInfoBoosterDurationClass(booster));
+        duration.classList.toggle('is-flashing', Boolean(settings.boosterLastSecFlash && booster.seconds <= 3));
+      } else {
+        duration.classList.add('is-solid-color');
+      }
+    });
+    appendBoosterText(valueNode, ']', 'blobio-hud-info-booster-punctuation');
+  }
+
+  function appendBoosterText(parent, text, className) {
+    const span = doc.createElement('span');
+    span.classList.add(className);
+    span.textContent = text;
+    parent.appendChild(span);
+    return span;
   }
 
   function getChatFontFamily() {
@@ -319,6 +388,7 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
       state.lastSampleAt = now;
       hudInfoPushSample(state.fpsSamples, nextFps);
       state.latest.averageFps = hudInfoAverage(state.fpsSamples);
+      sampleBoostersFromDom(now);
     }
     scheduleRender();
   }
@@ -331,6 +401,31 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
     state.latest.cells = count;
     state.latest.averageScore = hudInfoAverageMass(state.latest.score, count);
     scheduleRender();
+  }
+
+  function updateBoostersFromSource(source, sourceName = 'game') {
+    const now = Date.now();
+    if (sourceName === 'game') {
+      state.lastBoosterGameAt = now;
+    }
+
+    const boosters = hudInfoApplyBoosterDurations(hudInfoParseBoosters(source), state.boosterDurations, now);
+    if (hudInfoBoostersDataKey(state.latest.boosters) === hudInfoBoostersDataKey(boosters)) {
+      return;
+    }
+    state.latest.boosters = boosters;
+    scheduleRender();
+  }
+
+  function sampleBoostersFromDom(now = Date.now()) {
+    if (now - state.lastBoosterGameAt < HUD_INFO_BOOSTER_GAME_STALE_MS) {
+      return;
+    }
+
+    const text = hudInfoFindBoosterTextInDom(doc);
+    if (text || state.latest.boosters.length) {
+      updateBoostersFromSource(text || [], 'dom');
+    }
   }
 
   function updatePingFromSocket(ping, source = 'passive') {
@@ -550,6 +645,13 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
 
     let patched = code;
     let changed = false;
+    const boosterNeedle = "function Tqe(a,b){var c,d;bt(a.a);for(c=0;c<b.length;c++){d=b[c];if(!d){break}Gm(a.c,a.a,d.LW(),$b.a.width*f0e,$b.a.height-10-c*20)}jt(a.a)}";
+    const boosterReplacement = "function Tqe(a,b){var c,d,e,f;f=[];bt(a.a);for(c=0;c<b.length;c++){d=b[c];if(!d){break}e=d.LW();f[f.length]=e;Gm(a.c,a.a,e,$b.a.width*f0e,$b.a.height-10-c*20)}$wnd.__BlobioHudInfoBoosters&&$wnd.__BlobioHudInfoBoosters(f);jt(a.a)}";
+    if (patched.includes(boosterNeedle) && !patched.includes('__BlobioHudInfoBoosters')) {
+      patched = patched.replace(boosterNeedle, boosterReplacement);
+      changed = true;
+    }
+
     const hudNeedle = "function Tqe(a){var b;bt(a.a);b=((Yse(),Qse)?'Replay: ':'Score: ')+((sxe(),qxe).g/100|0);if(Nye(qxe.f,(Ize(),zze))){Wqe(a);b=_Ee(b,' | '+y1d(a.d)+' fps')}qxe.I.d&&(b='Replay ended');Gm(a.c,a.a,b,10,$b.a.height-10);jt(a.a)}";
     const hudReplacement = "function Tqe(a){var b;bt(a.a);b=((sxe(),qxe).g/100|0);Wqe(a);$wnd.__BlobioHudInfoUpdate&&$wnd.__BlobioHudInfoUpdate(b,y1d(a.d),qxe.I.d?1:0);jt(a.a)}";
     if (patched.includes(hudNeedle) && !patched.includes('__BlobioHudInfoUpdate')) {
@@ -726,6 +828,46 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
 }
 .blobio-hud-info-separator.is-visible {
   display: inline;
+}
+.blobio-hud-info-row[data-row="boosters"] .blobio-hud-info-label {
+  display: none;
+}
+.blobio-hud-info-booster-name {
+  font-weight: 800;
+}
+.blobio-hud-info-booster-name.is-solid-color,
+.blobio-hud-info-booster-duration.is-solid-color,
+.blobio-hud-info-booster-punctuation {
+  color: var(--blobio-hud-color-a);
+}
+.blobio-hud-info-booster-name.is-speed {
+  color: rgb(103, 207, 255);
+}
+.blobio-hud-info-booster-name.is-merge {
+  color: rgb(74, 126, 255);
+}
+.blobio-hud-info-booster-name.is-virus {
+  color: rgb(255, 74, 74);
+}
+.blobio-hud-info-booster-duration.is-duration-green {
+  color: rgb(83, 255, 119);
+}
+.blobio-hud-info-booster-duration.is-duration-yellow {
+  color: rgb(255, 220, 74);
+}
+.blobio-hud-info-booster-duration.is-duration-red {
+  color: rgb(255, 74, 74);
+}
+.blobio-hud-info-booster-duration.is-flashing {
+  animation: blobio-hud-booster-flash 0.85s ease-in-out infinite alternate;
+}
+@keyframes blobio-hud-booster-flash {
+  from {
+    text-shadow: 0 0 2px rgba(255, 74, 74, 0.35), 0 1px 2px rgba(0, 0, 0, 0.95);
+  }
+  to {
+    text-shadow: 0 0 10px rgba(255, 74, 74, 0.95), 0 0 18px rgba(255, 74, 74, 0.55), 0 1px 2px rgba(0, 0, 0, 0.95);
+  }
 }`;
     (doc.head || doc.documentElement).appendChild(style);
     state.styleNode = style;
@@ -740,10 +882,20 @@ function normalizeHudInfoSettings(settings = {}) {
     showFps: source.showFps === undefined ? DEFAULT_HUD_INFO_RUNTIME_SETTINGS.showFps : Boolean(source.showFps),
     showPing: source.showPing === undefined ? DEFAULT_HUD_INFO_RUNTIME_SETTINGS.showPing : Boolean(source.showPing),
     showCells: source.showCells === undefined ? DEFAULT_HUD_INFO_RUNTIME_SETTINGS.showCells : Boolean(source.showCells),
+    showBoosters: source.showBoosters === undefined ? DEFAULT_HUD_INFO_RUNTIME_SETTINGS.showBoosters : Boolean(source.showBoosters),
     styleMode: HUD_INFO_STYLE_MODES.has(source.styleMode) ? source.styleMode : DEFAULT_HUD_INFO_RUNTIME_SETTINGS.styleMode,
     scoreMode: HUD_INFO_DATA_MODES.has(source.scoreMode) ? source.scoreMode : DEFAULT_HUD_INFO_RUNTIME_SETTINGS.scoreMode,
     fpsMode: HUD_INFO_DATA_MODES.has(source.fpsMode) ? source.fpsMode : DEFAULT_HUD_INFO_RUNTIME_SETTINGS.fpsMode,
     pingMode: HUD_INFO_DATA_MODES.has(source.pingMode) ? source.pingMode : DEFAULT_HUD_INFO_RUNTIME_SETTINGS.pingMode,
+    boosterNameMode: HUD_INFO_BOOSTER_COLOR_MODES.has(source.boosterNameMode)
+      ? source.boosterNameMode
+      : DEFAULT_HUD_INFO_RUNTIME_SETTINGS.boosterNameMode,
+    boosterDurationMode: HUD_INFO_BOOSTER_COLOR_MODES.has(source.boosterDurationMode)
+      ? source.boosterDurationMode
+      : DEFAULT_HUD_INFO_RUNTIME_SETTINGS.boosterDurationMode,
+    boosterLastSecFlash: source.boosterLastSecFlash === undefined
+      ? DEFAULT_HUD_INFO_RUNTIME_SETTINGS.boosterLastSecFlash
+      : Boolean(source.boosterLastSecFlash),
     positionMode: HUD_INFO_POSITION_MODES_SET.has(source.positionMode) ? source.positionMode : DEFAULT_HUD_INFO_RUNTIME_SETTINGS.positionMode,
     layoutMode: HUD_INFO_LAYOUT_MODES_SET.has(source.layoutMode) ? source.layoutMode : DEFAULT_HUD_INFO_RUNTIME_SETTINGS.layoutMode,
     fontSize: hudInfoClampNumber(source.fontSize, 10, 32, DEFAULT_HUD_INFO_RUNTIME_SETTINGS.fontSize),
@@ -838,6 +990,99 @@ function hudInfoFormatCellsValue(data) {
   return hudInfoNumberText(data.cells);
 }
 
+function hudInfoParseBoosters(source) {
+  const values = Array.isArray(source) ? source : [source];
+  const byType = new Map();
+
+  for (const value of values) {
+    const text = hudInfoBoosterText(value);
+    if (!text) {
+      continue;
+    }
+
+    HUD_INFO_BOOSTER_PATTERN.lastIndex = 0;
+    let match = HUD_INFO_BOOSTER_PATTERN.exec(text);
+    while (match) {
+      const type = String(match[1] || '').toUpperCase();
+      const seconds = Math.max(0, Math.ceil(Number(match[2]) || 0));
+      if (HUD_INFO_BOOSTER_TYPES.includes(type) && seconds > 0) {
+        byType.set(type, { type, seconds });
+      }
+      match = HUD_INFO_BOOSTER_PATTERN.exec(text);
+    }
+  }
+
+  return HUD_INFO_BOOSTER_TYPES
+    .map((type) => byType.get(type))
+    .filter(Boolean);
+}
+
+function hudInfoBoosterText(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value.LW === 'function') {
+    try {
+      return String(value.LW() || '');
+    } catch {
+      return '';
+    }
+  }
+  return String(value || '');
+}
+
+function hudInfoApplyBoosterDurations(boosters, durations, now) {
+  const activeTypes = new Set(boosters.map((booster) => booster.type));
+  for (const type of Object.keys(durations)) {
+    if (!activeTypes.has(type)) {
+      delete durations[type];
+    }
+  }
+
+  return boosters.map((booster) => {
+    const previous = durations[booster.type];
+    const reset = !previous || booster.seconds > previous.seconds + 2;
+    const totalSeconds = reset
+      ? booster.seconds
+      : Math.max(previous.totalSeconds || 0, booster.seconds);
+    durations[booster.type] = {
+      seconds: booster.seconds,
+      totalSeconds,
+      lastSeenAt: now,
+    };
+    return {
+      ...booster,
+      totalSeconds,
+    };
+  });
+}
+
+function hudInfoFindBoosterTextInDom(doc) {
+  const text = String(doc?.body?.innerText || doc?.body?.textContent || '');
+  HUD_INFO_BOOSTER_PATTERN.lastIndex = 0;
+  return HUD_INFO_BOOSTER_PATTERN.test(text) ? text : '';
+}
+
+function hudInfoVisibleBoosters(data) {
+  return (Array.isArray(data?.boosters) ? data.boosters : [])
+    .filter((booster) => HUD_INFO_BOOSTER_TYPES.includes(booster.type) && Number(booster.seconds) > 0);
+}
+
+function hudInfoBoosterDurationClass(booster) {
+  const seconds = Number(booster.seconds) || 0;
+  const total = Math.max(seconds, Number(booster.totalSeconds) || 0);
+  if (seconds <= 3) {
+    return 'is-duration-red';
+  }
+  if (total > 0 && seconds <= total * 0.5) {
+    return 'is-duration-yellow';
+  }
+  return 'is-duration-green';
+}
+
 function hudInfoAverageMass(score, cells) {
   const count = Math.max(0, Math.round(Number(cells) || 0));
   return count ? Math.max(0, Math.round((Number(score) || 0) / count)) : Math.max(0, Math.round(Number(score) || 0));
@@ -863,7 +1108,7 @@ function hudInfoPushSample(samples, value) {
 }
 
 function hudInfoHasAnyEnabled(settings) {
-  return Boolean(settings.showScore || settings.showFps || settings.showPing || settings.showCells);
+  return Boolean(settings.showScore || settings.showFps || settings.showPing || settings.showCells || settings.showBoosters);
 }
 
 function hudInfoShouldUseTextShadow(settings) {
@@ -881,16 +1126,26 @@ function hudInfoIsBottomPosition(positionMode) {
 }
 
 function hudInfoLabelTextFor(label, settings) {
+  if (!label) {
+    return '';
+  }
   if (settings.layoutMode === 'below' && hudInfoPositionAnchor(settings.positionMode) === 'right') {
     return label;
   }
   return `${label}:`;
 }
 
-function hudInfoRenderSettingsKey(settings, fontFamily = '') {
+function hudInfoIsRowVisible(row, settings, data) {
+  if (!settings[row.show]) {
+    return false;
+  }
+  return !row.booster || hudInfoVisibleBoosters(data).length > 0;
+}
+
+function hudInfoRenderSettingsKey(settings, fontFamily = '', data = {}) {
   return [
     settings.enabled ? 1 : 0,
-    ...HUD_INFO_ROWS.map((row) => (settings[row.show] ? 1 : 0)),
+    ...HUD_INFO_ROWS.map((row) => (hudInfoIsRowVisible(row, settings, data) ? 1 : 0)),
     settings.styleMode,
     settings.positionMode,
     settings.layoutMode,
@@ -907,6 +1162,9 @@ function hudInfoRenderDataKey(data, settings) {
     settings.scoreMode,
     settings.fpsMode,
     settings.pingMode,
+    settings.boosterNameMode,
+    settings.boosterDurationMode,
+    settings.boosterLastSecFlash ? 1 : 0,
     data.score,
     data.averageScore,
     data.fps,
@@ -916,7 +1174,14 @@ function hudInfoRenderDataKey(data, settings) {
     data.averagePing,
     data.peakPing,
     data.cells,
+    hudInfoBoostersDataKey(data.boosters),
   ].join('|');
+}
+
+function hudInfoBoostersDataKey(boosters) {
+  return hudInfoVisibleBoosters({ boosters })
+    .map((booster) => `${booster.type}:${booster.seconds}:${booster.totalSeconds || booster.seconds}`)
+    .join(',');
 }
 
 function hudInfoSetText(node, text) {

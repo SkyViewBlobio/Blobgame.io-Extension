@@ -14,6 +14,7 @@ import {
   setChatFontSizeEnabled,
 } from '../settings/RuntimeSettings.js';
 import {
+  HUD_INFO_BOOSTER_COLOR_MODES,
   HUD_INFO_DATA_MODES,
   HUD_INFO_FONT_LIMITS,
   HUD_INFO_LAYOUT_MODES,
@@ -766,12 +767,16 @@ export class ChatSettingsFeature {
       this.createBooleanSetting('hud-info-score', 'Score'),
       this.createBooleanSetting('hud-info-cells', 'Cells'),
       this.createBooleanSetting('hud-info-ping', 'Ping'),
+      this.createBooleanSetting('hud-info-boosters', 'Booster-Info'),
       this.createHudModeSetting('hud-position', 'Position'),
       this.createHudModeSetting('hud-layout', 'Layout'),
       this.createHudModeSetting('hud-style', 'Style'),
       this.createHudModeSetting('hud-fps-mode', 'FPS mode'),
       this.createHudModeSetting('hud-score-mode', 'Score mode'),
       this.createHudModeSetting('hud-ping-mode', 'Ping mode'),
+      this.createHudModeSetting('hud-booster-name-mode', 'Booster type color'),
+      this.createHudModeSetting('hud-booster-duration-mode', 'Booster duration color'),
+      this.createBooleanSetting('hud-booster-last-sec-flash', 'Last-Sec-Flash'),
       this.createHudSizeSetting(),
       this.createHudColorSetting(),
     );
@@ -993,6 +998,8 @@ export class ChatSettingsFeature {
       ['hud-info-score', 'showScore'],
       ['hud-info-cells', 'showCells'],
       ['hud-info-ping', 'showPing'],
+      ['hud-info-boosters', 'showBoosters'],
+      ['hud-booster-last-sec-flash', 'boosterLastSecFlash'],
     ];
 
     for (const [settingName, key] of booleanBindings) {
@@ -1012,6 +1019,8 @@ export class ChatSettingsFeature {
     this.bindHudModeButton(category, 'hud-fps-mode', 'fpsMode', HUD_INFO_DATA_MODES);
     this.bindHudModeButton(category, 'hud-score-mode', 'scoreMode', HUD_INFO_DATA_MODES);
     this.bindHudModeButton(category, 'hud-ping-mode', 'pingMode', HUD_INFO_DATA_MODES);
+    this.bindHudModeButton(category, 'hud-booster-name-mode', 'boosterNameMode', HUD_INFO_BOOSTER_COLOR_MODES);
+    this.bindHudModeButton(category, 'hud-booster-duration-mode', 'boosterDurationMode', HUD_INFO_BOOSTER_COLOR_MODES);
 
     const sizeGroup = category.querySelector('[data-setting="hud-font-size"]');
     const range = sizeGroup.querySelector('.blobio-chat-font-range');
@@ -1329,12 +1338,19 @@ export class ChatSettingsFeature {
     this.syncBooleanSetting('hud-info-score', setting.showScore);
     this.syncBooleanSetting('hud-info-cells', setting.showCells);
     this.syncBooleanSetting('hud-info-ping', setting.showPing);
+    this.syncBooleanSetting('hud-info-boosters', setting.showBoosters);
+    this.syncBooleanSetting('hud-booster-last-sec-flash', setting.boosterLastSecFlash);
     this.syncHudModeSetting('hud-position', setting.positionMode, HUD_INFO_POSITION_MODES);
     this.syncHudModeSetting('hud-layout', setting.layoutMode, HUD_INFO_LAYOUT_MODES);
     this.syncHudModeSetting('hud-style', setting.styleMode, HUD_INFO_STYLE_MODES);
     this.syncHudModeSetting('hud-fps-mode', setting.fpsMode, HUD_INFO_DATA_MODES);
     this.syncHudModeSetting('hud-score-mode', setting.scoreMode, HUD_INFO_DATA_MODES);
     this.syncHudModeSetting('hud-ping-mode', setting.pingMode, HUD_INFO_DATA_MODES);
+    this.syncHudModeSetting('hud-booster-name-mode', setting.boosterNameMode, HUD_INFO_BOOSTER_COLOR_MODES);
+    this.syncHudModeSetting('hud-booster-duration-mode', setting.boosterDurationMode, HUD_INFO_BOOSTER_COLOR_MODES);
+
+    const flashGroup = this.root?.querySelector('[data-setting="hud-booster-last-sec-flash"]');
+    flashGroup?.classList.toggle('is-hidden', setting.boosterDurationMode !== 'simple');
 
     const sizeGroup = this.root?.querySelector('[data-setting="hud-font-size"]');
     const range = sizeGroup?.querySelector('.blobio-chat-font-range');

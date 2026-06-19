@@ -341,7 +341,23 @@ export class EmoteSkinFeature {
       this.sendingTrigger = false;
     }
     this.setPanelOpen(false);
+    this.closeChatInput(input);
     return true;
+  }
+
+  closeChatInput(input) {
+    input?.blur?.();
+    if (input?.style) {
+      input.style.display = 'none';
+    }
+
+    const canvas = this.document.querySelector?.('canvas');
+    if (canvas?.focus) {
+      if (!canvas.hasAttribute?.('tabindex')) {
+        canvas.setAttribute?.('tabindex', '-1');
+      }
+      canvas.focus({ preventScroll: true });
+    }
   }
 
   handleInputKeydown(event) {
