@@ -155,9 +155,9 @@ export function pageEmoteSkinBootstrap(initialConfig = {}, pageWindow = globalTh
       return false;
     }
 
-    const size = Math.max(24, Math.min(96, r * 0.72 || Number(cellSize) * 0.36 || 42));
+    const size = Math.max(24, Math.min(128, r * 1.16 || Number(cellSize) * 0.58 || 42));
     const drawX = x - size / 2;
-    const drawY = y - r - size * 0.72;
+    const drawY = y - size / 2;
     state.context.globalAlpha = fadeFor(active.expiresAt);
     state.context.drawImage(image, drawX, drawY, size, size);
     state.context.globalAlpha = 1;

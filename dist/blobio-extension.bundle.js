@@ -1428,14 +1428,23 @@
   display: none;
   box-sizing: border-box;
   width: min(330px, calc(100vw - 24px));
-  max-height: min(360px, calc(100vh - 32px));
-  padding: 8px;
-  border: 1px solid rgba(142, 255, 174, 0.54);
+  max-height: min(380px, calc(100vh - 32px));
+  padding: 10px;
+  border: 1px solid rgba(142, 255, 174, 0.62);
   border-radius: 8px;
   background: rgba(2, 20, 12, 0.94);
   color: #e9ffed;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   box-shadow: 0 0 20px rgba(73, 255, 130, 0.26), inset 0 0 20px rgba(73, 255, 130, 0.1);
+}
+
+.blobio-emote-skin-panel::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .blobio-emote-skin-panel.is-open {
@@ -1443,23 +1452,34 @@
 }
 
 .blobio-emote-skin-toggle {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 30px;
-  margin-bottom: 7px;
-  padding: 5px 7px;
-  border: 1px solid rgba(142, 255, 174, 0.34);
-  border-radius: 7px;
-  background: rgba(0, 0, 0, 0.26);
-  font: 700 12px/1.2 Ubuntu, Arial, sans-serif;
+  justify-content: center;
+  min-height: 42px;
+  margin-bottom: 8px;
+  padding: 7px 42px 7px 12px;
+  border: 1px solid rgba(182, 255, 201, 0.7);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(121, 255, 157, 0.24), rgba(17, 70, 32, 0.72)),
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.24), transparent 58%);
+  color: #f4fff6;
+  font: 800 18px/1.15 Ubuntu, Arial, sans-serif;
+  text-align: center;
+  cursor: pointer;
+  text-shadow: 0 0 8px rgba(118, 255, 153, 0.62);
+  box-shadow: 0 0 18px rgba(73, 255, 130, 0.32), inset 0 0 16px rgba(73, 255, 130, 0.18);
 }
 
 .blobio-emote-skin-toggle input {
-  width: 16px;
-  height: 16px;
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
   margin: 0;
+  transform: translateY(-50%);
   accent-color: #6bff93;
 }
 
@@ -1467,17 +1487,39 @@
 .blobio-emote-skin-emojis {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 7px;
 }
 
 .blobio-emote-skin-assets {
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(142, 255, 174, 0.28);
+  max-height: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 1px solid transparent;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: max-height 240ms ease, margin-bottom 240ms ease, padding-bottom 240ms ease, opacity 180ms ease, transform 240ms ease, border-color 240ms ease;
+}
+
+.blobio-emote-skin-panel.is-skin-enabled .blobio-emote-skin-assets {
+  max-height: 96px;
+  margin-bottom: 9px;
+  padding-bottom: 9px;
+  border-bottom-color: rgba(142, 255, 174, 0.28);
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.blobio-emote-skin-emojis {
+  padding: 8px 8px 10px;
+  overflow: visible;
 }
 
 .blobio-emote-skin-asset,
 .blobio-emote-skin-emoji {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1493,8 +1535,7 @@
   line-height: 1;
 }
 
-.blobio-emote-skin-asset:hover,
-.blobio-emote-skin-emoji:hover {
+.blobio-emote-skin-asset:hover {
   border-color: rgba(204, 255, 216, 0.82);
   background: rgba(18, 70, 35, 0.86);
 }
@@ -1508,6 +1549,16 @@
 
 .blobio-emote-skin-emoji {
   font-size: 20px;
+  transform-origin: center;
+  transition: transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease, background-color 130ms ease;
+}
+
+.blobio-emote-skin-emoji:hover {
+  z-index: 3;
+  border-color: rgba(224, 255, 232, 0.94);
+  background: rgba(18, 70, 35, 0.92);
+  box-shadow: 0 0 16px rgba(91, 255, 139, 0.48), inset 0 0 10px rgba(91, 255, 139, 0.2);
+  transform: scale(1.85);
 }
 
 .blobio-emote-skin-overlay {
@@ -1696,6 +1747,8 @@
       checkbox.addEventListener("change", () => {
         setEmoteSkinEnabled(this.storage, checkbox.checked);
         this.syncToggle();
+        this.schedulePosition();
+        (this.document.defaultView || globalThis).setTimeout?.(() => this.positionUi(), 260);
       });
       label.append(text, checkbox);
       return label;
@@ -1733,7 +1786,6 @@
         button.type = "button";
         button.classList.add("blobio-emote-skin-emoji");
         button.textContent = emoji;
-        button.title = emoji;
         button.addEventListener("click", (event) => {
           event.preventDefault?.();
           this.insertEmoji(emoji);
@@ -1825,9 +1877,11 @@
     }
     syncToggle() {
       const checkbox = this.panel?.querySelector?.(".blobio-emote-skin-checkbox");
+      const enabled = isEmoteSkinEnabled(this.storage);
       if (checkbox) {
-        checkbox.checked = isEmoteSkinEnabled(this.storage);
+        checkbox.checked = enabled;
       }
+      this.panel?.classList.toggle("is-skin-enabled", enabled);
     }
     insertEmoji(emoji) {
       const input = this.input || this.document.querySelector?.(INPUT_SELECTOR);
@@ -1894,13 +1948,32 @@
       return this.localTriggers.some((item) => item.emoteId === trigger.id && (!item.text || String(text || "").includes(item.emoji)));
     }
     triggerOwnEmote(trigger) {
-      const win = this.document.defaultView || globalThis;
-      win.__BlobioSkinEmoteTrigger?.({
+      this.triggerRuntimeEmote({
         emoteId: trigger.id,
         emoji: trigger.emoji,
         own: true,
         durationMs: 5e3
       });
+    }
+    triggerRuntimeEmote(event) {
+      let triggered = false;
+      const targets = [];
+      const addTarget = (target) => {
+        if (target && !targets.includes(target)) {
+          targets.push(target);
+        }
+      };
+      addTarget(this.document.defaultView);
+      addTarget(globalThis.unsafeWindow);
+      addTarget(globalThis);
+      for (const target of targets) {
+        const trigger = target.__BlobioSkinEmoteTrigger;
+        if (typeof trigger !== "function") {
+          continue;
+        }
+        triggered = Boolean(trigger.call(target, event)) || triggered;
+      }
+      return triggered;
     }
     attachChatObserver() {
       const chatList = this.document.querySelector?.("#chat > ul") || this.document.querySelector?.("#chat ul");
@@ -1954,8 +2027,7 @@
       if (this.shouldSuppressLocalTrigger(trigger, parsed.text)) {
         return;
       }
-      const win = this.document.defaultView || globalThis;
-      win.__BlobioSkinEmoteTrigger?.({
+      this.triggerRuntimeEmote({
         emoteId: trigger.id,
         emoji: trigger.emoji,
         uid: parsed.uid,
@@ -2027,8 +2099,25 @@
       input.dispatchEvent?.(event);
     }
     dispatchEnter(target) {
-      for (const type of ["keydown", "keypress", "keyup"]) {
-        target.dispatchEvent?.(this.createKeyboardEvent(type));
+      try {
+        for (const type of ["keydown", "keypress"]) {
+          target.dispatchEvent?.(this.createKeyboardEvent(type));
+        }
+      } catch (error) {
+        this.logger?.warn?.("[Blobio] Emote send keydown failed.", error);
+      } finally {
+        this.dispatchKeyUp(target);
+      }
+    }
+    dispatchKeyUp(target) {
+      const eventTargets = [target, this.document, this.document.defaultView || globalThis];
+      const seen = /* @__PURE__ */ new Set();
+      for (const item of eventTargets) {
+        if (!item || seen.has(item)) {
+          continue;
+        }
+        seen.add(item);
+        item.dispatchEvent?.(this.createKeyboardEvent("keyup"));
       }
     }
     createKeyboardEvent(type) {
@@ -2241,9 +2330,9 @@
       if (!image || !image.complete && !image.naturalWidth) {
         return false;
       }
-      const size = Math.max(24, Math.min(96, r * 0.72 || Number(cellSize) * 0.36 || 42));
+      const size = Math.max(24, Math.min(128, r * 1.16 || Number(cellSize) * 0.58 || 42));
       const drawX = x - size / 2;
-      const drawY = y - r - size * 0.72;
+      const drawY = y - size / 2;
       state.context.globalAlpha = fadeFor(active.expiresAt);
       state.context.drawImage(image, drawX, drawY, size, size);
       state.context.globalAlpha = 1;
@@ -17459,14 +17548,15 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
     }
     installEmoteSkinFallback(_document, logger) {
       const windowRef = this.window;
-      if (windowRef.__blobioEmoteSkinInstalled) {
+      const pageWindow = windowRef.unsafeWindow && typeof windowRef.unsafeWindow === "object" ? windowRef.unsafeWindow : windowRef;
+      if (pageWindow.__blobioEmoteSkinInstalled) {
         return true;
       }
       try {
         return Boolean(pageEmoteSkinBootstrap({
           assets: EMOTE_SKIN_ASSETS,
           version: EXTENSION_VERSION
-        }, windowRef));
+        }, pageWindow));
       } catch (error) {
         logger.warn?.("[Blobio] Emote Skin Display fallback failed.", error);
         return false;

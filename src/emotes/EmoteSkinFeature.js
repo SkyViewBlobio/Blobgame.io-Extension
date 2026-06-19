@@ -112,6 +112,8 @@ export class EmoteSkinFeature {
     checkbox.addEventListener('change', () => {
       setEmoteSkinEnabled(this.storage, checkbox.checked);
       this.syncToggle();
+      this.schedulePosition();
+      (this.document.defaultView || globalThis).setTimeout?.(() => this.positionUi(), 260);
     });
 
     label.append(text, checkbox);
@@ -158,7 +160,6 @@ export class EmoteSkinFeature {
       button.type = 'button';
       button.classList.add('blobio-emote-skin-emoji');
       button.textContent = emoji;
-      button.title = emoji;
       button.addEventListener('click', (event) => {
         event.preventDefault?.();
         this.insertEmoji(emoji);
@@ -264,9 +265,11 @@ export class EmoteSkinFeature {
 
   syncToggle() {
     const checkbox = this.panel?.querySelector?.('.blobio-emote-skin-checkbox');
+    const enabled = isEmoteSkinEnabled(this.storage);
     if (checkbox) {
-      checkbox.checked = isEmoteSkinEnabled(this.storage);
+      checkbox.checked = enabled;
     }
+    this.panel?.classList.toggle('is-skin-enabled', enabled);
   }
 
   insertEmoji(emoji) {
@@ -349,13 +352,37 @@ export class EmoteSkinFeature {
   }
 
   triggerOwnEmote(trigger) {
-    const win = this.document.defaultView || globalThis;
-    win.__BlobioSkinEmoteTrigger?.({
+    this.triggerRuntimeEmote({
       emoteId: trigger.id,
       emoji: trigger.emoji,
       own: true,
       durationMs: 5000,
     });
+  }
+
+  triggerRuntimeEmote(event) {
+    let triggered = false;
+    const targets = [];
+    const addTarget = (target) => {
+      if (target && !targets.includes(target)) {
+        targets.push(target);
+      }
+    };
+
+    addTarget(this.document.defaultView);
+    addTarget(globalThis.unsafeWindow);
+    addTarget(globalThis);
+
+    for (const target of targets) {
+      const trigger = target.__BlobioSkinEmoteTrigger;
+      if (typeof trigger !== 'function') {
+        continue;
+      }
+
+      triggered = Boolean(trigger.call(target, event)) || triggered;
+    }
+
+    return triggered;
   }
 
   attachChatObserver() {
@@ -419,8 +446,7 @@ export class EmoteSkinFeature {
       return;
     }
 
-    const win = this.document.defaultView || globalThis;
-    win.__BlobioSkinEmoteTrigger?.({
+    this.triggerRuntimeEmote({
       emoteId: trigger.id,
       emoji: trigger.emoji,
       uid: parsed.uid,
@@ -503,8 +529,26 @@ export class EmoteSkinFeature {
   }
 
   dispatchEnter(target) {
-    for (const type of ['keydown', 'keypress', 'keyup']) {
-      target.dispatchEvent?.(this.createKeyboardEvent(type));
+    try {
+      for (const type of ['keydown', 'keypress']) {
+        target.dispatchEvent?.(this.createKeyboardEvent(type));
+      }
+    } catch (error) {
+      this.logger?.warn?.('[Blobio] Emote send keydown failed.', error);
+    } finally {
+      this.dispatchKeyUp(target);
+    }
+  }
+
+  dispatchKeyUp(target) {
+    const eventTargets = [target, this.document, this.document.defaultView || globalThis];
+    const seen = new Set();
+    for (const item of eventTargets) {
+      if (!item || seen.has(item)) {
+        continue;
+      }
+      seen.add(item);
+      item.dispatchEvent?.(this.createKeyboardEvent('keyup'));
     }
   }
 
