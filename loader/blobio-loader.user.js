@@ -4950,30 +4950,34 @@
         boosterNeedlePresent: false,
         boosterDrawPresent: false,
         boosterPatchKind: '',
+        boosterTextMethod: '',
       };
       const boosterNeedle = "function Tqe(a,b){var c,d;bt(a.a);for(c=0;c<b.length;c++){d=b[c];if(!d){break}Gm(a.c,a.a,d.LW(),$b.a.width*f0e,$b.a.height-10-c*20)}jt(a.a)}";
-      const boosterDraw = "Gm(a.c,a.a,d.LW(),$b.a.width*f0e,$b.a.height-10-c*20)";
-      const boosterPattern = /function ([A-Za-z_$][\w$]*)\(a,b\)\{var c,d;bt\(a\.a\);for\(c=0;c<b\.length;c\+\+\)\{d=b\[c\];if\(!d\)\{break\}Gm\(a\.c,a\.a,d\.LW\(\),\$b\.a\.width\*f0e,\$b\.a\.height-10-c\*20\)\}jt\(a\.a\)\}/;
-      const boosterReplacementFor = (name) => `function ${name}(a,b){var c,d,e,f;f=[];bt(a.a);for(c=0;c<b.length;c++){d=b[c];if(!d){break}e=d.LW();f[f.length]=e}$wnd.__BlobioHudInfoBoosters&&$wnd.__BlobioHudInfoBoosters(f);jt(a.a)}`;
+      const boosterDrawPattern = /[A-Za-z_$][\w$]*\(a\.c,a\.a,d\.([A-Za-z_$][\w$]*)\(\),\$b\.a\.width\*[A-Za-z_$][\w$]*,\$b\.a\.height-10-c\*20\)/;
+      const boosterPattern = /function ([A-Za-z_$][\w$]*)\(a,b\)\{var c,d;bt\(a\.a\);for\(c=0;c<b\.length;c\+\+\)\{d=b\[c\];if\(!d\)\{break\}[A-Za-z_$][\w$]*\(a\.c,a\.a,d\.([A-Za-z_$][\w$]*)\(\),\$b\.a\.width\*[A-Za-z_$][\w$]*,\$b\.a\.height-10-c\*20\)\}jt\(a\.a\)\}/;
+      const boosterReplacementFor = (name, textMethod) => `function ${name}(a,b){var c,d,e,f;f=[];bt(a.a);for(c=0;c<b.length;c++){d=b[c];if(!d){break}e=d.${textMethod}();f[f.length]=e}$wnd.__BlobioHudInfoBoosters&&$wnd.__BlobioHudInfoBoosters(f);jt(a.a)}`;
 
       result.boosterNeedlePresent = patched.includes(boosterNeedle);
-      result.boosterDrawPresent = patched.includes(boosterDraw);
+      const boosterDrawMatch = patched.match(boosterDrawPattern);
+      result.boosterDrawPresent = Boolean(boosterDrawMatch);
+      result.boosterTextMethod = boosterDrawMatch?.[1] || '';
       if (result.boosterNeedlePresent || result.boosterDrawPresent) {
         state.patch.boosterCandidateChunks += 1;
       }
       if (!patched.includes('__BlobioHudInfoBoosters')) {
         if (result.boosterNeedlePresent) {
-          patched = patched.replace(boosterNeedle, boosterReplacementFor('Tqe'));
+          patched = patched.replace(boosterNeedle, boosterReplacementFor('Tqe', 'LW'));
           changed = true;
           result.boosterPatched = true;
           result.boosterPatchKind = 'exact';
         } else {
           const boosterMatch = patched.match(boosterPattern);
           if (boosterMatch) {
-            patched = patched.replace(boosterPattern, boosterReplacementFor(boosterMatch[1]));
+            patched = patched.replace(boosterPattern, boosterReplacementFor(boosterMatch[1], boosterMatch[2]));
             changed = true;
             result.boosterPatched = true;
             result.boosterPatchKind = 'pattern';
+            result.boosterTextMethod = boosterMatch[2];
           }
         }
       }
