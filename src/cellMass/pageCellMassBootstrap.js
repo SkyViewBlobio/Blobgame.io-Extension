@@ -10,7 +10,7 @@ export function pageCellMassBootstrap(initialSettings = {}, pageWindow = globalT
     return true;
   }
 
-  const SCRIPT_VERSION = '0.1.5';
+  const SCRIPT_VERSION = '0.1.6';
   const CACHE_SCRIPT_RE = /\/html\/[a-f0-9]{32}\.cache\.js(?:[?#].*)?$/i;
   const DRAW_HOOK_NAME = 'BlobioCellMassDraw';
   const PATCH_MARKER = 'BlobioCellMassDraw';
@@ -261,8 +261,7 @@ export function pageCellMassBootstrap(initialSettings = {}, pageWindow = globalT
     };
   }
 
-  function captureDrawState(cellId, label, nativeColor, x, y) {
-    const native = cloneColor(nativeColor);
+  function captureDrawState(cellId, label, appliedColor, x, y, rendererColorBefore = null, rendererMode = 'native-text-color') {
     state.lastDrawCapture = {
       at: Date.now(),
       cellId: String(cellId ?? ''),
@@ -270,11 +269,15 @@ export function pageCellMassBootstrap(initialSettings = {}, pageWindow = globalT
       scale: roundNumber(label?.scale),
       x: roundNumber(x),
       y: roundNumber(y),
-      rendererMode: 'native-text-color',
+      rendererMode,
       configuredColor: cloneColor(label?.color),
-      appliedColor: native,
-      nativeColor: native,
+      appliedColor: cloneColor(appliedColor),
     };
+    if (rendererColorBefore) {
+      state.lastDrawCapture.rendererColorBefore = cloneColor(rendererColorBefore);
+    } else {
+      state.lastDrawCapture.nativeColor = cloneColor(appliedColor);
+    }
     return state.lastDrawCapture;
   }
 
@@ -427,7 +430,9 @@ export function pageCellMassBootstrap(initialSettings = {}, pageWindow = globalT
       'h=$wnd.BlobioCellMassDraw(g.n,g.w*g.w/100,g.w,g.M,g.N,g.B,d,d?f:0,0,qxe.g/100);',
       'if(h&&h.text){',
       'f=d?a.o.b:0;',
-      'Mm(a.i,a.B);',
+      'h._bd=a.b.d;h._bc=a.b.c;h._bb=a.b.b;h._ba=a.b.a;',
+      'h.color&&(a.b.d=h.color.d,a.b.c=h.color.c,a.b.b=h.color.b,a.b.a=h.color.a);',
+      'Mm(a.i,a.b);',
       'Nn(a.i.b,h.scale);',
       'xp(a.o,a.i,h.text);',
       'if(a.o.d>g.N*h.maxWidth){h.scale*=g.N*h.maxWidth/a.o.d;Nn(a.i.b,h.scale);xp(a.o,a.i,h.text)}',
@@ -438,9 +443,9 @@ export function pageCellMassBootstrap(initialSettings = {}, pageWindow = globalT
       'c+=h.offset;',
       'c=$wnd.Math.max(g.S-g.M,c);',
       'c=$wnd.Math.min(g.S+g.M-a.o.b,c);',
-      '$wnd.__blobioCellMassCaptureDraw&&$wnd.__blobioCellMassCaptureDraw(g.n,h,a.B,b,c);',
+      "$wnd.__blobioCellMassCaptureDraw&&$wnd.__blobioCellMassCaptureDraw(g.n,h,a.b,b,c,{d:h._bd,c:h._bc,b:h._bb,a:h._ba},'vip-name-color-slot');",
       'Gm(a.i,a.c,h.text,b,c);',
-      'Nn(a.i.b,1)',
+      'a.b.d=h._bd;a.b.c=h._bc;a.b.b=h._bb;a.b.a=h._ba;Mm(a.i,a.B);Nn(a.i.b,1)',
       '}}}}',
     ].join('');
 
