@@ -10,7 +10,7 @@ export function pageCellMassBootstrap(initialSettings = {}, pageWindow = globalT
     return true;
   }
 
-  const SCRIPT_VERSION = '0.1.3';
+  const SCRIPT_VERSION = '0.1.4';
   const CACHE_SCRIPT_RE = /\/html\/[a-f0-9]{32}\.cache\.js(?:[?#].*)?$/i;
   const DRAW_HOOK_NAME = 'BlobioCellMassDraw';
   const PATCH_MARKER = 'BlobioCellMassDraw';
@@ -261,8 +261,8 @@ export function pageCellMassBootstrap(initialSettings = {}, pageWindow = globalT
     };
   }
 
-  function captureDrawState(cellId, label, nativeColor, x, y) {
-    const native = cloneColor(nativeColor);
+  function captureDrawState(cellId, label, appliedColor, x, y, nativeColorBefore = null) {
+    const applied = cloneColor(appliedColor);
     state.lastDrawCapture = {
       at: Date.now(),
       cellId: String(cellId ?? ''),
@@ -271,8 +271,8 @@ export function pageCellMassBootstrap(initialSettings = {}, pageWindow = globalT
       x: roundNumber(x),
       y: roundNumber(y),
       configuredColor: cloneColor(label?.color),
-      appliedColor: native,
-      nativeColor: native,
+      appliedColor: applied,
+      nativeColorBefore: cloneColor(nativeColorBefore),
     };
     return state.lastDrawCapture;
   }
@@ -426,6 +426,8 @@ export function pageCellMassBootstrap(initialSettings = {}, pageWindow = globalT
       'h=$wnd.BlobioCellMassDraw(g.n,g.w*g.w/100,g.w,g.M,g.N,g.B,d,d?f:0,0,qxe.g/100);',
       'if(h&&h.text){',
       'f=d?a.o.b:0;',
+      'h._bd=a.B.d;h._bc=a.B.c;h._bb=a.B.b;h._ba=a.B.a;',
+      'h.color&&(a.B.d=h.color.d,a.B.c=h.color.c,a.B.b=h.color.b,a.B.a=h.color.a);',
       'Mm(a.i,a.B);',
       'Nn(a.i.b,h.scale);',
       'xp(a.o,a.i,h.text);',
@@ -437,9 +439,10 @@ export function pageCellMassBootstrap(initialSettings = {}, pageWindow = globalT
       'c+=h.offset;',
       'c=$wnd.Math.max(g.S-g.M,c);',
       'c=$wnd.Math.min(g.S+g.M-a.o.b,c);',
-      '$wnd.__blobioCellMassCaptureDraw&&$wnd.__blobioCellMassCaptureDraw(g.n,h,a.B,b,c);',
+      '$wnd.__blobioCellMassCaptureDraw&&$wnd.__blobioCellMassCaptureDraw(g.n,h,a.B,b,c,{d:h._bd,c:h._bc,b:h._bb,a:h._ba});',
       'Gm(a.i,a.c,h.text,b,c);',
-      'Nn(a.i.b,1)',
+      'Nn(a.i.b,1);',
+      'a.B.d=h._bd;a.B.c=h._bc;a.B.b=h._bb;a.B.a=h._ba;Mm(a.i,a.B)',
       '}}}}',
     ].join('');
 
