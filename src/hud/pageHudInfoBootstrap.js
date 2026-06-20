@@ -958,14 +958,19 @@ export function pageHudInfoBootstrap(initialSettings, pageWindow = globalThis) {
   color: rgb(255, 74, 74);
 }
 .blobio-hud-info-booster-duration.is-flashing {
-  animation: blobio-hud-booster-flash 0.85s ease-in-out infinite alternate;
+  display: inline-block;
+  transform-origin: center;
+  will-change: transform, text-shadow;
+  animation: blobio-hud-booster-flash 1s ease-in-out infinite;
 }
 @keyframes blobio-hud-booster-flash {
-  from {
+  0%, 100% {
+    transform: scale(1);
     text-shadow: 0 0 2px rgba(255, 74, 74, 0.35), 0 1px 2px rgba(0, 0, 0, 0.95);
   }
-  to {
-    text-shadow: 0 0 10px rgba(255, 74, 74, 0.95), 0 0 18px rgba(255, 74, 74, 0.55), 0 1px 2px rgba(0, 0, 0, 0.95);
+  45%, 55% {
+    transform: scale(1.85);
+    text-shadow: 0 0 12px rgba(255, 74, 74, 0.95), 0 0 20px rgba(255, 74, 74, 0.7), 0 0 32px rgba(255, 74, 74, 0.35), 0 1px 2px rgba(0, 0, 0, 0.95);
   }
 }`;
     (doc.head || doc.documentElement).appendChild(style);
