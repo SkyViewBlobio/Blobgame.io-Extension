@@ -130,7 +130,13 @@ function normalizeColor(value, fallback) {
 
 function normalizeAlpha(value, fallback) {
   const alpha = Number(value);
-  return Number.isFinite(alpha) ? Math.max(0, Math.min(100, Math.round(alpha))) : fallback;
+  if (!Number.isFinite(alpha)) {
+    return fallback;
+  }
+  if (alpha > 0 && alpha <= 1) {
+    return Math.round(alpha * 100);
+  }
+  return Math.max(0, Math.min(100, Math.round(alpha)));
 }
 
 function clampNumber(value, min, max, fallback) {

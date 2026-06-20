@@ -624,6 +624,17 @@
     alpha: 100,
   };
 
+  function normalizeCellMassRuntimeAlpha(value, fallback) {
+    const alpha = Number(value);
+    if (!Number.isFinite(alpha)) {
+      return fallback;
+    }
+    if (alpha > 0 && alpha <= 1) {
+      return Math.round(alpha * 100);
+    }
+    return Math.max(0, Math.min(100, Math.round(alpha)));
+  }
+
   function normalizeCellMassRuntimeSnapshot(value) {
     if (!value || typeof value !== 'object') {
       return null;
@@ -644,7 +655,7 @@
       solid: {
         color: normalizeHexColor(solid.color, DEFAULT_CELL_MASS_RUNTIME_SETTINGS.solid.color),
       },
-      alpha: normalizePercentAlpha(value.alpha, DEFAULT_CELL_MASS_RUNTIME_SETTINGS.alpha),
+      alpha: normalizeCellMassRuntimeAlpha(value.alpha, DEFAULT_CELL_MASS_RUNTIME_SETTINGS.alpha),
       updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : 0,
     };
   }
@@ -6277,7 +6288,7 @@
       return true;
     }
 
-    const SCRIPT_VERSION = '0.1.0';
+    const SCRIPT_VERSION = '0.1.1';
     const CACHE_SCRIPT_RE = /\/html\/[a-f0-9]{32}\.cache\.js(?:[?#].*)?$/i;
     const DRAW_HOOK_NAME = 'BlobioCellMassDraw';
     const PATCH_MARKER = 'BlobioCellMassDraw';
@@ -6310,6 +6321,8 @@
         primaryLabels: 0,
       },
       samples: [],
+      lastLabel: null,
+      lastDrawCapture: null,
       errors: [],
     };
 
@@ -6319,9 +6332,13 @@
     win.__blobioCellMassRefresh = refreshSettings;
     win.__BlobioCellMassDebug = debugReport;
     win.BlobioCellMassDebug = debugReport;
+    win.BlobioShowMassDebug = debugReport;
+    win.blobioCellMassDebug = debugReport;
+    win.__blobioCellMassCaptureDraw = captureDrawState;
 
     if (win.__BLOBIO_CELL_MASS_TEST__) {
       win.__BlobioCellMassTestApi = {
+        captureDrawState,
         drawCellMassLabel,
         formatMass,
         getFitScale,
@@ -6409,6 +6426,7 @@
       };
 
       state.counters.labelsDrawn += 1;
+      state.lastLabel = cloneLabelResult(cellId, safeMass, result);
       rememberSample(cellId, safeMass, safeRawSize, safeRenderSize, cellSize, name, Boolean(nameDrawn), result);
       return result;
     }
@@ -6504,6 +6522,32 @@
 
     function getLabelColor(mass, totalMass) {
       return colorToObject(settings.solid.color, settings.alpha);
+    }
+
+    function cloneLabelResult(cellId, mass, result) {
+      return {
+        at: Date.now(),
+        cellId: String(cellId ?? ''),
+        mass: Math.round(mass * 10) / 10,
+        text: result.text,
+        scale: roundNumber(result.scale),
+        offset: roundNumber(result.offset),
+        primary: Boolean(result.primary),
+        cached: Boolean(result.cached),
+        color: cloneColor(result.color),
+      };
+    }
+
+    function captureDrawState(cellId, label, nativeColor) {
+      state.lastDrawCapture = {
+        at: Date.now(),
+        cellId: String(cellId ?? ''),
+        text: typeof label?.text === 'string' ? label.text : '',
+        scale: roundNumber(label?.scale),
+        appliedColor: cloneColor(label?.color),
+        nativeColor: cloneColor(nativeColor),
+      };
+      return state.lastDrawCapture;
     }
 
     function colorToObject(color, alpha = 100) {
@@ -6655,8 +6699,8 @@
         'h=$wnd.BlobioCellMassDraw(g.n,g.w*g.w/100,g.w,g.M,g.N,g.B,d,d?f:0,0,qxe.g/100);',
         'if(h&&h.text){',
         'f=d?a.o.b:0;',
-        'h.od=a.B.d;h.oc=a.B.c;h.ob=a.B.b;h.oa=a.B.a;',
-        'a.B.d=h.color.d;a.B.c=h.color.c;a.B.b=h.color.b;a.B.a=h.color.a;Mm(a.i,a.B);',
+        '$wnd.__blobioCellMassCaptureDraw&&$wnd.__blobioCellMassCaptureDraw(g.n,h,a.B);',
+        'Mm(a.i,h.color);',
         'Nn(a.i.b,h.scale);',
         'xp(a.o,a.i,h.text);',
         'if(a.o.d>g.N*h.maxWidth){h.scale*=g.N*h.maxWidth/a.o.d;Nn(a.i.b,h.scale);xp(a.o,a.i,h.text)}',
@@ -6669,7 +6713,6 @@
         'c=$wnd.Math.min(g.S+g.M-a.o.b,c);',
         'Gm(a.i,a.c,h.text,b,c);',
         'Nn(a.i.b,1);',
-        'a.B.d=h.od;a.B.c=h.oc;a.B.b=h.ob;a.B.a=h.oa;',
         'Mm(a.i,a.B)',
         '}}}}',
       ].join('');
@@ -6707,6 +6750,7 @@
         scale: Math.round(result.scale * 1000) / 1000,
         primary: result.primary,
         cached: result.cached,
+        color: cloneColor(result.color),
       });
 
       if (state.samples.length > 12) {
@@ -6729,6 +6773,13 @@
           lastPatchResult: state.lastPatchResult,
         },
         samples: state.samples.slice(),
+        lastLabel: state.lastLabel,
+        lastDrawCapture: state.lastDrawCapture,
+        commands: [
+          'BlobioCellMassDebug()',
+          'BlobioShowMassDebug()',
+          'blobioCellMassDebug()',
+        ],
         errors: state.errors.slice(-8),
       };
 
@@ -6780,7 +6831,13 @@
 
     function normalizeAlpha(value, fallback) {
       const alpha = Number(value);
-      return Number.isFinite(alpha) ? Math.max(0, Math.min(100, Math.round(alpha))) : fallback;
+      if (!Number.isFinite(alpha)) {
+        return fallback;
+      }
+      if (alpha > 0 && alpha <= 1) {
+        return Math.round(alpha * 100);
+      }
+      return Math.max(0, Math.min(100, Math.round(alpha)));
     }
 
     function clampNumber(value, min, max, fallback) {
@@ -6799,6 +6856,23 @@
       if (state.errors.length > 20) {
         state.errors.shift();
       }
+    }
+
+    function cloneColor(color) {
+      if (!color || typeof color !== 'object') {
+        return null;
+      }
+      return {
+        d: roundNumber(color.d),
+        c: roundNumber(color.c),
+        b: roundNumber(color.b),
+        a: roundNumber(color.a),
+      };
+    }
+
+    function roundNumber(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? Math.round(number * 10000) / 10000 : 0;
     }
 
     function getErrorMessage(error) {
