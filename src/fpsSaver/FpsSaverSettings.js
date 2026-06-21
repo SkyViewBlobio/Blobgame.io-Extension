@@ -13,10 +13,8 @@ export const DEFAULT_FPS_SAVER_SETTINGS = Object.freeze({
   objectRenderer: true,
   foodCulling: true,
   foodLimit: 90,
-  foodCalcDelayMs: 0,
   massCulling: true,
   massLimit: 30,
-  massCalcDelayMs: 0,
 });
 
 export function readFpsSaverSettings(storage, document = globalThis.document) {
@@ -92,10 +90,8 @@ export function normalizeFpsSaverSettings(settings = {}) {
     objectRenderer: boolSetting(source.objectRenderer, DEFAULT_FPS_SAVER_SETTINGS.objectRenderer),
     foodCulling: boolSetting(source.foodCulling, DEFAULT_FPS_SAVER_SETTINGS.foodCulling),
     foodLimit: clampInteger(source.foodLimit, 0, 900, DEFAULT_FPS_SAVER_SETTINGS.foodLimit),
-    foodCalcDelayMs: clampInteger(source.foodCalcDelayMs, 0, 1000, DEFAULT_FPS_SAVER_SETTINGS.foodCalcDelayMs),
     massCulling: boolSetting(source.massCulling, DEFAULT_FPS_SAVER_SETTINGS.massCulling),
     massLimit: clampInteger(source.massLimit, 0, 900, DEFAULT_FPS_SAVER_SETTINGS.massLimit),
-    massCalcDelayMs: clampInteger(source.massCalcDelayMs, 0, 1000, DEFAULT_FPS_SAVER_SETTINGS.massCalcDelayMs),
   };
 }
 

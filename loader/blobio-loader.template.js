@@ -679,10 +679,8 @@
     objectRenderer: true,
     foodCulling: true,
     foodLimit: 90,
-    foodCalcDelayMs: 0,
     massCulling: true,
     massLimit: 30,
-    massCalcDelayMs: 0,
   };
 
   function normalizeFpsSaverRuntimeSnapshot(value) {
@@ -703,10 +701,8 @@
       objectRenderer: value.objectRenderer === undefined ? DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.objectRenderer : readBooleanValue(value.objectRenderer),
       foodCulling: value.foodCulling === undefined ? DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.foodCulling : readBooleanValue(value.foodCulling),
       foodLimit: Math.round(normalizeHudInfoRuntimeNumber(value.foodLimit, 0, 900, DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.foodLimit)),
-      foodCalcDelayMs: Math.round(normalizeHudInfoRuntimeNumber(value.foodCalcDelayMs, 0, 1000, DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.foodCalcDelayMs)),
       massCulling: value.massCulling === undefined ? DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.massCulling : readBooleanValue(value.massCulling),
       massLimit: Math.round(normalizeHudInfoRuntimeNumber(value.massLimit, 0, 900, DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.massLimit)),
-      massCalcDelayMs: Math.round(normalizeHudInfoRuntimeNumber(value.massCalcDelayMs, 0, 1000, DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.massCalcDelayMs)),
       updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : 0,
     };
   }

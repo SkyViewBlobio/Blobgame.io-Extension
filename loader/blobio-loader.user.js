@@ -693,10 +693,8 @@
     objectRenderer: true,
     foodCulling: true,
     foodLimit: 90,
-    foodCalcDelayMs: 0,
     massCulling: true,
     massLimit: 30,
-    massCalcDelayMs: 0,
   };
 
   function normalizeFpsSaverRuntimeSnapshot(value) {
@@ -717,10 +715,8 @@
       objectRenderer: value.objectRenderer === undefined ? DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.objectRenderer : readBooleanValue(value.objectRenderer),
       foodCulling: value.foodCulling === undefined ? DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.foodCulling : readBooleanValue(value.foodCulling),
       foodLimit: Math.round(normalizeHudInfoRuntimeNumber(value.foodLimit, 0, 900, DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.foodLimit)),
-      foodCalcDelayMs: Math.round(normalizeHudInfoRuntimeNumber(value.foodCalcDelayMs, 0, 1000, DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.foodCalcDelayMs)),
       massCulling: value.massCulling === undefined ? DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.massCulling : readBooleanValue(value.massCulling),
       massLimit: Math.round(normalizeHudInfoRuntimeNumber(value.massLimit, 0, 900, DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.massLimit)),
-      massCalcDelayMs: Math.round(normalizeHudInfoRuntimeNumber(value.massCalcDelayMs, 0, 1000, DEFAULT_FPS_SAVER_RUNTIME_SETTINGS.massCalcDelayMs)),
       updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : 0,
     };
   }
@@ -6558,10 +6554,8 @@
     objectRenderer: true,
     foodCulling: true,
     foodLimit: 90,
-    foodCalcDelayMs: 0,
     massCulling: true,
     massLimit: 30,
-    massCalcDelayMs: 0,
   };
 
   function pageFpsSaverBootstrap(initialSettings = {}, pageWindow = globalThis) {
@@ -6576,8 +6570,6 @@
     const isMainPage = (host === 'blobgame.io' || host.endsWith('.blobgame.io')) && !isGameClient;
     const state = root.__blobioFpsSaverState || createState(initialSettings, isGameClient, isMainPage);
     state.settings = normalizeSettings(initialSettings);
-    ensureCullBudgets(state);
-    clampCullBudgets(state);
     state.isGameClient = isGameClient;
     state.isMainPage = isMainPage;
     state.document = doc;
@@ -6592,8 +6584,6 @@
 
     root.__blobioFpsSaverRefresh = (nextSettings = {}) => {
       state.settings = normalizeSettings(nextSettings);
-      ensureCullBudgets(state);
-      clampCullBudgets(state);
       exposeHooks(root, state);
       applySettings(root, doc, state);
       return { ...state.settings };
@@ -6626,10 +6616,6 @@
         foodSkipped: 0,
         massSeen: 0,
         massSkipped: 0,
-      },
-      cullBudget: {
-        food: createCullBudget(cleanSettings.foodLimit),
-        mass: createCullBudget(cleanSettings.massLimit),
       },
       counters: {
         rafFrames: 0,
@@ -6664,10 +6650,8 @@
       objectRenderer: boolSetting(data.objectRenderer, FPS_SAVER_DEFAULT_SETTINGS.objectRenderer),
       foodCulling: boolSetting(data.foodCulling, FPS_SAVER_DEFAULT_SETTINGS.foodCulling),
       foodLimit: clampInteger(data.foodLimit, 0, 900, FPS_SAVER_DEFAULT_SETTINGS.foodLimit),
-      foodCalcDelayMs: clampInteger(data.foodCalcDelayMs, 0, 1000, FPS_SAVER_DEFAULT_SETTINGS.foodCalcDelayMs),
       massCulling: boolSetting(data.massCulling, FPS_SAVER_DEFAULT_SETTINGS.massCulling),
       massLimit: clampInteger(data.massLimit, 0, 900, FPS_SAVER_DEFAULT_SETTINGS.massLimit),
-      massCalcDelayMs: clampInteger(data.massCalcDelayMs, 0, 1000, FPS_SAVER_DEFAULT_SETTINGS.massCalcDelayMs),
     };
   }
 
@@ -6765,13 +6749,6 @@
   function beginRenderFrame(root, state, timestamp) {
     const frame = state.frameCull;
     const startedAt = Number(timestamp) || now(root);
-    ensureCullBudgets(state);
-    if (frame.startedAt) {
-      updateCullBudget(state.cullBudget.food, frame.foodSeen, state.settings.foodLimit, state.settings.foodCalcDelayMs, startedAt);
-      updateCullBudget(state.cullBudget.mass, frame.massSeen, state.settings.massLimit, state.settings.massCalcDelayMs, startedAt);
-    } else {
-      clampCullBudgets(state);
-    }
     frame.id += 1;
     frame.startedAt = startedAt;
     frame.foodSeen = 0;
@@ -6803,7 +6780,7 @@
       state.frameCull.foodSeen += 1;
       state.counters.foodSeen += 1;
 
-      if (!state.settings.foodCulling || state.frameCull.foodSeen <= getCullBudget(state, 'food')) {
+      if (!state.settings.foodCulling || state.frameCull.foodSeen <= state.settings.foodLimit) {
         return false;
       }
 
@@ -6815,104 +6792,13 @@
     state.frameCull.massSeen += 1;
     state.counters.massSeen += 1;
 
-    if (!state.settings.massCulling || state.frameCull.massSeen <= getCullBudget(state, 'mass')) {
+    if (!state.settings.massCulling || state.frameCull.massSeen <= state.settings.massLimit) {
       return false;
     }
 
     state.frameCull.massSkipped += 1;
     state.counters.massSkipped += 1;
     return true;
-  }
-
-  function createCullBudget(limit) {
-    return {
-      committed: Math.max(0, Math.round(Number(limit)) || 0),
-      pending: null,
-      pendingAt: 0,
-      lastObserved: 0,
-      emptyFrames: 0,
-    };
-  }
-
-  function ensureCullBudgets(state) {
-    if (!state.cullBudget || typeof state.cullBudget !== 'object') {
-      state.cullBudget = {};
-    }
-    if (!state.cullBudget.food) {
-      state.cullBudget.food = createCullBudget(state.settings.foodLimit);
-    }
-    if (!state.cullBudget.mass) {
-      state.cullBudget.mass = createCullBudget(state.settings.massLimit);
-    }
-  }
-
-  function clampCullBudgets(state) {
-    clampCullBudget(state.cullBudget.food, state.settings.foodLimit);
-    clampCullBudget(state.cullBudget.mass, state.settings.massLimit);
-  }
-
-  function clampCullBudget(budget, limit) {
-    const max = Math.max(0, Math.round(Number(limit)) || 0);
-    const committed = Math.max(0, Math.round(Number(budget.committed)) || 0);
-    budget.committed = max > 0 && committed <= 0 ? max : Math.min(max, committed);
-    if (budget.pending !== null) {
-      budget.pending = Math.max(0, Math.min(max, Math.round(Number(budget.pending)) || 0));
-    }
-  }
-
-  function updateCullBudget(budget, observedCount, limit, delayMs, timestamp) {
-    const max = Math.max(0, Math.round(Number(limit)) || 0);
-    const observed = Math.max(0, Math.round(Number(observedCount)) || 0);
-    const nextBudget = Math.min(max, observed);
-    const current = Math.max(0, Math.min(max, Math.round(Number(budget.committed)) || 0));
-    const delay = Math.max(0, Math.round(Number(delayMs)) || 0);
-    const time = Math.max(0, Number(timestamp) || 0);
-
-    budget.lastObserved = observed;
-    budget.committed = current;
-
-    if (observed === 0) {
-      budget.emptyFrames = (Number(budget.emptyFrames) || 0) + 1;
-      return;
-    }
-
-    if (nextBudget <= current) {
-      budget.pending = null;
-      budget.pendingAt = 0;
-      return;
-    }
-
-    if (delay <= 0) {
-      budget.committed = nextBudget;
-      budget.pending = null;
-      budget.pendingAt = 0;
-      return;
-    }
-
-    if (nextBudget === current) {
-      budget.pending = null;
-      budget.pendingAt = 0;
-      return;
-    }
-
-    if (budget.pending !== nextBudget) {
-      budget.pending = nextBudget;
-      budget.pendingAt = time;
-      return;
-    }
-
-    if (time - budget.pendingAt >= delay) {
-      budget.committed = nextBudget;
-      budget.pending = null;
-      budget.pendingAt = 0;
-    }
-  }
-
-  function getCullBudget(state, kind) {
-    ensureCullBudgets(state);
-    const fallback = kind === 'food' ? state.settings.foodLimit : state.settings.massLimit;
-    const budget = state.cullBudget[kind];
-    return Math.max(0, Math.min(fallback, Math.round(Number(budget?.committed)) || 0));
   }
 
   function installGameScriptPatch(root, state) {
@@ -7262,10 +7148,6 @@
       settings: { ...state.settings },
       counters: { ...state.counters },
       frameCull: { ...state.frameCull },
-      cullBudget: {
-        food: { ...state.cullBudget?.food },
-        mass: { ...state.cullBudget?.mass },
-      },
       patch: {
         scriptPatchInstalled: state.scriptPatchInstalled,
         callbackWrapped: state.callbackWrapped,
@@ -7285,14 +7167,6 @@
   pageFpsSaverBootstrap.__test = {
     normalizeSettings,
     patchGameCode,
-    updateCullBudget,
-    runCullBudgetSequence({ limit = 30, delayMs = 0, observations = [], timestamps = [] } = {}) {
-      const budget = createCullBudget(limit);
-      return observations.map((observed, index) => {
-        updateCullBudget(budget, observed, limit, delayMs, timestamps[index] ?? index * 16);
-        return { ...budget };
-      });
-    },
   };
   /* FPS_SAVER_RUNTIME_END */
 
