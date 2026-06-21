@@ -9,113 +9,31 @@ import { JellyShaderSettingsUi } from '../jelly/JellyShaderSettingsUi.js';
 import { isHideAdminMdEnabled, setHideAdminMdEnabled } from '../roles/RoleSettings.js';
 import { isFpsUncapEnabled, setFpsUncapEnabled } from '../settings/RuntimeSettings.js';
 import { VirusMotherCellSettingsUi } from '../virus/VirusMotherCellSettingsUi.js';
+import {
+  DEFAULT_VIDEO,
+  FAILED_VIRAL_FRAME_MATCH,
+  OTHER_GAME_NAMES,
+  PARTNER_LINK_MATCH,
+  SOCIALS,
+  UPDATE_NOTES,
+} from './MenuFeatureContent.js';
+import {
+  EXTENSION_DEFAULT_CATEGORY,
+  EXTENSION_OPTION_TOOLTIPS,
+  EXTENSION_SETTING_CATEGORIES,
+} from './MenuFeatureSettingsConfig.js';
 
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
 const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
 const DEFAULT_EXTENSION_VERSION = '0.2.01';
 const HIDDEN_CLASS = 'blobio-original-hidden';
-const PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
-const FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
-const OTHER_GAME_NAMES = ['Viper', 'Hexa'];
 const WATERMARK_STORAGE_KEY = 'blobio.watermark.enabled';
 const WATERMARK_RIGHT_NUDGE = 60;
 const WATERMARK_EXTRA_WIDTH = 96;
 const WATERMARK_INPUT_GAP = 6;
 const MAIN_MENU_ALIGNMENT_CLASS = 'blobio-main-menu-align-target';
 const MAIN_MENU_LAYERED_SELECT_CLASS = 'blobio-menu-layered-select';
-const EXTENSION_DEFAULT_CATEGORY = 'fps';
-const EXTENSION_SETTING_CATEGORIES = [
-  ['fps', 'FPS'],
-  ['cell', 'Cell'],
-  ['text', 'Text'],
-  ['theme', 'Theme'],
-  ['animation', 'Animation'],
-  ['misc', 'Misc'],
-];
-
-const EXTENSION_OPTION_TOOLTIPS = {
-  watermark: 'FPS-Impact: Low[1-5]\nThis option will display the Extension name text, alongside its current version.',
-  hideAdminMd: 'FPS-Impact: Low[0-2]\nHide the built-in [MD] tag from extension ADMIN users in chat. This is enabled by default.',
-  friendHighlight: 'FPS-Impact: Low[5-15]\nLoad accepted friends from Blobgame and color their chat name and message green. Friend requests and declined users are ignored.',
-  fpsUncap: 'FPS-Impact: Medium[0-80]\nUncap the in-game render loop after a safe startup delay, periodically yield to native frames, keep the game active when unfocused, and smooth camera zoom using the real frame delta. Off by default and applies immediately.',
-  liteMode: 'FPS-Gain: Low[5-20]\nAdds CSS containment and offscreen rendering hints to heavy sections and third-party iframe surfaces without hiding videos or promos.',
-  noTransitions: 'FPS-Gain: Medium[10-35]\nRemoves CSS transitions and animations from menus, panels, toasts, and modals. Expected save: low to medium smoothness gain.\n[WARNING: This is disabled by default because it will drastically reduce HUD-options.]',
-  gameOverlay: 'FPS-Gain: Medium[10-40]\nGame client only. Isolates chat, leaderboard, score, lists, menu, and toast layout/paint from the rest of the page. Expected save: low to medium repaint gain.',
-  toastModalAnim: 'FPS-Gain: Low[3-15]\nDisables toast and modal animation work while keeping the UI visible. Expected save: low gain, more noticeable during repeated popups.',
-  chatGuard: 'FPS-Gain: Medium[10-60]\nKeeps chat usable but cut old chat rows in batches. Expected save: low normally, medium in full servers with many chatter.',
-};
-
-const DEFAULT_VIDEO = {
-  title: 'Featured Blob.io Video',
-  url: 'https://www.youtube.com/watch?v=GOlXDLWeGMo',
-};
-
-const UPDATE_NOTES = [
-  {
-    date: 'Jan 02',
-    items: ['Fixed black screen for private servers in SA and ME regions.'],
-  },
-  {
-    date: 'Dec 20',
-    items: ['Added new skins.'],
-  },
-  {
-    date: 'Nov 13',
-    items: ['Added many new skins.'],
-  },
-  {
-    date: 'Oct 25',
-    items: ['Added user ID display in profile.', 'Added new skins.', 'Fixed empty profile screen display.'],
-  },
-  {
-    date: 'May 31',
-    items: ['Updated replay list layout.', 'Added replay ZIP downloads.', 'Highlighted currently playing replay.'],
-  },
-  {
-    date: 'May 20',
-    items: ['Added Middle East region.', 'Dynamically updated featured video.'],
-  },
-  {
-    date: 'Apr 09',
-    items: ['Restored Facebook login.'],
-  },
-  {
-    date: 'Apr 06',
-    items: ['Added official social links.', 'Added partners list.', 'Minor UI fixes.'],
-  },
-];
-
-const SOCIALS = [
-  {
-    key: 'youtube',
-    label: 'YouTube',
-    match: /youtube\.com|youtu\.be/i,
-    fallbackHref: 'https://www.youtube.com/watch?v=GOlXDLWeGMo',
-    assetKey: 'youtubeIcon',
-  },
-  {
-    key: 'discord',
-    label: 'Discord',
-    match: /discord|disc\.blobgame\.io/i,
-    fallbackHref: 'https://disc.blobgame.io/',
-    assetKey: 'discordIcon',
-  },
-  {
-    key: 'facebook',
-    label: 'Facebook',
-    match: /facebook\.com/i,
-    fallbackHref: 'https://www.facebook.com/blobio',
-    assetKey: 'facebookIcon',
-  },
-  {
-    key: 'instagram',
-    label: 'Instagram',
-    match: /instagram\.com/i,
-    fallbackHref: 'https://www.instagram.com/blob.io_official',
-    assetKey: 'instagramIcon',
-  },
-];
 
 export class MenuFeature {
   constructor({
