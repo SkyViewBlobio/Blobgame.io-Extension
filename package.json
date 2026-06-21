@@ -5,7 +5,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SkyViewBlobio/Blobgame.io-Web-Script.git"
+    "url": "https://github.com/SkyViewBlobio/Blobgame.io-Extension.git"
   },
   "scripts": {
     "build": "node scripts/build.js",

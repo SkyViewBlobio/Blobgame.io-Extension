@@ -1,4 +1,4 @@
-const SHARED_KEY_PREFIXES = ['blobio.customSkin.', 'blobio.roles.', 'blobio.settings.', 'blobio.chat.'];
+const SHARED_KEY_PREFIXES = ['blobio.roles.', 'blobio.settings.', 'blobio.chat.'];
 const STORAGE_BRIDGE_SOURCE = 'BlobioExtensionStorageBridge';
 
 

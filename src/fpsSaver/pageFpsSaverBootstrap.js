@@ -315,7 +315,8 @@ function clampCullBudgets(state) {
 
 function clampCullBudget(budget, limit) {
   const max = Math.max(0, Math.round(Number(limit)) || 0);
-  budget.committed = Math.max(0, Math.min(max, Math.round(Number(budget.committed)) || 0));
+  const committed = Math.max(0, Math.round(Number(budget.committed)) || 0);
+  budget.committed = max > 0 && committed <= 0 ? max : Math.min(max, committed);
   if (budget.pending !== null) {
     budget.pending = Math.max(0, Math.min(max, Math.round(Number(budget.pending)) || 0));
   }
@@ -337,7 +338,13 @@ function updateCullBudget(budget, observedCount, limit, delayMs, timestamp) {
     return;
   }
 
-  if (delay <= 0 || nextBudget < current) {
+  if (nextBudget <= current) {
+    budget.pending = null;
+    budget.pendingAt = 0;
+    return;
+  }
+
+  if (delay <= 0) {
     budget.committed = nextBudget;
     budget.pending = null;
     budget.pendingAt = 0;
