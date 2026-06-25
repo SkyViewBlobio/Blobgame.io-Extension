@@ -3,7 +3,7 @@ import {
   saveJellyShaderSettings,
 } from './JellyShaderSettings.js';
 
-const DESCRIPTION = 'FPS-Impact: Medium[20-100]\nWhen enabled, this disables Blobgame.io\'s vanilla Jelly Physics option and adds a different lightweight jelly physics shader.';
+const DESCRIPTION = 'FPS-Impact: Low[1-20]\nAdds and replaces the default Jelly-Physics Shader with a lighter rewritten one.';
 const VANILLA_JELLY_KEY = 'config-switch-jelly-physics';
 
 export class JellyShaderSettingsUi {

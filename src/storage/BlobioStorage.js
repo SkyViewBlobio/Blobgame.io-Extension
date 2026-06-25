@@ -59,7 +59,6 @@ function postSharedStorageMessage(document, type, key, value = '') {
       value: String(value),
     }, '*');
   } catch {
-    // The page may block postMessage in unusual browser modes. localStorage still works.
   }
 }
 

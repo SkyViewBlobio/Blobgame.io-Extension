@@ -373,7 +373,7 @@ export class GameUiCustomizationFeature {
       try {
         changed = applyInDocument(frame.contentDocument) || changed;
       } catch {
-        // Cross-origin reCAPTCHA frames are handled by the loader's frame-only branch.
+        /* Cross-origin reCAPTCHA frames are handled by the loader's frame-only branch. */
       }
     }
     return changed;

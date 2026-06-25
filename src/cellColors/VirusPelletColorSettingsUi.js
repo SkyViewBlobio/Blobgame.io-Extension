@@ -104,7 +104,7 @@ export class VirusPelletColorSettingsUi {
   createHeaderRow() {
     const row = this.document.createElement('div');
     row.classList.add('grid-item', 'blobio-extension-setting-row', 'blobio-virus-pellet-setting-row');
-    row.dataset.blobioTooltip = 'FPS-Impact: Medium[20-80]\nAllows you to change the Virus/Mothercell and Food-Pellets colors.';
+    row.dataset.blobioTooltip = 'FPS-Impact: Low[5-20]\nLets you change the colors of viruses, mother-cells, and food pellets.';
     row.setAttribute('_ngcontent-c3', '');
 
     const switchLabel = this.document.createElement('label');

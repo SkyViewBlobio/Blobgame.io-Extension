@@ -134,6 +134,6 @@ function writeFpsSaverCookie(document, snapshot) {
       : '';
     document.cookie = `${FPS_SAVER_COOKIE_NAME}=${value}; Path=/; Max-Age=31536000; SameSite=Lax${domain}`;
   } catch {
-    // The shared settings snapshot remains the primary storage path.
+    // The shared settings snapshot needs to remain the same storage!
   }
 }

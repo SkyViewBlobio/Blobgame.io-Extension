@@ -157,6 +157,6 @@ function writeVirusPelletColorCookie(document, snapshot) {
       : '';
     document.cookie = `${VIRUS_PELLET_COLOR_COOKIE_NAME}=${value}; Path=/; Max-Age=31536000; SameSite=Lax${domain}`;
   } catch {
-    // Shared local storage remains the primary persistence path.
+    /* Shared local storage remains the main path. */
   }
 }

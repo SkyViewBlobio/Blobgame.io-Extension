@@ -2,7 +2,7 @@
 // @name         Blobio Web Script Loader
 // @namespace    https://github.com/SkyViewBlobio/Blobgame.io-Extension
 // @version      0.2.01
-// @description  Loads the Blobio modular extension bundle from GitHub.
+// @description  Loads the Blobio extension bundle from GitHub.
 // @match        *://blobgame.io/*
 // @match        *://www.blobgame.io/*
 // @match        *://custom.client.blobgame.io/*

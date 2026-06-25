@@ -152,7 +152,6 @@ function writeVirusMotherCellCookie(document, snapshot) {
       : '';
     document.cookie = `${VIRUS_MOTHER_CELL_COOKIE_NAME}=${value}; Path=/; Max-Age=31536000; SameSite=Lax${domain}`;
   } catch {
-    // Shared userscript storage remains the primary persistence path.
   }
 }
 

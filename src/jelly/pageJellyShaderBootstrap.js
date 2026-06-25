@@ -192,7 +192,7 @@ export function pageJellyShaderBootstrap(initialSettings, pageWindow = globalThi
 
   function buildJellyGlsl(includeNoSkinCells) {
     const lines = [
-      `// ${JELLY_SHADER_MARKER}. Uses existing u_time and v_scale uniforms only.`,
+      `/* ${JELLY_SHADER_MARKER}. Uses existing u_time and v_scale uniforms only. */`,
       'float blobioJellyScale(float baseScale, vec2 uv) {',
       '    vec2 rel = uv - CENTER_COORD;',
       '    float dist = length(rel);',

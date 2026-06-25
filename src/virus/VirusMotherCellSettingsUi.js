@@ -8,6 +8,8 @@ const MASK_OPTIONS = [
   { id: 'rotate', label: 'Random angle', assetKey: 'virusRotate' },
   { id: 'ring', label: 'Ring', assetKey: 'virusRing' },
 ];
+const DESCRIPTION = 'FPS-Impact: Medium[20-80]\nReplaces the default virus and mother-cell look with the selected mask, allows for glowy viruses and mother-cells';
+const ROTATE_DESCRIPTION = 'Randomly rotates supported virus PNGs so they look less repeated.';
 
 export class VirusMotherCellSettingsUi {
   constructor({
@@ -81,7 +83,7 @@ export class VirusMotherCellSettingsUi {
   createHeaderRow() {
     const row = this.document.createElement('div');
     row.classList.add('grid-item', 'blobio-extension-setting-row', 'blobio-virus-setting-row');
-    row.dataset.blobioTooltip = 'FPS-Impact: Medium[20-80]\nReplace in-game virus and mother-cell rendering with a selected extension mask after reloading the game tab.';
+    row.dataset.blobioTooltip = DESCRIPTION;
     row.setAttribute('_ngcontent-c3', '');
 
     const switchLabel = this.document.createElement('label');
@@ -119,10 +121,7 @@ export class VirusMotherCellSettingsUi {
 
     row.append(switchLabel, textLabel, arrowButton);
 
-    this.installTooltip(
-      row,
-      'Replace in-game virus and mother-cell rendering with a selected extension mask after reloading the game tab.',
-    );
+    this.installTooltip(row, DESCRIPTION);
 
     this.listen(checkbox, 'change', () => {
       this.settings = this.save({ enabled: Boolean(checkbox.checked) });
@@ -232,10 +231,7 @@ export class VirusMotherCellSettingsUi {
     const rotateText = this.document.createElement('span');
     rotateText.textContent = 'Rotate';
     rotateRow.append(rotateInput, rotateText);
-    this.installTooltip(
-      rotateRow,
-      "Some Virus PNG's have the rotation option. When enabled, it will assign the PNG a randomized angle.",
-    );
+    this.installTooltip(rotateRow, ROTATE_DESCRIPTION);
     menu.appendChild(rotateRow);
 
     this.listen(colorInput, 'input', () => {

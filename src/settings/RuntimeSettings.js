@@ -15,11 +15,11 @@ export const ANIMATION_SPEED_MODES = {
 export const ANIMATION_SPEED_MODE_INFO = {
   [ANIMATION_SPEED_MODES.friendly]: {
     label: 'FPS-Friendly',
-    description: 'FPS-Friendly changes game animation timing without changing the render/FPS clock or VIP shader time.',
+    description: 'Changes animation timing without touching the render loop, FPS clock, or VIP shader cell border. RECOMMENDED',
   },
   [ANIMATION_SPEED_MODES.unsafe]: {
     label: 'FPS-Unsafe',
-    description: 'FPS-Unsafe uses the old Date.now timing patch. It can lower FPS and affect timing-heavy effects.',
+    description: 'Uses the older timing patch. This can lower FPS or affect timing-heavy visual effects.',
   },
 };
 

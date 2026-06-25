@@ -138,6 +138,5 @@ function writeCellMassCookie(document, snapshot) {
       : '';
     document.cookie = `${CELL_MASS_COOKIE_NAME}=${value}; Path=/; Max-Age=31536000; SameSite=Lax${domain}`;
   } catch {
-    // Shared userscript storage remains the primary persistence path.
   }
 }

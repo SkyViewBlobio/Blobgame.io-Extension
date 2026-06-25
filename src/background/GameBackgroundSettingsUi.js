@@ -69,7 +69,7 @@ export class GameBackgroundSettingsUi {
   createHeaderRow() {
     const row = this.document.createElement('div');
     row.classList.add('grid-item', 'blobio-extension-setting-row', 'blobio-background-setting-row');
-    row.dataset.blobioTooltip = 'FPS-Impact: Low[5-30]\nAllows you to customise the background color in-game.';
+    row.dataset.blobioTooltip = 'FPS-Impact: Low[5-30]\nLets you change the in-game background color.';
     row.setAttribute('_ngcontent-c3', '');
 
     const switchLabel = this.document.createElement('label');

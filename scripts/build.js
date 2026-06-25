@@ -91,10 +91,11 @@ await build({
   loader: {
     '.png': 'dataurl',
   },
-  banner: {
-    js: '/* Blobio extension bundle. Generated from src/. */',
-  },
 });
+
+const bundleWithoutGeneratedMarkers = (await readFile(outputFile, 'utf8'))
+  .replace(/^\s*\/\/ (?:assets|data|dist|loader|node_modules|src)\/[^\r\n]*(?:\r?\n|$)/gm, '');
+await writeFile(outputFile, bundleWithoutGeneratedMarkers);
 
 function replaceBetweenMarkers(source, startMarker, endMarker, body, label) {
   const startIndex = source.indexOf(startMarker);

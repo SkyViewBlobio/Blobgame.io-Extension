@@ -30,6 +30,7 @@ import {
   EXTENSION_OPTION_TOOLTIPS,
   EXTENSION_SETTING_CATEGORIES,
 } from './MenuFeatureSettingsConfig.js';
+import { renderExtensionTooltip } from './MenuFeatureTooltip.js';
 import {
   findNameInput,
   syncUsernameAnimation,
@@ -1334,48 +1335,7 @@ export class MenuFeature {
   }
 
   renderExtensionTooltip(text) {
-    if (!this.extensionTooltip) {
-      return;
-    }
-
-    while (this.extensionTooltip.firstChild || this.extensionTooltip.children?.length) {
-      this.extensionTooltip.removeChild(this.extensionTooltip.firstChild || this.extensionTooltip.children[0]);
-    }
-
-    const lines = String(text || '').split(/\r?\n/).filter((line) => line.trim());
-    for (const line of lines) {
-      const metric = line.match(/^FPS-(Impact|Gain):\s*([A-Za-z]+)\[([^\]]+)\]$/);
-      const warning = line.match(/^\[(WARNING:[^\]]+)\]$/);
-      const item = this.document.createElement('div');
-      item.classList.add('blobio-extension-tooltip-line');
-
-      if (metric) {
-        const metricKind = metric[1].toLowerCase();
-        const levelKind = metric[2].toLowerCase();
-        item.classList.add('blobio-extension-tooltip-metric', `is-${metricKind}`, `is-level-${levelKind}`);
-
-        const label = this.document.createElement('span');
-        label.classList.add('blobio-extension-tooltip-metric-label');
-        label.textContent = `FPS-${metric[1]}: `;
-
-        const level = this.document.createElement('span');
-        level.classList.add('blobio-extension-tooltip-metric-level', `is-${levelKind}`);
-        level.textContent = metric[2];
-
-        const range = this.document.createElement('span');
-        range.classList.add('blobio-extension-tooltip-metric-range');
-        range.textContent = `[${metric[3]}]`;
-
-        item.append(label, level, range);
-      } else if (warning) {
-        item.classList.add('blobio-extension-tooltip-warning');
-        item.textContent = `[${warning[1]}]`;
-      } else {
-        item.textContent = line;
-      }
-
-      this.extensionTooltip.appendChild(item);
-    }
+    return renderExtensionTooltip(this.document, this.extensionTooltip, text);
   }
 
   moveExtensionTooltip(event) {

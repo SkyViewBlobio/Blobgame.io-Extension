@@ -3,8 +3,8 @@ import {
   saveFpsSaverSettings,
 } from './FpsSaverSettings.js';
 
-const HIDDEN_TAB_DESCRIPTION = 'FPS-Gain: High[100-400]\nWhen the tab is hidden, callbacks run only at the hidden FPS interval. It does not touch WebSocket traffic. Expected save: high background CPU/GPU gain.';
-const OBJECT_RENDERER_DESCRIPTION = 'FPS-Gain: High[40-250]\nHides and or lets you customise the amount of objects rendered.';
+const HIDDEN_TAB_DESCRIPTION = 'FPS-Gain: High[100-400]\nLowers background frame work when the tab is hidden. Saves performance without changing WebSocket traffic.';
+const OBJECT_RENDERER_DESCRIPTION = 'FPS-Gain: High[40-250]\nLets you hide or limit selected in-game objects to reduce render load.';
 
 const SLIDERS = [
   {
@@ -13,7 +13,7 @@ const SLIDERS = [
     min: 1,
     max: 10,
     step: 1,
-    tooltip: 'FPS-Gain: High[100-400]\nFrames per second used when this tab is hidden.',
+    tooltip: 'FPS-Gain: High[100-400]\nSets how many frames per second the game uses while the tab is hidden.',
   },
   {
     key: 'foodLimit',
@@ -21,7 +21,7 @@ const SLIDERS = [
     min: 0,
     max: 900,
     step: 1,
-    tooltip: 'FPS-Gain: High[40-200]\nMaximum food pellets rendered per frame when food culling is enabled. Lower numbers save more GPU work but hide more pellets.',
+    tooltip: 'FPS-Gain: High[40-200]\nSets the maximum number of food pellets rendered each frame. Lower values can improve FPS but hide more pellets.',
   },
   {
     key: 'massLimit',
@@ -29,7 +29,7 @@ const SLIDERS = [
     min: 0,
     max: 900,
     step: 1,
-    tooltip: 'FPS-Gain: Medium[20-120]\nMaximum thrown-mass pellets rendered per frame when thrown mass culling is enabled. Lower numbers save more GPU work but hide more thrown mass.',
+    tooltip: 'FPS-Gain: Medium[20-120]\nSets the maximum number of thrown-mass pellets rendered each frame. Lower values can improve FPS but hide more thrown mass.',
   },
   {
     key: 'maxChatRows',
@@ -37,7 +37,7 @@ const SLIDERS = [
     min: 20,
     max: 120,
     step: 1,
-    tooltip: 'FPS-Gain: Medium[10-60]\nChat rows kept by the DOM pressure guard. Expected save: only matters when chat grows large.',
+    tooltip: 'FPS-Gain: Medium[10-60]\nSets how many chat messages stay loaded before older rows are removed. Helps when chat gets filled.',
   },
 ];
 
@@ -137,10 +137,10 @@ export class FpsSaverSettingsUi {
     const menu = this.createMenu();
     menu.append(
       this.createSectionTitle('Rainbow Food/Pellets'),
-      this.createCheckboxRow({ key: 'foodCulling', label: 'F/P-Culling', tooltip: 'FPS-Gain: High[40-200]\nSkips food pellet render work after the per-frame food limit is reached.' }),
+      this.createCheckboxRow({ key: 'foodCulling', label: 'F/P-Culling', tooltip: 'FPS-Gain: High[40-200]\nStops rendering extra food pellets after the frame limit is reached. Useful for reducing render load in crazy-mode, private mode, or mother-cell modes with heavy pellet-pool areas.' }),
       this.createSliderRow(SLIDERS.find((slider) => slider.key === 'foodLimit')),
       this.createSectionTitle('Thrown Mass'),
-      this.createCheckboxRow({ key: 'massCulling', label: 'T/M-Culling', tooltip: 'FPS-Gain: Medium[20-120]\nSkips thrown-mass render work after the per-frame thrown-mass limit is reached.' }),
+      this.createCheckboxRow({ key: 'massCulling', label: 'T/M-Culling', tooltip: 'FPS-Gain: Medium[20-120]\nStops rendering extra thrown-mass pellets after the frame limit is reached. Useful in Macro, Crazy, other servers that are throw-focused or generally full servers...' }),
       this.createSliderRow(SLIDERS.find((slider) => slider.key === 'massLimit')),
       this.createSectionTitle('Chat'),
       this.createSliderRow(SLIDERS.find((slider) => slider.key === 'maxChatRows')),

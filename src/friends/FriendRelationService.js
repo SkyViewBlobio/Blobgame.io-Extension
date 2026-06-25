@@ -90,8 +90,10 @@ function acceptedListUidFromRecord(record, rawOwnUid = '') {
 
   const ownUid = normalizeUid(rawOwnUid);
 
-  // getRelations?status=1 already limits the response to accepted friends.
-  // A record-level status can describe the returned user rather than the relation.
+  /*
+   * getRelations?status=1 already limits the response to accepted friends.
+   * A record-level status can describe the returned user rather than the relation.
+   */
   for (const key of ['id', 'uid', 'u_id', 'user_id', 'target_id', 'targetId', 'accountId']) {
     const uid = normalizeUid(record[key]);
     if (uid && uid !== ownUid) {

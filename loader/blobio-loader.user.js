@@ -2,7 +2,7 @@
 // @name         Blobio Web Script Loader
 // @namespace    https://github.com/SkyViewBlobio/Blobgame.io-Extension
 // @version      0.2.01
-// @description  Loads the Blobio modular extension bundle from GitHub.
+// @description  Loads the Blobio extension bundle from GitHub.
 // @match        *://blobgame.io/*
 // @match        *://www.blobgame.io/*
 // @match        *://custom.client.blobgame.io/*
@@ -4000,7 +4000,7 @@
 
     function buildJellyGlsl(includeNoSkinCells) {
       const lines = [
-        `// ${JELLY_SHADER_MARKER}. Uses existing u_time and v_scale uniforms only.`,
+        `/* ${JELLY_SHADER_MARKER}. Uses existing u_time and v_scale uniforms only. */`,
         'float blobioJellyScale(float baseScale, vec2 uv) {',
         '    vec2 rel = uv - CENTER_COORD;',
         '    float dist = length(rel);',

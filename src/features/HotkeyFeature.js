@@ -238,7 +238,7 @@ export class HotkeyFeature {
       return false;
     }
 
-    // Follow the same sequence as a player: Enter opens chat, then Enter sends it.
+    /* Follow the same sequence as a player: Enter opens chat, then Enter sends it. */
     this.dispatchEnter(this.document);
     await this.waitForUi();
 
