@@ -7130,6 +7130,55 @@ iframe.blobio-captcha-anchor-hidden,
       input.dispatchEvent?.(event);
       return true;
     }
+    bindCategoryButton(button) {
+      if (!button || button.dataset.blobioCategoryBound === "1") {
+        return button;
+      }
+      button.dataset.blobioCategoryBound = "1";
+      button.addEventListener("click", () => this.toggleCategory(button.dataset.category));
+      return button;
+    }
+    ensureHotkeyLauncher() {
+      const panel = this.root?.querySelector?.(".blobio-chat-settings-panel");
+      if (!panel) {
+        return null;
+      }
+      let button = Array.from(panel.querySelectorAll?.(".blobio-chat-settings-category-button") || []).find((item) => item.dataset.category === "hotkey");
+      if (!button) {
+        button = createCategoryButton(this.document, "HotKey", "hotkey");
+        panel.appendChild(button);
+      }
+      this.bindCategoryButton(button);
+      return button;
+    }
+    ensureAnimationSpeedLauncher() {
+      const panel = this.root?.querySelector?.(".blobio-chat-settings-panel");
+      if (!panel) {
+        return null;
+      }
+      let button = Array.from(panel.querySelectorAll?.(".blobio-chat-settings-category-button") || []).find((item) => item.dataset.category === "animation");
+      if (!button) {
+        button = createCategoryButton(this.document, "Anim-Speed", "animation");
+        const hotkey = panel.querySelector('.blobio-chat-settings-category-button[data-category="hotkey"]');
+        panel.insertBefore(button, hotkey?.nextSibling || null);
+      }
+      this.bindCategoryButton(button);
+      return button;
+    }
+    ensureHudInfoLauncher() {
+      const panel = this.root?.querySelector?.(".blobio-chat-settings-panel");
+      if (!panel) {
+        return null;
+      }
+      let button = Array.from(panel.querySelectorAll?.(".blobio-chat-settings-category-button") || []).find((item) => item.dataset.category === "hud-info");
+      if (!button) {
+        button = createCategoryButton(this.document, "HUD-Info", "hud-info");
+        const animation = panel.querySelector('.blobio-chat-settings-category-button[data-category="animation"]');
+        panel.insertBefore(button, animation?.nextSibling || null);
+      }
+      this.bindCategoryButton(button);
+      return button;
+    }
     bindChatCategory(category) {
       const font = category.querySelector('[data-setting="chat"]');
       const fontToggle = font.querySelector(".blobio-setting-toggle");
