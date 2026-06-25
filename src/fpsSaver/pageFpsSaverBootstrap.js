@@ -78,6 +78,7 @@ function createState(settings, isGameClient, isMainPage) {
     frameCull: {
       id: 0,
       startedAt: 0,
+      particlesThisPass: null,
       foodSeen: 0,
       foodSkipped: 0,
       massSeen: 0,
@@ -93,6 +94,7 @@ function createState(settings, isGameClient, isMainPage) {
       foodSkipped: 0,
       massSeen: 0,
       massSkipped: 0,
+      particleLoopResets: 0,
       chatTrimmed: 0,
     },
     patch: {
@@ -217,6 +219,7 @@ function beginRenderFrame(root, state, timestamp) {
   const startedAt = Number(timestamp) || now(root);
   frame.id += 1;
   frame.startedAt = startedAt;
+  frame.particlesThisPass = createWeakSet(root);
   frame.foodSeen = 0;
   frame.foodSkipped = 0;
   frame.massSeen = 0;
@@ -241,6 +244,7 @@ function skipParticleWork(root, state, object) {
   }
 
   ensureCullFrame(root, state);
+  syncParticleLoopFrame(root, state, object);
 
   if (type === 2) {
     state.frameCull.foodSeen += 1;
@@ -265,6 +269,32 @@ function skipParticleWork(root, state, object) {
   state.frameCull.massSkipped += 1;
   state.counters.massSkipped += 1;
   return true;
+}
+
+function syncParticleLoopFrame(root, state, object) {
+  if (!object || (typeof object !== 'object' && typeof object !== 'function')) {
+    return;
+  }
+
+  const frame = state.frameCull;
+  if (!frame.particlesThisPass) {
+    frame.particlesThisPass = createWeakSet(root);
+  }
+  if (!frame.particlesThisPass) {
+    return;
+  }
+
+  if (frame.particlesThisPass.has(object)) {
+    beginRenderFrame(root, state, now(root));
+    state.counters.particleLoopResets += 1;
+  }
+
+  state.frameCull.particlesThisPass?.add(object);
+}
+
+function createWeakSet(root) {
+  const WeakSetCtor = root.WeakSet || globalThis.WeakSet;
+  return typeof WeakSetCtor === 'function' ? new WeakSetCtor() : null;
 }
 
 function installGameScriptPatch(root, state) {
@@ -613,7 +643,7 @@ function buildDebug(root, doc, state) {
     isMainPage: state.isMainPage,
     settings: { ...state.settings },
     counters: { ...state.counters },
-    frameCull: { ...state.frameCull },
+    frameCull: frameCullDebug(state.frameCull),
     patch: {
       scriptPatchInstalled: state.scriptPatchInstalled,
       callbackWrapped: state.callbackWrapped,
@@ -627,6 +657,14 @@ function buildDebug(root, doc, state) {
       chatRows: Number(doc?.getElementById?.('chat')?.children?.length) || 0,
     },
     errors: state.errors.slice(),
+  };
+}
+
+function frameCullDebug(frame) {
+  const { particlesThisPass, ...debug } = frame || {};
+  return {
+    ...debug,
+    passTracking: Boolean(particlesThisPass),
   };
 }
 
