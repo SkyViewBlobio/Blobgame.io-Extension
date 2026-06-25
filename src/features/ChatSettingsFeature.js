@@ -1,11 +1,9 @@
 import { CHAT_SETTINGS_CSS, CHAT_SETTINGS_STYLE_ID } from '../css/ChatSettingsStyles.js';
 import { createBlobioStorage } from '../storage/BlobioStorage.js';
-import { HOTKEY_TEXT_LIMIT } from '../hotkeys/HotkeyStore.js';
 import {
   ANIMATION_SPEED_LIMITS,
   ANIMATION_SPEED_MODE_INFO,
   ANIMATION_SPEED_MODES,
-  CHAT_FONT_SIZE_LIMITS,
   getAnimationSpeedSetting,
   getChatFontSize,
   isChatFontSizeEnabled,
@@ -16,7 +14,6 @@ import {
 import {
   HUD_INFO_BOOSTER_COLOR_MODES,
   HUD_INFO_DATA_MODES,
-  HUD_INFO_FONT_LIMITS,
   HUD_INFO_LAYOUT_MODES,
   HUD_INFO_POSITION_MODES,
   HUD_INFO_STYLE_MODES,
@@ -34,7 +31,6 @@ import {
   LEADERBOARD_BACKGROUND_KEYS,
   LEADERBOARD_OUTLINE_KEYS,
   SMOOTH_CHAT_KEY,
-  UI_FONT_SIZE_LIMITS,
   getBooleanSetting,
   getColorSetting,
   getLeaderboardFontSetting,
@@ -43,6 +39,16 @@ import {
   setColorSetting,
   setLeaderboardFontSetting,
 } from '../settings/InGameUiSettings.js';
+import {
+  createAnimationSpeedCategory,
+  createCaptchaCategory,
+  createCategoryButton,
+  createChatCategory,
+  createHotkeyCategory,
+  createHudInfoCategory,
+  createLeaderboardCategory,
+  createMutedPlayersCategory,
+} from './chatSettings/ChatSettingsCategoryViews.js';
 
 const CHAT_GAP = 10;
 const TOGGLE_WIDTH = 30;
@@ -153,22 +159,22 @@ export class ChatSettingsFeature {
     const panel = this.document.createElement('div');
     panel.classList.add('blobio-chat-settings-panel');
 
-    const chatButton = this.createCategoryButton('Chat-Settings', 'chat');
-    const mutedButton = this.createCategoryButton('Muted-Players', 'muted');
-    const hotkeyButton = this.createCategoryButton('HotKey', 'hotkey');
-    const animationButton = this.createCategoryButton('Anim-Speed', 'animation');
-    const hudButton = this.createCategoryButton('HUD-Info', 'hud-info');
-    const captchaButton = this.createCategoryButton('Captcha-Logo', 'captcha');
-    const leaderboardButton = this.createCategoryButton('Leaderboard-Settings', 'leaderboard');
+    const chatButton = createCategoryButton(this.document, 'Chat-Settings', 'chat');
+    const mutedButton = createCategoryButton(this.document, 'Muted-Players', 'muted');
+    const hotkeyButton = createCategoryButton(this.document, 'HotKey', 'hotkey');
+    const animationButton = createCategoryButton(this.document, 'Anim-Speed', 'animation');
+    const hudButton = createCategoryButton(this.document, 'HUD-Info', 'hud-info');
+    const captchaButton = createCategoryButton(this.document, 'Captcha-Logo', 'captcha');
+    const leaderboardButton = createCategoryButton(this.document, 'Leaderboard-Settings', 'leaderboard');
     panel.append(chatButton, mutedButton, hotkeyButton, animationButton, hudButton, captchaButton, leaderboardButton);
 
-    const chatCategory = this.createChatCategory();
-    const mutedCategory = this.createMutedPlayersCategory();
-    const hotkeyCategory = this.createHotkeyCategory();
-    const animationCategory = this.createAnimationSpeedCategory();
-    const hudCategory = this.createHudInfoCategory();
-    const captchaCategory = this.createCaptchaCategory();
-    const leaderboardCategory = this.createLeaderboardCategory();
+    const chatCategory = createChatCategory(this.document);
+    const mutedCategory = createMutedPlayersCategory(this.document);
+    const hotkeyCategory = createHotkeyCategory(this.document);
+    const animationCategory = createAnimationSpeedCategory(this.document);
+    const hudCategory = createHudInfoCategory(this.document);
+    const captchaCategory = createCaptchaCategory(this.document);
+    const leaderboardCategory = createLeaderboardCategory(this.document);
     root.append(
       toggle,
       panel,
@@ -429,446 +435,6 @@ export class ChatSettingsFeature {
       : { type: 'input', bubbles: true };
     input.dispatchEvent?.(event);
     return true;
-  }
-
-  createCategoryButton(label, category) {
-    const button = this.document.createElement('button');
-    button.type = 'button';
-    button.classList.add('blobio-chat-settings-category-button');
-    button.dataset.category = category;
-    button.setAttribute('aria-expanded', 'false');
-
-    const text = this.document.createElement('span');
-    text.textContent = label;
-    button.appendChild(text);
-    return button;
-  }
-
-  bindCategoryButton(button) {
-    if (!button || button.dataset.blobioCategoryBound === '1') {
-      return button;
-    }
-
-    button.dataset.blobioCategoryBound = '1';
-    button.addEventListener('click', () => this.toggleCategory(button.dataset.category));
-    return button;
-  }
-
-  ensureHotkeyLauncher() {
-    const panel = this.root?.querySelector?.('.blobio-chat-settings-panel');
-    if (!panel) {
-      return null;
-    }
-
-    let button = Array.from(panel.querySelectorAll?.('.blobio-chat-settings-category-button') || [])
-      .find((item) => item.dataset.category === 'hotkey');
-    if (!button) {
-      button = this.createCategoryButton('HotKey', 'hotkey');
-      panel.appendChild(button);
-    }
-
-    this.bindCategoryButton(button);
-    return button;
-  }
-
-  ensureAnimationSpeedLauncher() {
-    const panel = this.root?.querySelector?.('.blobio-chat-settings-panel');
-    if (!panel) {
-      return null;
-    }
-
-    let button = Array.from(panel.querySelectorAll?.('.blobio-chat-settings-category-button') || [])
-      .find((item) => item.dataset.category === 'animation');
-    if (!button) {
-      button = this.createCategoryButton('Anim-Speed', 'animation');
-      const hotkey = panel.querySelector('.blobio-chat-settings-category-button[data-category="hotkey"]');
-      panel.insertBefore(button, hotkey?.nextSibling || null);
-    }
-
-    this.bindCategoryButton(button);
-    return button;
-  }
-
-  ensureHudInfoLauncher() {
-    const panel = this.root?.querySelector?.('.blobio-chat-settings-panel');
-    if (!panel) {
-      return null;
-    }
-
-    let button = Array.from(panel.querySelectorAll?.('.blobio-chat-settings-category-button') || [])
-      .find((item) => item.dataset.category === 'hud-info');
-    if (!button) {
-      button = this.createCategoryButton('HUD-Info', 'hud-info');
-      const animation = panel.querySelector('.blobio-chat-settings-category-button[data-category="animation"]');
-      panel.insertBefore(button, animation?.nextSibling || null);
-    }
-
-    this.bindCategoryButton(button);
-    return button;
-  }
-
-  createChatCategory() {
-    const category = this.document.createElement('div');
-    category.classList.add('blobio-chat-settings-category', 'blobio-chat-appearance-category');
-    category.dataset.category = 'chat';
-
-    category.append(
-      this.createFontSetting('chat', 'Font-Size', CHAT_FONT_SIZE_LIMITS),
-      this.createColorSetting('chat-background', 'Chat-BG-Color'),
-      this.createColorSetting('chat-outline', 'Chat-outline-Color'),
-      this.createBooleanSetting('smooth-chat', 'Smooth-Chat'),
-    );
-    return category;
-  }
-
-  createCaptchaCategory() {
-    const category = this.document.createElement('div');
-    category.classList.add('blobio-chat-settings-category', 'blobio-captcha-category');
-    category.dataset.category = 'captcha';
-    category.appendChild(this.createBooleanSetting('captcha-logo', 'Hide Captcha-Logo'));
-    return category;
-  }
-
-  createLeaderboardCategory() {
-    const category = this.document.createElement('div');
-    category.classList.add('blobio-chat-settings-category', 'blobio-leaderboard-category');
-    category.dataset.category = 'leaderboard';
-    category.append(
-      this.createFontSetting('leaderboard', 'Font-Size', UI_FONT_SIZE_LIMITS),
-      this.createColorSetting('leaderboard-background', 'Leaderboard-BG-Color'),
-      this.createColorSetting('leaderboard-outline', 'Leaderboard-outline-Color'),
-    );
-    return category;
-  }
-
-  createFontSetting(name, labelText, limits) {
-    const group = this.document.createElement('div');
-    group.classList.add('blobio-ui-setting-group', 'blobio-ui-font-setting');
-    group.dataset.setting = name;
-
-    const toggle = this.document.createElement('button');
-    toggle.type = 'button';
-    toggle.classList.add('blobio-chat-font-toggle', 'blobio-setting-toggle');
-
-    const label = this.document.createElement('div');
-    label.classList.add('blobio-chat-font-label');
-    label.textContent = labelText;
-
-    const controls = this.document.createElement('div');
-    controls.classList.add('blobio-chat-font-controls');
-
-    const range = this.document.createElement('input');
-    range.type = 'range';
-    range.classList.add('blobio-chat-font-range', 'blobio-themed-range');
-    range.min = String(limits.min);
-    range.max = String(limits.max);
-    range.step = '1';
-
-    const number = this.document.createElement('input');
-    number.type = 'number';
-    number.classList.add('blobio-chat-font-number');
-    number.min = String(limits.min);
-    number.max = String(limits.max);
-    number.step = '1';
-    number.setAttribute('aria-label', `${labelText} ${name}`);
-
-    controls.append(range, number);
-    group.append(toggle, label, controls);
-    return group;
-  }
-
-  createBooleanSetting(name, labelText) {
-    const group = this.document.createElement('div');
-    group.classList.add('blobio-ui-setting-group', 'blobio-ui-boolean-setting');
-    group.dataset.setting = name;
-
-    const toggle = this.document.createElement('button');
-    toggle.type = 'button';
-    toggle.classList.add('blobio-chat-font-toggle', 'blobio-setting-toggle');
-
-    const label = this.document.createElement('div');
-    label.classList.add('blobio-chat-font-label');
-    label.textContent = labelText;
-
-    group.append(toggle, label);
-    return group;
-  }
-
-  createColorSetting(name, labelText) {
-    const group = this.document.createElement('div');
-    group.classList.add('blobio-ui-setting-group', 'blobio-ui-color-setting');
-    group.dataset.setting = name;
-
-    const toggle = this.document.createElement('button');
-    toggle.type = 'button';
-    toggle.classList.add('blobio-chat-font-toggle', 'blobio-setting-toggle');
-
-    const label = this.document.createElement('div');
-    label.classList.add('blobio-chat-font-label');
-    label.textContent = labelText;
-
-    const controls = this.document.createElement('div');
-    controls.classList.add('blobio-ui-color-controls');
-
-    const wheel = this.document.createElement('label');
-    wheel.classList.add('blobio-ui-color-wheel');
-    const swatch = this.document.createElement('span');
-    swatch.classList.add('blobio-ui-color-swatch');
-    const color = this.document.createElement('input');
-    color.type = 'color';
-    color.classList.add('blobio-ui-color-input');
-    color.setAttribute('aria-label', labelText);
-    wheel.append(swatch, color);
-
-    const alpha = this.document.createElement('input');
-    alpha.type = 'range';
-    alpha.min = '0';
-    alpha.max = '1';
-    alpha.step = '0.01';
-    alpha.classList.add('blobio-ui-alpha-range', 'blobio-themed-range');
-    alpha.setAttribute('aria-label', `${labelText} alpha`);
-
-    const alphaValue = this.document.createElement('span');
-    alphaValue.classList.add('blobio-ui-alpha-value');
-
-    controls.append(wheel, alpha, alphaValue);
-    group.append(toggle, label, controls);
-    return group;
-  }
-
-
-  createMutedPlayersCategory() {
-    const category = this.document.createElement('div');
-    category.classList.add('blobio-chat-settings-category', 'blobio-muted-players-category');
-    category.dataset.category = 'muted';
-
-    const toggle = this.document.createElement('button');
-    toggle.type = 'button';
-    toggle.classList.add('blobio-chat-font-toggle', 'blobio-muted-players-toggle');
-
-    const label = this.document.createElement('div');
-    label.classList.add('blobio-chat-font-label', 'blobio-muted-players-label');
-    label.textContent = 'Ability to mute players with ID';
-
-    const list = this.document.createElement('div');
-    list.classList.add('blobio-muted-players-list');
-
-    const empty = this.document.createElement('div');
-    empty.classList.add('blobio-muted-players-empty');
-    empty.textContent = 'No muted player UIDs.';
-    list.appendChild(empty);
-
-    const actions = this.document.createElement('div');
-    actions.classList.add('blobio-muted-players-actions');
-
-    const addName = this.document.createElement('button');
-    addName.type = 'button';
-    addName.classList.add('blobio-muted-player-action', 'blobio-muted-player-add-name');
-    addName.textContent = 'Add name';
-
-    const unmute = this.document.createElement('button');
-    unmute.type = 'button';
-    unmute.classList.add('blobio-muted-player-action', 'blobio-muted-player-unmute');
-    unmute.textContent = 'Unmute';
-
-    actions.append(addName, unmute);
-    category.append(toggle, label, list, actions);
-    return category;
-  }
-
-  createHotkeyCategory() {
-    const category = this.document.createElement('div');
-    category.classList.add('blobio-chat-settings-category', 'blobio-hotkey-category');
-    category.dataset.category = 'hotkey';
-
-    const input = this.document.createElement('input');
-    input.type = 'text';
-    input.classList.add('blobio-hotkey-text-input');
-    input.maxLength = HOTKEY_TEXT_LIMIT;
-    input.placeholder = 'Write command here...';
-    input.setAttribute('aria-label', 'Hotkey command or message');
-
-    const list = this.document.createElement('div');
-    list.classList.add('blobio-hotkey-list');
-
-    const apply = this.document.createElement('button');
-    apply.type = 'button';
-    apply.classList.add('blobio-hotkey-action', 'blobio-hotkey-apply');
-    apply.textContent = 'Apply HK text';
-
-    const remove = this.document.createElement('button');
-    remove.type = 'button';
-    remove.classList.add('blobio-hotkey-action', 'blobio-hotkey-remove');
-    remove.textContent = 'Remove';
-
-    category.append(input, list, apply, remove);
-    return category;
-  }
-
-  createAnimationSpeedCategory() {
-    const category = this.document.createElement('div');
-    category.classList.add('blobio-chat-settings-category', 'blobio-animation-speed-category');
-    category.dataset.category = 'animation';
-
-    const group = this.document.createElement('div');
-    group.classList.add('blobio-ui-setting-group', 'blobio-animation-speed-setting');
-    group.dataset.setting = 'animation-speed';
-
-    const toggle = this.document.createElement('button');
-    toggle.type = 'button';
-    toggle.classList.add('blobio-chat-font-toggle', 'blobio-setting-toggle');
-
-    const label = this.document.createElement('div');
-    label.classList.add('blobio-chat-font-label');
-    label.textContent = 'Animation Speed';
-
-    const controls = this.document.createElement('div');
-    controls.classList.add('blobio-animation-speed-controls');
-
-    const modeButton = this.document.createElement('button');
-    modeButton.type = 'button';
-    modeButton.classList.add('blobio-animation-speed-mode');
-    modeButton.setAttribute('aria-label', 'Animation speed mode');
-
-    const slider = this.document.createElement('input');
-    slider.type = 'range';
-    slider.classList.add('blobio-animation-speed-range', 'blobio-themed-range');
-    slider.min = String(ANIMATION_SPEED_LIMITS.min);
-    slider.max = String(ANIMATION_SPEED_LIMITS.max);
-    slider.step = '1';
-    slider.setAttribute('aria-label', 'Animation speed');
-
-    const value = this.document.createElement('span');
-    value.classList.add('blobio-animation-speed-value');
-
-    const rangeLabel = this.document.createElement('span');
-    rangeLabel.classList.add('blobio-animation-speed-range-label');
-    rangeLabel.textContent = '0.1x - 18.0x';
-
-    const reset = this.document.createElement('button');
-    reset.type = 'button';
-    reset.classList.add('blobio-animation-speed-reset');
-    reset.textContent = 'Reset to default';
-
-    controls.append(modeButton, slider, value, rangeLabel, reset);
-    group.append(toggle, label, controls);
-    category.appendChild(group);
-    return category;
-  }
-
-  createHudInfoCategory() {
-    const category = this.document.createElement('div');
-    category.classList.add('blobio-chat-settings-category', 'blobio-hud-info-category');
-    category.dataset.category = 'hud-info';
-
-    category.append(
-      this.createBooleanSetting('hud-info-enabled', 'HUD-text on screen'),
-      this.createBooleanSetting('hud-info-fps', 'FPS'),
-      this.createBooleanSetting('hud-info-score', 'Score'),
-      this.createBooleanSetting('hud-info-cells', 'Cells'),
-      this.createBooleanSetting('hud-info-ping', 'Ping'),
-      this.createBooleanSetting('hud-info-boosters', 'Booster-Info'),
-      this.createHudModeSetting('hud-position', 'Position'),
-      this.createHudModeSetting('hud-layout', 'Layout'),
-      this.createHudModeSetting('hud-style', 'Style'),
-      this.createHudModeSetting('hud-fps-mode', 'FPS mode'),
-      this.createHudModeSetting('hud-score-mode', 'Score mode'),
-      this.createHudModeSetting('hud-ping-mode', 'Ping mode'),
-      this.createHudModeSetting('hud-booster-name-mode', 'Booster type color'),
-      this.createHudModeSetting('hud-booster-duration-mode', 'Booster duration color'),
-      this.createBooleanSetting('hud-booster-last-sec-flash', 'Last-Sec-Flash'),
-      this.createHudSizeSetting(),
-      this.createHudColorSetting(),
-    );
-    return category;
-  }
-
-  createHudModeSetting(name, labelText) {
-    const group = this.document.createElement('div');
-    group.classList.add('blobio-ui-setting-group', 'blobio-hud-mode-setting');
-    group.dataset.setting = name;
-
-    const label = this.document.createElement('div');
-    label.classList.add('blobio-chat-font-label');
-    label.textContent = labelText;
-
-    const button = this.document.createElement('button');
-    button.type = 'button';
-    button.classList.add('blobio-hud-mode-button');
-    button.setAttribute('aria-label', labelText);
-
-    group.append(label, button);
-    return group;
-  }
-
-  createHudSizeSetting() {
-    const group = this.document.createElement('div');
-    group.classList.add('blobio-ui-setting-group', 'blobio-hud-size-setting');
-    group.dataset.setting = 'hud-font-size';
-
-    const label = this.document.createElement('div');
-    label.classList.add('blobio-chat-font-label');
-    label.textContent = 'HUD Font-Size';
-
-    const controls = this.document.createElement('div');
-    controls.classList.add('blobio-chat-font-controls');
-
-    const range = this.document.createElement('input');
-    range.type = 'range';
-    range.classList.add('blobio-chat-font-range', 'blobio-themed-range');
-    range.min = String(HUD_INFO_FONT_LIMITS.min);
-    range.max = String(HUD_INFO_FONT_LIMITS.max);
-    range.step = '1';
-
-    const number = this.document.createElement('input');
-    number.type = 'number';
-    number.classList.add('blobio-chat-font-number');
-    number.min = String(HUD_INFO_FONT_LIMITS.min);
-    number.max = String(HUD_INFO_FONT_LIMITS.max);
-    number.step = '1';
-    number.setAttribute('aria-label', 'HUD font size');
-
-    controls.append(range, number);
-    group.append(label, controls);
-    return group;
-  }
-
-  createHudColorSetting() {
-    const group = this.document.createElement('div');
-    group.classList.add('blobio-ui-setting-group', 'blobio-hud-color-setting');
-    group.dataset.setting = 'hud-color';
-
-    const label = this.document.createElement('div');
-    label.classList.add('blobio-chat-font-label');
-    label.textContent = 'HUD Text-Color';
-
-    const controls = this.document.createElement('div');
-    controls.classList.add('blobio-ui-color-controls');
-
-    const wheel = this.document.createElement('label');
-    wheel.classList.add('blobio-ui-color-wheel');
-    const swatch = this.document.createElement('span');
-    swatch.classList.add('blobio-ui-color-swatch');
-    const color = this.document.createElement('input');
-    color.type = 'color';
-    color.classList.add('blobio-ui-color-input');
-    color.setAttribute('aria-label', 'HUD text color');
-    wheel.append(swatch, color);
-
-    const alpha = this.document.createElement('input');
-    alpha.type = 'range';
-    alpha.min = '0';
-    alpha.max = '1';
-    alpha.step = '0.01';
-    alpha.classList.add('blobio-ui-alpha-range', 'blobio-themed-range');
-    alpha.setAttribute('aria-label', 'HUD text alpha');
-
-    const alphaValue = this.document.createElement('span');
-    alphaValue.classList.add('blobio-ui-alpha-value');
-
-    controls.append(wheel, alpha, alphaValue);
-    group.append(label, controls);
-    return group;
   }
 
   bindChatCategory(category) {

@@ -5730,221 +5730,6 @@ iframe.blobio-captcha-anchor-hidden,
 }
 `;
 
-  // src/hotkeys/HotkeyStore.js
-  var HOTKEYS_STORAGE_KEY = "blobio.chat.hotkeys";
-  var HOTKEY_TEXT_LIMIT = 50;
-  var MOUSE_BUTTONS = /* @__PURE__ */ new Set([0, 1, 2]);
-  function normalizeText(value) {
-    return String(value ?? "").trim().slice(0, HOTKEY_TEXT_LIMIT);
-  }
-  function normalizeKeyCode(value) {
-    const code = String(value ?? "").trim();
-    return code && code.length <= 64 && !/\s/.test(code) ? code : "";
-  }
-  function normalizeMouseButton(value) {
-    if (value === "" || value === null || value === void 0) {
-      return null;
-    }
-    const button = Number(value);
-    return MOUSE_BUTTONS.has(button) ? button : null;
-  }
-  function normalizeEntry(value) {
-    if (!value || typeof value !== "object") {
-      return null;
-    }
-    const id = String(value.id ?? "").trim();
-    const text = normalizeText(value.text);
-    if (!id || !text) {
-      return null;
-    }
-    return {
-      id,
-      text,
-      keyCode: normalizeKeyCode(value.keyCode),
-      mouseButton: normalizeMouseButton(value.mouseButton)
-    };
-  }
-  function cloneEntry(entry) {
-    return { ...entry };
-  }
-  var HotkeyStore = class {
-    constructor({
-      document = globalThis.document,
-      storage = createBlobioStorage(document),
-      logger = console
-    } = {}) {
-      this.document = document;
-      this.storage = storage;
-      this.logger = logger;
-      this.entries = [];
-      this.listeners = /* @__PURE__ */ new Set();
-      this.nextId = 1;
-      this.started = false;
-    }
-    start() {
-      if (this.started) {
-        return true;
-      }
-      this.entries = this.readEntries();
-      this.started = true;
-      return true;
-    }
-    getHotkeys() {
-      return this.entries.map(cloneEntry);
-    }
-    getById(id) {
-      const entry = this.entries.find((item) => item.id === String(id));
-      return entry ? cloneEntry(entry) : null;
-    }
-    findByKey(code) {
-      const normalized = normalizeKeyCode(code);
-      const entry = normalized && this.entries.find((item) => item.keyCode === normalized);
-      return entry ? cloneEntry(entry) : null;
-    }
-    findByMouse(button) {
-      const normalized = normalizeMouseButton(button);
-      const entry = normalized !== null && this.entries.find((item) => item.mouseButton === normalized);
-      return entry ? cloneEntry(entry) : null;
-    }
-    add(text) {
-      const normalized = normalizeText(text);
-      if (!normalized) {
-        return null;
-      }
-      const entry = {
-        id: this.createId(),
-        text: normalized,
-        keyCode: "",
-        mouseButton: null
-      };
-      this.entries.push(entry);
-      this.commit();
-      return cloneEntry(entry);
-    }
-    remove(id) {
-      const targetId = String(id ?? "");
-      const next = this.entries.filter((entry) => entry.id !== targetId);
-      if (next.length === this.entries.length) {
-        return false;
-      }
-      this.entries = next;
-      this.commit();
-      return true;
-    }
-    setKey(id, code) {
-      const targetId = String(id ?? "");
-      const normalized = normalizeKeyCode(code);
-      const target = this.entries.find((entry) => entry.id === targetId);
-      if (!target) {
-        return false;
-      }
-      let changed = target.keyCode !== normalized;
-      for (const entry of this.entries) {
-        if (entry.id !== targetId && normalized && entry.keyCode === normalized) {
-          entry.keyCode = "";
-          changed = true;
-        }
-      }
-      target.keyCode = normalized;
-      if (changed) {
-        this.commit();
-      }
-      return true;
-    }
-    setMouse(id, button) {
-      const targetId = String(id ?? "");
-      const normalized = normalizeMouseButton(button);
-      const target = this.entries.find((entry) => entry.id === targetId);
-      if (!target) {
-        return false;
-      }
-      let changed = target.mouseButton !== normalized;
-      for (const entry of this.entries) {
-        if (entry.id !== targetId && normalized !== null && entry.mouseButton === normalized) {
-          entry.mouseButton = null;
-          changed = true;
-        }
-      }
-      target.mouseButton = normalized;
-      if (changed) {
-        this.commit();
-      }
-      return true;
-    }
-    subscribe(listener) {
-      if (typeof listener !== "function") {
-        return () => {
-        };
-      }
-      this.listeners.add(listener);
-      return () => this.listeners.delete(listener);
-    }
-    readEntries() {
-      try {
-        const parsed = JSON.parse(this.storage?.getItem?.(HOTKEYS_STORAGE_KEY) || "[]");
-        if (!Array.isArray(parsed)) {
-          return [];
-        }
-        const ids = /* @__PURE__ */ new Set();
-        const keyCodes = /* @__PURE__ */ new Set();
-        const mouseButtons = /* @__PURE__ */ new Set();
-        const entries = [];
-        for (const value of parsed) {
-          const entry = normalizeEntry(value);
-          if (!entry || ids.has(entry.id)) {
-            continue;
-          }
-          ids.add(entry.id);
-          if (entry.keyCode && keyCodes.has(entry.keyCode)) {
-            entry.keyCode = "";
-          }
-          if (entry.keyCode) {
-            keyCodes.add(entry.keyCode);
-          }
-          if (entry.mouseButton !== null && mouseButtons.has(entry.mouseButton)) {
-            entry.mouseButton = null;
-          }
-          if (entry.mouseButton !== null) {
-            mouseButtons.add(entry.mouseButton);
-          }
-          entries.push(entry);
-        }
-        return entries;
-      } catch (error) {
-        this.logger?.warn?.("[Blobio] Hotkey settings could not be read.", error);
-        return [];
-      }
-    }
-    createId() {
-      const win = this.document?.defaultView || globalThis;
-      if (typeof win.crypto?.randomUUID === "function") {
-        return win.crypto.randomUUID();
-      }
-      const id = `hk-${Date.now().toString(36)}-${this.nextId.toString(36)}`;
-      this.nextId += 1;
-      return id;
-    }
-    commit() {
-      try {
-        this.storage?.setItem?.(HOTKEYS_STORAGE_KEY, JSON.stringify(this.entries));
-      } catch (error) {
-        this.logger?.warn?.("[Blobio] Hotkey settings could not be saved.", error);
-      }
-      const snapshot = this.getHotkeys();
-      for (const listener of this.listeners) {
-        try {
-          listener(snapshot);
-        } catch (error) {
-          this.logger?.warn?.("[Blobio] Hotkey listener failed.", error);
-        }
-      }
-    }
-    destroy() {
-      this.listeners.clear();
-      this.started = false;
-    }
-  };
-
   // src/settings/RuntimeSettings.js
   var FPS_UNCAP_STORAGE_KEY = "blobio.settings.fpsUncap";
   var CHAT_FONT_SIZE_ENABLED_KEY = "blobio.chat.fontSizeEnabled";
@@ -6490,6 +6275,529 @@ iframe.blobio-captcha-anchor-hidden,
   }
   var IN_GAME_UI_DEFAULTS = DEFAULT_COLORS;
 
+  // src/hotkeys/HotkeyStore.js
+  var HOTKEYS_STORAGE_KEY = "blobio.chat.hotkeys";
+  var HOTKEY_TEXT_LIMIT = 50;
+  var MOUSE_BUTTONS = /* @__PURE__ */ new Set([0, 1, 2]);
+  function normalizeText(value) {
+    return String(value ?? "").trim().slice(0, HOTKEY_TEXT_LIMIT);
+  }
+  function normalizeKeyCode(value) {
+    const code = String(value ?? "").trim();
+    return code && code.length <= 64 && !/\s/.test(code) ? code : "";
+  }
+  function normalizeMouseButton(value) {
+    if (value === "" || value === null || value === void 0) {
+      return null;
+    }
+    const button = Number(value);
+    return MOUSE_BUTTONS.has(button) ? button : null;
+  }
+  function normalizeEntry(value) {
+    if (!value || typeof value !== "object") {
+      return null;
+    }
+    const id = String(value.id ?? "").trim();
+    const text = normalizeText(value.text);
+    if (!id || !text) {
+      return null;
+    }
+    return {
+      id,
+      text,
+      keyCode: normalizeKeyCode(value.keyCode),
+      mouseButton: normalizeMouseButton(value.mouseButton)
+    };
+  }
+  function cloneEntry(entry) {
+    return { ...entry };
+  }
+  var HotkeyStore = class {
+    constructor({
+      document = globalThis.document,
+      storage = createBlobioStorage(document),
+      logger = console
+    } = {}) {
+      this.document = document;
+      this.storage = storage;
+      this.logger = logger;
+      this.entries = [];
+      this.listeners = /* @__PURE__ */ new Set();
+      this.nextId = 1;
+      this.started = false;
+    }
+    start() {
+      if (this.started) {
+        return true;
+      }
+      this.entries = this.readEntries();
+      this.started = true;
+      return true;
+    }
+    getHotkeys() {
+      return this.entries.map(cloneEntry);
+    }
+    getById(id) {
+      const entry = this.entries.find((item) => item.id === String(id));
+      return entry ? cloneEntry(entry) : null;
+    }
+    findByKey(code) {
+      const normalized = normalizeKeyCode(code);
+      const entry = normalized && this.entries.find((item) => item.keyCode === normalized);
+      return entry ? cloneEntry(entry) : null;
+    }
+    findByMouse(button) {
+      const normalized = normalizeMouseButton(button);
+      const entry = normalized !== null && this.entries.find((item) => item.mouseButton === normalized);
+      return entry ? cloneEntry(entry) : null;
+    }
+    add(text) {
+      const normalized = normalizeText(text);
+      if (!normalized) {
+        return null;
+      }
+      const entry = {
+        id: this.createId(),
+        text: normalized,
+        keyCode: "",
+        mouseButton: null
+      };
+      this.entries.push(entry);
+      this.commit();
+      return cloneEntry(entry);
+    }
+    remove(id) {
+      const targetId = String(id ?? "");
+      const next = this.entries.filter((entry) => entry.id !== targetId);
+      if (next.length === this.entries.length) {
+        return false;
+      }
+      this.entries = next;
+      this.commit();
+      return true;
+    }
+    setKey(id, code) {
+      const targetId = String(id ?? "");
+      const normalized = normalizeKeyCode(code);
+      const target = this.entries.find((entry) => entry.id === targetId);
+      if (!target) {
+        return false;
+      }
+      let changed = target.keyCode !== normalized;
+      for (const entry of this.entries) {
+        if (entry.id !== targetId && normalized && entry.keyCode === normalized) {
+          entry.keyCode = "";
+          changed = true;
+        }
+      }
+      target.keyCode = normalized;
+      if (changed) {
+        this.commit();
+      }
+      return true;
+    }
+    setMouse(id, button) {
+      const targetId = String(id ?? "");
+      const normalized = normalizeMouseButton(button);
+      const target = this.entries.find((entry) => entry.id === targetId);
+      if (!target) {
+        return false;
+      }
+      let changed = target.mouseButton !== normalized;
+      for (const entry of this.entries) {
+        if (entry.id !== targetId && normalized !== null && entry.mouseButton === normalized) {
+          entry.mouseButton = null;
+          changed = true;
+        }
+      }
+      target.mouseButton = normalized;
+      if (changed) {
+        this.commit();
+      }
+      return true;
+    }
+    subscribe(listener) {
+      if (typeof listener !== "function") {
+        return () => {
+        };
+      }
+      this.listeners.add(listener);
+      return () => this.listeners.delete(listener);
+    }
+    readEntries() {
+      try {
+        const parsed = JSON.parse(this.storage?.getItem?.(HOTKEYS_STORAGE_KEY) || "[]");
+        if (!Array.isArray(parsed)) {
+          return [];
+        }
+        const ids = /* @__PURE__ */ new Set();
+        const keyCodes = /* @__PURE__ */ new Set();
+        const mouseButtons = /* @__PURE__ */ new Set();
+        const entries = [];
+        for (const value of parsed) {
+          const entry = normalizeEntry(value);
+          if (!entry || ids.has(entry.id)) {
+            continue;
+          }
+          ids.add(entry.id);
+          if (entry.keyCode && keyCodes.has(entry.keyCode)) {
+            entry.keyCode = "";
+          }
+          if (entry.keyCode) {
+            keyCodes.add(entry.keyCode);
+          }
+          if (entry.mouseButton !== null && mouseButtons.has(entry.mouseButton)) {
+            entry.mouseButton = null;
+          }
+          if (entry.mouseButton !== null) {
+            mouseButtons.add(entry.mouseButton);
+          }
+          entries.push(entry);
+        }
+        return entries;
+      } catch (error) {
+        this.logger?.warn?.("[Blobio] Hotkey settings could not be read.", error);
+        return [];
+      }
+    }
+    createId() {
+      const win = this.document?.defaultView || globalThis;
+      if (typeof win.crypto?.randomUUID === "function") {
+        return win.crypto.randomUUID();
+      }
+      const id = `hk-${Date.now().toString(36)}-${this.nextId.toString(36)}`;
+      this.nextId += 1;
+      return id;
+    }
+    commit() {
+      try {
+        this.storage?.setItem?.(HOTKEYS_STORAGE_KEY, JSON.stringify(this.entries));
+      } catch (error) {
+        this.logger?.warn?.("[Blobio] Hotkey settings could not be saved.", error);
+      }
+      const snapshot = this.getHotkeys();
+      for (const listener of this.listeners) {
+        try {
+          listener(snapshot);
+        } catch (error) {
+          this.logger?.warn?.("[Blobio] Hotkey listener failed.", error);
+        }
+      }
+    }
+    destroy() {
+      this.listeners.clear();
+      this.started = false;
+    }
+  };
+
+  // src/features/chatSettings/ChatSettingsCategoryViews.js
+  function createCategoryButton(document, label, category) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.classList.add("blobio-chat-settings-category-button");
+    button.dataset.category = category;
+    button.setAttribute("aria-expanded", "false");
+    const text = document.createElement("span");
+    text.textContent = label;
+    button.appendChild(text);
+    return button;
+  }
+  function createChatCategory(document) {
+    const category = document.createElement("div");
+    category.classList.add("blobio-chat-settings-category", "blobio-chat-appearance-category");
+    category.dataset.category = "chat";
+    category.append(
+      createFontSetting(document, "chat", "Font-Size", CHAT_FONT_SIZE_LIMITS),
+      createColorSetting(document, "chat-background", "Chat-BG-Color"),
+      createColorSetting(document, "chat-outline", "Chat-outline-Color"),
+      createBooleanSetting(document, "smooth-chat", "Smooth-Chat")
+    );
+    return category;
+  }
+  function createCaptchaCategory(document) {
+    const category = document.createElement("div");
+    category.classList.add("blobio-chat-settings-category", "blobio-captcha-category");
+    category.dataset.category = "captcha";
+    category.appendChild(createBooleanSetting(document, "captcha-logo", "Hide Captcha-Logo"));
+    return category;
+  }
+  function createLeaderboardCategory(document) {
+    const category = document.createElement("div");
+    category.classList.add("blobio-chat-settings-category", "blobio-leaderboard-category");
+    category.dataset.category = "leaderboard";
+    category.append(
+      createFontSetting(document, "leaderboard", "Font-Size", UI_FONT_SIZE_LIMITS),
+      createColorSetting(document, "leaderboard-background", "Leaderboard-BG-Color"),
+      createColorSetting(document, "leaderboard-outline", "Leaderboard-outline-Color")
+    );
+    return category;
+  }
+  function createMutedPlayersCategory(document) {
+    const category = document.createElement("div");
+    category.classList.add("blobio-chat-settings-category", "blobio-muted-players-category");
+    category.dataset.category = "muted";
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.classList.add("blobio-chat-font-toggle", "blobio-muted-players-toggle");
+    const label = document.createElement("div");
+    label.classList.add("blobio-chat-font-label", "blobio-muted-players-label");
+    label.textContent = "Ability to mute players with ID";
+    const list = document.createElement("div");
+    list.classList.add("blobio-muted-players-list");
+    const empty = document.createElement("div");
+    empty.classList.add("blobio-muted-players-empty");
+    empty.textContent = "No muted player UIDs.";
+    list.appendChild(empty);
+    const actions = document.createElement("div");
+    actions.classList.add("blobio-muted-players-actions");
+    const addName = document.createElement("button");
+    addName.type = "button";
+    addName.classList.add("blobio-muted-player-action", "blobio-muted-player-add-name");
+    addName.textContent = "Add name";
+    const unmute = document.createElement("button");
+    unmute.type = "button";
+    unmute.classList.add("blobio-muted-player-action", "blobio-muted-player-unmute");
+    unmute.textContent = "Unmute";
+    actions.append(addName, unmute);
+    category.append(toggle, label, list, actions);
+    return category;
+  }
+  function createHotkeyCategory(document) {
+    const category = document.createElement("div");
+    category.classList.add("blobio-chat-settings-category", "blobio-hotkey-category");
+    category.dataset.category = "hotkey";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.classList.add("blobio-hotkey-text-input");
+    input.maxLength = HOTKEY_TEXT_LIMIT;
+    input.placeholder = "Write command here...";
+    input.setAttribute("aria-label", "Hotkey command or message");
+    const list = document.createElement("div");
+    list.classList.add("blobio-hotkey-list");
+    const apply = document.createElement("button");
+    apply.type = "button";
+    apply.classList.add("blobio-hotkey-action", "blobio-hotkey-apply");
+    apply.textContent = "Apply HK text";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.classList.add("blobio-hotkey-action", "blobio-hotkey-remove");
+    remove.textContent = "Remove";
+    category.append(input, list, apply, remove);
+    return category;
+  }
+  function createAnimationSpeedCategory(document) {
+    const category = document.createElement("div");
+    category.classList.add("blobio-chat-settings-category", "blobio-animation-speed-category");
+    category.dataset.category = "animation";
+    const group = document.createElement("div");
+    group.classList.add("blobio-ui-setting-group", "blobio-animation-speed-setting");
+    group.dataset.setting = "animation-speed";
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.classList.add("blobio-chat-font-toggle", "blobio-setting-toggle");
+    const label = document.createElement("div");
+    label.classList.add("blobio-chat-font-label");
+    label.textContent = "Animation Speed";
+    const controls = document.createElement("div");
+    controls.classList.add("blobio-animation-speed-controls");
+    const modeButton = document.createElement("button");
+    modeButton.type = "button";
+    modeButton.classList.add("blobio-animation-speed-mode");
+    modeButton.setAttribute("aria-label", "Animation speed mode");
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.classList.add("blobio-animation-speed-range", "blobio-themed-range");
+    slider.min = String(ANIMATION_SPEED_LIMITS.min);
+    slider.max = String(ANIMATION_SPEED_LIMITS.max);
+    slider.step = "1";
+    slider.setAttribute("aria-label", "Animation speed");
+    const value = document.createElement("span");
+    value.classList.add("blobio-animation-speed-value");
+    const rangeLabel = document.createElement("span");
+    rangeLabel.classList.add("blobio-animation-speed-range-label");
+    rangeLabel.textContent = "0.1x - 18.0x";
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.classList.add("blobio-animation-speed-reset");
+    reset.textContent = "Reset to default";
+    controls.append(modeButton, slider, value, rangeLabel, reset);
+    group.append(toggle, label, controls);
+    category.appendChild(group);
+    return category;
+  }
+  function createHudInfoCategory(document) {
+    const category = document.createElement("div");
+    category.classList.add("blobio-chat-settings-category", "blobio-hud-info-category");
+    category.dataset.category = "hud-info";
+    category.append(
+      createBooleanSetting(document, "hud-info-enabled", "HUD-text on screen"),
+      createBooleanSetting(document, "hud-info-fps", "FPS"),
+      createBooleanSetting(document, "hud-info-score", "Score"),
+      createBooleanSetting(document, "hud-info-cells", "Cells"),
+      createBooleanSetting(document, "hud-info-ping", "Ping"),
+      createBooleanSetting(document, "hud-info-boosters", "Booster-Info"),
+      createHudModeSetting(document, "hud-position", "Position"),
+      createHudModeSetting(document, "hud-layout", "Layout"),
+      createHudModeSetting(document, "hud-style", "Style"),
+      createHudModeSetting(document, "hud-fps-mode", "FPS mode"),
+      createHudModeSetting(document, "hud-score-mode", "Score mode"),
+      createHudModeSetting(document, "hud-ping-mode", "Ping mode"),
+      createHudModeSetting(document, "hud-booster-name-mode", "Booster type color"),
+      createHudModeSetting(document, "hud-booster-duration-mode", "Booster duration color"),
+      createBooleanSetting(document, "hud-booster-last-sec-flash", "Last-Sec-Flash"),
+      createHudSizeSetting(document),
+      createHudColorSetting(document)
+    );
+    return category;
+  }
+  function createFontSetting(document, name, labelText, limits) {
+    const group = document.createElement("div");
+    group.classList.add("blobio-ui-setting-group", "blobio-ui-font-setting");
+    group.dataset.setting = name;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.classList.add("blobio-chat-font-toggle", "blobio-setting-toggle");
+    const label = document.createElement("div");
+    label.classList.add("blobio-chat-font-label");
+    label.textContent = labelText;
+    const controls = document.createElement("div");
+    controls.classList.add("blobio-chat-font-controls");
+    const range = document.createElement("input");
+    range.type = "range";
+    range.classList.add("blobio-chat-font-range", "blobio-themed-range");
+    range.min = String(limits.min);
+    range.max = String(limits.max);
+    range.step = "1";
+    const number = document.createElement("input");
+    number.type = "number";
+    number.classList.add("blobio-chat-font-number");
+    number.min = String(limits.min);
+    number.max = String(limits.max);
+    number.step = "1";
+    number.setAttribute("aria-label", `${labelText} ${name}`);
+    controls.append(range, number);
+    group.append(toggle, label, controls);
+    return group;
+  }
+  function createBooleanSetting(document, name, labelText) {
+    const group = document.createElement("div");
+    group.classList.add("blobio-ui-setting-group", "blobio-ui-boolean-setting");
+    group.dataset.setting = name;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.classList.add("blobio-chat-font-toggle", "blobio-setting-toggle");
+    const label = document.createElement("div");
+    label.classList.add("blobio-chat-font-label");
+    label.textContent = labelText;
+    group.append(toggle, label);
+    return group;
+  }
+  function createColorSetting(document, name, labelText) {
+    const group = document.createElement("div");
+    group.classList.add("blobio-ui-setting-group", "blobio-ui-color-setting");
+    group.dataset.setting = name;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.classList.add("blobio-chat-font-toggle", "blobio-setting-toggle");
+    const label = document.createElement("div");
+    label.classList.add("blobio-chat-font-label");
+    label.textContent = labelText;
+    const controls = document.createElement("div");
+    controls.classList.add("blobio-ui-color-controls");
+    const wheel = document.createElement("label");
+    wheel.classList.add("blobio-ui-color-wheel");
+    const swatch = document.createElement("span");
+    swatch.classList.add("blobio-ui-color-swatch");
+    const color = document.createElement("input");
+    color.type = "color";
+    color.classList.add("blobio-ui-color-input");
+    color.setAttribute("aria-label", labelText);
+    wheel.append(swatch, color);
+    const alpha = document.createElement("input");
+    alpha.type = "range";
+    alpha.min = "0";
+    alpha.max = "1";
+    alpha.step = "0.01";
+    alpha.classList.add("blobio-ui-alpha-range", "blobio-themed-range");
+    alpha.setAttribute("aria-label", `${labelText} alpha`);
+    const alphaValue = document.createElement("span");
+    alphaValue.classList.add("blobio-ui-alpha-value");
+    controls.append(wheel, alpha, alphaValue);
+    group.append(toggle, label, controls);
+    return group;
+  }
+  function createHudModeSetting(document, name, labelText) {
+    const group = document.createElement("div");
+    group.classList.add("blobio-ui-setting-group", "blobio-hud-mode-setting");
+    group.dataset.setting = name;
+    const label = document.createElement("div");
+    label.classList.add("blobio-chat-font-label");
+    label.textContent = labelText;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.classList.add("blobio-hud-mode-button");
+    button.setAttribute("aria-label", labelText);
+    group.append(label, button);
+    return group;
+  }
+  function createHudSizeSetting(document) {
+    const group = document.createElement("div");
+    group.classList.add("blobio-ui-setting-group", "blobio-hud-size-setting");
+    group.dataset.setting = "hud-font-size";
+    const label = document.createElement("div");
+    label.classList.add("blobio-chat-font-label");
+    label.textContent = "HUD Font-Size";
+    const controls = document.createElement("div");
+    controls.classList.add("blobio-chat-font-controls");
+    const range = document.createElement("input");
+    range.type = "range";
+    range.classList.add("blobio-chat-font-range", "blobio-themed-range");
+    range.min = String(HUD_INFO_FONT_LIMITS.min);
+    range.max = String(HUD_INFO_FONT_LIMITS.max);
+    range.step = "1";
+    const number = document.createElement("input");
+    number.type = "number";
+    number.classList.add("blobio-chat-font-number");
+    number.min = String(HUD_INFO_FONT_LIMITS.min);
+    number.max = String(HUD_INFO_FONT_LIMITS.max);
+    number.step = "1";
+    number.setAttribute("aria-label", "HUD font size");
+    controls.append(range, number);
+    group.append(label, controls);
+    return group;
+  }
+  function createHudColorSetting(document) {
+    const group = document.createElement("div");
+    group.classList.add("blobio-ui-setting-group", "blobio-hud-color-setting");
+    group.dataset.setting = "hud-color";
+    const label = document.createElement("div");
+    label.classList.add("blobio-chat-font-label");
+    label.textContent = "HUD Text-Color";
+    const controls = document.createElement("div");
+    controls.classList.add("blobio-ui-color-controls");
+    const wheel = document.createElement("label");
+    wheel.classList.add("blobio-ui-color-wheel");
+    const swatch = document.createElement("span");
+    swatch.classList.add("blobio-ui-color-swatch");
+    const color = document.createElement("input");
+    color.type = "color";
+    color.classList.add("blobio-ui-color-input");
+    color.setAttribute("aria-label", "HUD text color");
+    wheel.append(swatch, color);
+    const alpha = document.createElement("input");
+    alpha.type = "range";
+    alpha.min = "0";
+    alpha.max = "1";
+    alpha.step = "0.01";
+    alpha.classList.add("blobio-ui-alpha-range", "blobio-themed-range");
+    alpha.setAttribute("aria-label", "HUD text alpha");
+    const alphaValue = document.createElement("span");
+    alphaValue.classList.add("blobio-ui-alpha-value");
+    controls.append(wheel, alpha, alphaValue);
+    group.append(label, controls);
+    return group;
+  }
+
   // src/features/ChatSettingsFeature.js
   var CHAT_GAP = 10;
   var TOGGLE_WIDTH = 30;
@@ -6590,21 +6898,21 @@ iframe.blobio-captcha-anchor-hidden,
       toggle.textContent = "+";
       const panel = this.document.createElement("div");
       panel.classList.add("blobio-chat-settings-panel");
-      const chatButton = this.createCategoryButton("Chat-Settings", "chat");
-      const mutedButton = this.createCategoryButton("Muted-Players", "muted");
-      const hotkeyButton = this.createCategoryButton("HotKey", "hotkey");
-      const animationButton = this.createCategoryButton("Anim-Speed", "animation");
-      const hudButton = this.createCategoryButton("HUD-Info", "hud-info");
-      const captchaButton = this.createCategoryButton("Captcha-Logo", "captcha");
-      const leaderboardButton = this.createCategoryButton("Leaderboard-Settings", "leaderboard");
+      const chatButton = createCategoryButton(this.document, "Chat-Settings", "chat");
+      const mutedButton = createCategoryButton(this.document, "Muted-Players", "muted");
+      const hotkeyButton = createCategoryButton(this.document, "HotKey", "hotkey");
+      const animationButton = createCategoryButton(this.document, "Anim-Speed", "animation");
+      const hudButton = createCategoryButton(this.document, "HUD-Info", "hud-info");
+      const captchaButton = createCategoryButton(this.document, "Captcha-Logo", "captcha");
+      const leaderboardButton = createCategoryButton(this.document, "Leaderboard-Settings", "leaderboard");
       panel.append(chatButton, mutedButton, hotkeyButton, animationButton, hudButton, captchaButton, leaderboardButton);
-      const chatCategory = this.createChatCategory();
-      const mutedCategory = this.createMutedPlayersCategory();
-      const hotkeyCategory = this.createHotkeyCategory();
-      const animationCategory = this.createAnimationSpeedCategory();
-      const hudCategory = this.createHudInfoCategory();
-      const captchaCategory = this.createCaptchaCategory();
-      const leaderboardCategory = this.createLeaderboardCategory();
+      const chatCategory = createChatCategory(this.document);
+      const mutedCategory = createMutedPlayersCategory(this.document);
+      const hotkeyCategory = createHotkeyCategory(this.document);
+      const animationCategory = createAnimationSpeedCategory(this.document);
+      const hudCategory = createHudInfoCategory(this.document);
+      const captchaCategory = createCaptchaCategory(this.document);
+      const leaderboardCategory = createLeaderboardCategory(this.document);
       root.append(
         toggle,
         panel,
@@ -6821,361 +7129,6 @@ iframe.blobio-captcha-anchor-hidden,
       const event = EventCtor ? new EventCtor("input", { bubbles: true }) : { type: "input", bubbles: true };
       input.dispatchEvent?.(event);
       return true;
-    }
-    createCategoryButton(label, category) {
-      const button = this.document.createElement("button");
-      button.type = "button";
-      button.classList.add("blobio-chat-settings-category-button");
-      button.dataset.category = category;
-      button.setAttribute("aria-expanded", "false");
-      const text = this.document.createElement("span");
-      text.textContent = label;
-      button.appendChild(text);
-      return button;
-    }
-    bindCategoryButton(button) {
-      if (!button || button.dataset.blobioCategoryBound === "1") {
-        return button;
-      }
-      button.dataset.blobioCategoryBound = "1";
-      button.addEventListener("click", () => this.toggleCategory(button.dataset.category));
-      return button;
-    }
-    ensureHotkeyLauncher() {
-      const panel = this.root?.querySelector?.(".blobio-chat-settings-panel");
-      if (!panel) {
-        return null;
-      }
-      let button = Array.from(panel.querySelectorAll?.(".blobio-chat-settings-category-button") || []).find((item) => item.dataset.category === "hotkey");
-      if (!button) {
-        button = this.createCategoryButton("HotKey", "hotkey");
-        panel.appendChild(button);
-      }
-      this.bindCategoryButton(button);
-      return button;
-    }
-    ensureAnimationSpeedLauncher() {
-      const panel = this.root?.querySelector?.(".blobio-chat-settings-panel");
-      if (!panel) {
-        return null;
-      }
-      let button = Array.from(panel.querySelectorAll?.(".blobio-chat-settings-category-button") || []).find((item) => item.dataset.category === "animation");
-      if (!button) {
-        button = this.createCategoryButton("Anim-Speed", "animation");
-        const hotkey = panel.querySelector('.blobio-chat-settings-category-button[data-category="hotkey"]');
-        panel.insertBefore(button, hotkey?.nextSibling || null);
-      }
-      this.bindCategoryButton(button);
-      return button;
-    }
-    ensureHudInfoLauncher() {
-      const panel = this.root?.querySelector?.(".blobio-chat-settings-panel");
-      if (!panel) {
-        return null;
-      }
-      let button = Array.from(panel.querySelectorAll?.(".blobio-chat-settings-category-button") || []).find((item) => item.dataset.category === "hud-info");
-      if (!button) {
-        button = this.createCategoryButton("HUD-Info", "hud-info");
-        const animation = panel.querySelector('.blobio-chat-settings-category-button[data-category="animation"]');
-        panel.insertBefore(button, animation?.nextSibling || null);
-      }
-      this.bindCategoryButton(button);
-      return button;
-    }
-    createChatCategory() {
-      const category = this.document.createElement("div");
-      category.classList.add("blobio-chat-settings-category", "blobio-chat-appearance-category");
-      category.dataset.category = "chat";
-      category.append(
-        this.createFontSetting("chat", "Font-Size", CHAT_FONT_SIZE_LIMITS),
-        this.createColorSetting("chat-background", "Chat-BG-Color"),
-        this.createColorSetting("chat-outline", "Chat-outline-Color"),
-        this.createBooleanSetting("smooth-chat", "Smooth-Chat")
-      );
-      return category;
-    }
-    createCaptchaCategory() {
-      const category = this.document.createElement("div");
-      category.classList.add("blobio-chat-settings-category", "blobio-captcha-category");
-      category.dataset.category = "captcha";
-      category.appendChild(this.createBooleanSetting("captcha-logo", "Hide Captcha-Logo"));
-      return category;
-    }
-    createLeaderboardCategory() {
-      const category = this.document.createElement("div");
-      category.classList.add("blobio-chat-settings-category", "blobio-leaderboard-category");
-      category.dataset.category = "leaderboard";
-      category.append(
-        this.createFontSetting("leaderboard", "Font-Size", UI_FONT_SIZE_LIMITS),
-        this.createColorSetting("leaderboard-background", "Leaderboard-BG-Color"),
-        this.createColorSetting("leaderboard-outline", "Leaderboard-outline-Color")
-      );
-      return category;
-    }
-    createFontSetting(name, labelText, limits) {
-      const group = this.document.createElement("div");
-      group.classList.add("blobio-ui-setting-group", "blobio-ui-font-setting");
-      group.dataset.setting = name;
-      const toggle = this.document.createElement("button");
-      toggle.type = "button";
-      toggle.classList.add("blobio-chat-font-toggle", "blobio-setting-toggle");
-      const label = this.document.createElement("div");
-      label.classList.add("blobio-chat-font-label");
-      label.textContent = labelText;
-      const controls = this.document.createElement("div");
-      controls.classList.add("blobio-chat-font-controls");
-      const range = this.document.createElement("input");
-      range.type = "range";
-      range.classList.add("blobio-chat-font-range", "blobio-themed-range");
-      range.min = String(limits.min);
-      range.max = String(limits.max);
-      range.step = "1";
-      const number = this.document.createElement("input");
-      number.type = "number";
-      number.classList.add("blobio-chat-font-number");
-      number.min = String(limits.min);
-      number.max = String(limits.max);
-      number.step = "1";
-      number.setAttribute("aria-label", `${labelText} ${name}`);
-      controls.append(range, number);
-      group.append(toggle, label, controls);
-      return group;
-    }
-    createBooleanSetting(name, labelText) {
-      const group = this.document.createElement("div");
-      group.classList.add("blobio-ui-setting-group", "blobio-ui-boolean-setting");
-      group.dataset.setting = name;
-      const toggle = this.document.createElement("button");
-      toggle.type = "button";
-      toggle.classList.add("blobio-chat-font-toggle", "blobio-setting-toggle");
-      const label = this.document.createElement("div");
-      label.classList.add("blobio-chat-font-label");
-      label.textContent = labelText;
-      group.append(toggle, label);
-      return group;
-    }
-    createColorSetting(name, labelText) {
-      const group = this.document.createElement("div");
-      group.classList.add("blobio-ui-setting-group", "blobio-ui-color-setting");
-      group.dataset.setting = name;
-      const toggle = this.document.createElement("button");
-      toggle.type = "button";
-      toggle.classList.add("blobio-chat-font-toggle", "blobio-setting-toggle");
-      const label = this.document.createElement("div");
-      label.classList.add("blobio-chat-font-label");
-      label.textContent = labelText;
-      const controls = this.document.createElement("div");
-      controls.classList.add("blobio-ui-color-controls");
-      const wheel = this.document.createElement("label");
-      wheel.classList.add("blobio-ui-color-wheel");
-      const swatch = this.document.createElement("span");
-      swatch.classList.add("blobio-ui-color-swatch");
-      const color = this.document.createElement("input");
-      color.type = "color";
-      color.classList.add("blobio-ui-color-input");
-      color.setAttribute("aria-label", labelText);
-      wheel.append(swatch, color);
-      const alpha = this.document.createElement("input");
-      alpha.type = "range";
-      alpha.min = "0";
-      alpha.max = "1";
-      alpha.step = "0.01";
-      alpha.classList.add("blobio-ui-alpha-range", "blobio-themed-range");
-      alpha.setAttribute("aria-label", `${labelText} alpha`);
-      const alphaValue = this.document.createElement("span");
-      alphaValue.classList.add("blobio-ui-alpha-value");
-      controls.append(wheel, alpha, alphaValue);
-      group.append(toggle, label, controls);
-      return group;
-    }
-    createMutedPlayersCategory() {
-      const category = this.document.createElement("div");
-      category.classList.add("blobio-chat-settings-category", "blobio-muted-players-category");
-      category.dataset.category = "muted";
-      const toggle = this.document.createElement("button");
-      toggle.type = "button";
-      toggle.classList.add("blobio-chat-font-toggle", "blobio-muted-players-toggle");
-      const label = this.document.createElement("div");
-      label.classList.add("blobio-chat-font-label", "blobio-muted-players-label");
-      label.textContent = "Ability to mute players with ID";
-      const list = this.document.createElement("div");
-      list.classList.add("blobio-muted-players-list");
-      const empty = this.document.createElement("div");
-      empty.classList.add("blobio-muted-players-empty");
-      empty.textContent = "No muted player UIDs.";
-      list.appendChild(empty);
-      const actions = this.document.createElement("div");
-      actions.classList.add("blobio-muted-players-actions");
-      const addName = this.document.createElement("button");
-      addName.type = "button";
-      addName.classList.add("blobio-muted-player-action", "blobio-muted-player-add-name");
-      addName.textContent = "Add name";
-      const unmute = this.document.createElement("button");
-      unmute.type = "button";
-      unmute.classList.add("blobio-muted-player-action", "blobio-muted-player-unmute");
-      unmute.textContent = "Unmute";
-      actions.append(addName, unmute);
-      category.append(toggle, label, list, actions);
-      return category;
-    }
-    createHotkeyCategory() {
-      const category = this.document.createElement("div");
-      category.classList.add("blobio-chat-settings-category", "blobio-hotkey-category");
-      category.dataset.category = "hotkey";
-      const input = this.document.createElement("input");
-      input.type = "text";
-      input.classList.add("blobio-hotkey-text-input");
-      input.maxLength = HOTKEY_TEXT_LIMIT;
-      input.placeholder = "Write command here...";
-      input.setAttribute("aria-label", "Hotkey command or message");
-      const list = this.document.createElement("div");
-      list.classList.add("blobio-hotkey-list");
-      const apply = this.document.createElement("button");
-      apply.type = "button";
-      apply.classList.add("blobio-hotkey-action", "blobio-hotkey-apply");
-      apply.textContent = "Apply HK text";
-      const remove = this.document.createElement("button");
-      remove.type = "button";
-      remove.classList.add("blobio-hotkey-action", "blobio-hotkey-remove");
-      remove.textContent = "Remove";
-      category.append(input, list, apply, remove);
-      return category;
-    }
-    createAnimationSpeedCategory() {
-      const category = this.document.createElement("div");
-      category.classList.add("blobio-chat-settings-category", "blobio-animation-speed-category");
-      category.dataset.category = "animation";
-      const group = this.document.createElement("div");
-      group.classList.add("blobio-ui-setting-group", "blobio-animation-speed-setting");
-      group.dataset.setting = "animation-speed";
-      const toggle = this.document.createElement("button");
-      toggle.type = "button";
-      toggle.classList.add("blobio-chat-font-toggle", "blobio-setting-toggle");
-      const label = this.document.createElement("div");
-      label.classList.add("blobio-chat-font-label");
-      label.textContent = "Animation Speed";
-      const controls = this.document.createElement("div");
-      controls.classList.add("blobio-animation-speed-controls");
-      const modeButton = this.document.createElement("button");
-      modeButton.type = "button";
-      modeButton.classList.add("blobio-animation-speed-mode");
-      modeButton.setAttribute("aria-label", "Animation speed mode");
-      const slider = this.document.createElement("input");
-      slider.type = "range";
-      slider.classList.add("blobio-animation-speed-range", "blobio-themed-range");
-      slider.min = String(ANIMATION_SPEED_LIMITS.min);
-      slider.max = String(ANIMATION_SPEED_LIMITS.max);
-      slider.step = "1";
-      slider.setAttribute("aria-label", "Animation speed");
-      const value = this.document.createElement("span");
-      value.classList.add("blobio-animation-speed-value");
-      const rangeLabel = this.document.createElement("span");
-      rangeLabel.classList.add("blobio-animation-speed-range-label");
-      rangeLabel.textContent = "0.1x - 18.0x";
-      const reset = this.document.createElement("button");
-      reset.type = "button";
-      reset.classList.add("blobio-animation-speed-reset");
-      reset.textContent = "Reset to default";
-      controls.append(modeButton, slider, value, rangeLabel, reset);
-      group.append(toggle, label, controls);
-      category.appendChild(group);
-      return category;
-    }
-    createHudInfoCategory() {
-      const category = this.document.createElement("div");
-      category.classList.add("blobio-chat-settings-category", "blobio-hud-info-category");
-      category.dataset.category = "hud-info";
-      category.append(
-        this.createBooleanSetting("hud-info-enabled", "HUD-text on screen"),
-        this.createBooleanSetting("hud-info-fps", "FPS"),
-        this.createBooleanSetting("hud-info-score", "Score"),
-        this.createBooleanSetting("hud-info-cells", "Cells"),
-        this.createBooleanSetting("hud-info-ping", "Ping"),
-        this.createBooleanSetting("hud-info-boosters", "Booster-Info"),
-        this.createHudModeSetting("hud-position", "Position"),
-        this.createHudModeSetting("hud-layout", "Layout"),
-        this.createHudModeSetting("hud-style", "Style"),
-        this.createHudModeSetting("hud-fps-mode", "FPS mode"),
-        this.createHudModeSetting("hud-score-mode", "Score mode"),
-        this.createHudModeSetting("hud-ping-mode", "Ping mode"),
-        this.createHudModeSetting("hud-booster-name-mode", "Booster type color"),
-        this.createHudModeSetting("hud-booster-duration-mode", "Booster duration color"),
-        this.createBooleanSetting("hud-booster-last-sec-flash", "Last-Sec-Flash"),
-        this.createHudSizeSetting(),
-        this.createHudColorSetting()
-      );
-      return category;
-    }
-    createHudModeSetting(name, labelText) {
-      const group = this.document.createElement("div");
-      group.classList.add("blobio-ui-setting-group", "blobio-hud-mode-setting");
-      group.dataset.setting = name;
-      const label = this.document.createElement("div");
-      label.classList.add("blobio-chat-font-label");
-      label.textContent = labelText;
-      const button = this.document.createElement("button");
-      button.type = "button";
-      button.classList.add("blobio-hud-mode-button");
-      button.setAttribute("aria-label", labelText);
-      group.append(label, button);
-      return group;
-    }
-    createHudSizeSetting() {
-      const group = this.document.createElement("div");
-      group.classList.add("blobio-ui-setting-group", "blobio-hud-size-setting");
-      group.dataset.setting = "hud-font-size";
-      const label = this.document.createElement("div");
-      label.classList.add("blobio-chat-font-label");
-      label.textContent = "HUD Font-Size";
-      const controls = this.document.createElement("div");
-      controls.classList.add("blobio-chat-font-controls");
-      const range = this.document.createElement("input");
-      range.type = "range";
-      range.classList.add("blobio-chat-font-range", "blobio-themed-range");
-      range.min = String(HUD_INFO_FONT_LIMITS.min);
-      range.max = String(HUD_INFO_FONT_LIMITS.max);
-      range.step = "1";
-      const number = this.document.createElement("input");
-      number.type = "number";
-      number.classList.add("blobio-chat-font-number");
-      number.min = String(HUD_INFO_FONT_LIMITS.min);
-      number.max = String(HUD_INFO_FONT_LIMITS.max);
-      number.step = "1";
-      number.setAttribute("aria-label", "HUD font size");
-      controls.append(range, number);
-      group.append(label, controls);
-      return group;
-    }
-    createHudColorSetting() {
-      const group = this.document.createElement("div");
-      group.classList.add("blobio-ui-setting-group", "blobio-hud-color-setting");
-      group.dataset.setting = "hud-color";
-      const label = this.document.createElement("div");
-      label.classList.add("blobio-chat-font-label");
-      label.textContent = "HUD Text-Color";
-      const controls = this.document.createElement("div");
-      controls.classList.add("blobio-ui-color-controls");
-      const wheel = this.document.createElement("label");
-      wheel.classList.add("blobio-ui-color-wheel");
-      const swatch = this.document.createElement("span");
-      swatch.classList.add("blobio-ui-color-swatch");
-      const color = this.document.createElement("input");
-      color.type = "color";
-      color.classList.add("blobio-ui-color-input");
-      color.setAttribute("aria-label", "HUD text color");
-      wheel.append(swatch, color);
-      const alpha = this.document.createElement("input");
-      alpha.type = "range";
-      alpha.min = "0";
-      alpha.max = "1";
-      alpha.step = "0.01";
-      alpha.classList.add("blobio-ui-alpha-range", "blobio-themed-range");
-      alpha.setAttribute("aria-label", "HUD text alpha");
-      const alphaValue = this.document.createElement("span");
-      alphaValue.classList.add("blobio-ui-alpha-value");
-      controls.append(wheel, alpha, alphaValue);
-      group.append(label, controls);
-      return group;
     }
     bindChatCategory(category) {
       const font = category.querySelector('[data-setting="chat"]');
@@ -9501,8 +9454,8 @@ iframe.blobio-captcha-anchor-hidden,
     }
   };
 
-  // src/css/MenuFeatureStyles.js
-  function buildMenuCss({ className, hiddenClass, toolbarClass }) {
+  // src/css/menu/MenuFeaturePageLayoutStyles.js
+  function buildMenuPageLayoutCss({ className, hiddenClass, toolbarClass }) {
     return `
 html.${className} .social {
   display: none !important;
@@ -9791,6 +9744,12 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   will-change: transform, text-shadow, color;
 }
 
+`;
+  }
+
+  // src/css/menu/MenuFeatureToolbarStyles.js
+  function buildMenuToolbarCss({ className, hiddenClass, toolbarClass }) {
+    return `
 .${toolbarClass} {
   position: relative;
   display: inline-block;
@@ -10134,6 +10093,12 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   box-shadow: 0 0 16px rgba(92, 255, 132, 0.38), inset 0 0 8px rgba(91, 255, 132, 0.18);
 }
 
+`;
+  }
+
+  // src/css/menu/MenuFeatureSettingsStyles.js
+  function buildMenuSettingsCss({ className, hiddenClass, toolbarClass }) {
+    return `
 html.${className} app-settings .blobio-extension-settings-tab {
   color: #dfffe6;
   font-weight: 800;
@@ -12020,7 +11985,16 @@ html.${className} .blobio-watermark-extension::after {
     text-shadow: 0 0 12px rgba(220, 255, 228, 1), 0 0 28px rgba(99, 255, 142, 0.82);
   }
 }
-`.trim();
+`;
+  }
+
+  // src/css/MenuFeatureStyles.js
+  function buildMenuCss({ className, hiddenClass, toolbarClass }) {
+    return [
+      buildMenuPageLayoutCss({ className, hiddenClass, toolbarClass }),
+      buildMenuToolbarCss({ className, hiddenClass, toolbarClass }),
+      buildMenuSettingsCss({ className, hiddenClass, toolbarClass })
+    ].join("\n\n").trim();
   }
 
   // src/settings/GameBackgroundSettings.js
@@ -14377,6 +14351,161 @@ html.${className} .blobio-watermark-extension::after {
     }
   ];
 
+  // src/features/MenuFeatureDiscovery.js
+  function findReplayButton(document) {
+    const candidates = Array.from(
+      document.querySelectorAll?.('button, a, [role="button"], .replays, .replay') || []
+    );
+    return candidates.find((node) => {
+      const label = [
+        node.textContent,
+        node.className,
+        node.getAttribute?.("aria-label"),
+        node.getAttribute?.("title"),
+        node.getAttribute?.("href")
+      ].filter(Boolean).join(" ").toLowerCase();
+      return label.includes("replay");
+    });
+  }
+  function getFeaturedVideo(document) {
+    const iframe = document.getElementById?.("youtube-iframe") || document.querySelector?.("iframe[src]");
+    const iframeUrl = iframe?.getAttribute?.("src") || "";
+    const iframeId = getYoutubeId(iframeUrl);
+    if (iframeId) {
+      return {
+        title: getFeaturedTitle(document),
+        url: `https://www.youtube.com/watch?v=${iframeId}`,
+        thumbnail: getYoutubeThumbnail(iframeUrl)
+      };
+    }
+    const links = Array.from(document.querySelectorAll?.("a[href]") || []);
+    const youtubeLink = links.find((link) => /youtube\.com|youtu\.be/i.test(link.getAttribute("href") || ""));
+    const url = youtubeLink?.getAttribute("href") || DEFAULT_VIDEO.url;
+    const title = youtubeLink?.textContent?.trim() || DEFAULT_VIDEO.title;
+    return {
+      title,
+      url,
+      thumbnail: getYoutubeThumbnail(url)
+    };
+  }
+  function getYoutubeThumbnail(url) {
+    const id = getYoutubeId(url) || "GOlXDLWeGMo";
+    return `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+  }
+  function getYoutubeId(url) {
+    return url.match(/[?&]v=([^&]+)/)?.[1] || url.match(/youtu\.be\/([^?&]+)/)?.[1] || url.match(/embed\/([^?&]+)/)?.[1] || "";
+  }
+  function getFeaturedTitle(document) {
+    const title = document.getElementById?.("youtube-title")?.textContent || "";
+    const cleanTitle = title.replace(/^Featured\s+Video:\s*/i, "").replace(/\s+/g, " ").trim();
+    return cleanTitle || DEFAULT_VIDEO.title;
+  }
+  function getSocialLinks(document) {
+    const links = Array.from(document.querySelectorAll?.(".social a[href], a[href]") || []);
+    return SOCIALS.map((social) => {
+      const match = links.find((link) => social.match.test(link.getAttribute("href") || ""));
+      return {
+        ...social,
+        href: match?.getAttribute("href") || social.fallbackHref
+      };
+    });
+  }
+  function getOriginalPolicyLinks(document, isInsideOwnUi) {
+    const links = Array.from(document.querySelectorAll?.("a[href]") || []);
+    return links.filter((link) => {
+      if (isInsideOwnUi(link)) {
+        return false;
+      }
+      const href = link.getAttribute("href") || "";
+      if (!href || href === "#" || href.endsWith("/#") || isInsideConsentManager(link)) {
+        return false;
+      }
+      const text = `${link.textContent || ""} ${link.getAttribute("href") || ""}`;
+      return /policy|privacy|terms|conditions|cookie|gdpr/i.test(text);
+    });
+  }
+  function getPolicyPanelLinks(document, isInsideOwnUi) {
+    const seen = /* @__PURE__ */ new Set();
+    const links = [];
+    for (const link of [
+      ...getOriginalPolicyLinks(document, isInsideOwnUi),
+      ...getOriginalPartnerLinks(document, isInsideOwnUi)
+    ]) {
+      const key = `${link.getAttribute("href") || ""}::${link.textContent || ""}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      links.push(link);
+    }
+    return links;
+  }
+  function getOriginalPartnerLinks(document, isInsideOwnUi) {
+    return getPartnerLinkContainers(document, isInsideOwnUi).flatMap((container) => {
+      const links = Array.from(container.querySelectorAll?.("a[href]") || []);
+      return links.filter((link) => PARTNER_LINK_MATCH.test(link.getAttribute("href") || ""));
+    });
+  }
+  function getPartnerLinkContainers(document, isInsideOwnUi) {
+    const containers = /* @__PURE__ */ new Set();
+    for (const link of document.querySelectorAll?.("a[href]") || []) {
+      if (isInsideOwnUi(link)) {
+        continue;
+      }
+      if (PARTNER_LINK_MATCH.test(link.getAttribute("href") || "") && link.parentElement) {
+        containers.add(link.parentElement);
+      }
+    }
+    return [...containers].filter((container) => {
+      if (isInsideOwnUi(container)) {
+        return false;
+      }
+      const directPartnerLinks = Array.from(container.querySelectorAll?.("a[href]") || []).filter((link) => link.parentElement === container && PARTNER_LINK_MATCH.test(link.getAttribute("href") || ""));
+      return directPartnerLinks.length >= 2;
+    });
+  }
+  function getOtherProjectContainers(document, isInsideOwnUi) {
+    const containers = Array.from(document.querySelectorAll?.(".partner") || []);
+    return containers.filter((container) => {
+      if (isInsideOwnUi(container)) {
+        return false;
+      }
+      return /our\s+other\s+projects/i.test(container.textContent || "") && getOtherProjectLinksFrom(container).length > 0;
+    });
+  }
+  function getOtherProjectLinks(document, isInsideOwnUi) {
+    return getOtherProjectContainers(document, isInsideOwnUi).flatMap((container) => getOtherProjectLinksFrom(container));
+  }
+  function getOtherProjectLinksFrom(container) {
+    const links = Array.from(container.querySelectorAll?.("a") || []);
+    return links.filter((link) => {
+      const className = link.className?.toString?.() || "";
+      const image = link.style?.backgroundImage || link.getAttribute("style") || "";
+      return className.includes("mus-conv") || image.includes("background-image");
+    });
+  }
+  function extractBackgroundImage(styleText) {
+    return styleText.match(/background-image:\s*([^;]+)/i)?.[1]?.trim() || "";
+  }
+  function getFailedViralFrames(document) {
+    const frames = Array.from(document.querySelectorAll?.("iframe") || []);
+    return frames.filter((frame) => FAILED_VIRAL_FRAME_MATCH.test(frame.getAttribute("src") || frame.src || ""));
+  }
+  function isInsideConsentManager(node) {
+    let current = node;
+    while (current) {
+      const className = current.className?.toString?.() || "";
+      if (className.split(/\s+/).some((name) => name === "fc" || name.startsWith("fc-") || name.includes("-fc-"))) {
+        return true;
+      }
+      if (/^fc-|cookieWarning-/i.test(className)) {
+        return true;
+      }
+      current = current.parentElement;
+    }
+    return false;
+  }
+
   // src/features/MenuFeatureSettingsConfig.js
   var EXTENSION_DEFAULT_CATEGORY = "fps";
   var EXTENSION_SETTING_CATEGORIES = [
@@ -14398,6 +14527,90 @@ html.${className} .blobio-watermark-extension::after {
     toastModalAnim: "FPS-Gain: Low[3-15]\nDisables toast and modal animation work while keeping the UI visible. Expected save: low gain, more noticeable during repeated popups.",
     chatGuard: "FPS-Gain: Medium[10-60]\nKeeps chat usable but cut old chat rows in batches. Expected save: low normally, medium in full servers with many chatter."
   };
+
+  // src/features/MenuFeatureVisualSync.js
+  function findNameInput(document) {
+    const containers = [
+      document.querySelector?.(".inputs-container"),
+      document.getElementById?.("game-wrapper"),
+      document.body
+    ].filter(Boolean);
+    for (const container of containers) {
+      const inputs = Array.from(container.querySelectorAll?.("input") || []);
+      const namedInput = inputs.find((input) => {
+        const label = `${input.id || ""} ${input.getAttribute?.("name") || ""} ${input.getAttribute?.("placeholder") || ""}`;
+        return /nick|name/i.test(label);
+      });
+      if (namedInput) {
+        return namedInput;
+      }
+      const textInput = inputs.find((input) => {
+        const type = input.getAttribute?.("type") || input.type || "";
+        return (!type || type === "text") && !input.readOnly && input.getAttribute?.("readonly") === null;
+      });
+      if (textInput) {
+        return textInput;
+      }
+    }
+    return null;
+  }
+  function syncUsernameAnimation({ document, isInsideOwnUi, clearElement, setStyleProperty }) {
+    const usernames = Array.from(document.querySelectorAll?.(".fleft.username") || []);
+    for (const username of usernames) {
+      if (isInsideOwnUi(username)) {
+        continue;
+      }
+      const text = getUsernameSourceText(username);
+      const currentText = username.dataset.blobioUsernameText || "";
+      let animated = getUsernameAnimatedNode(username);
+      const existingLetters = animated?.querySelectorAll?.(".blobio-username-letter") || [];
+      if (!text || text === currentText && existingLetters.length === Array.from(text).length) {
+        continue;
+      }
+      if (!animated) {
+        animated = document.createElement("span");
+        animated.classList.add("blobio-username-animated");
+        username.appendChild(animated);
+      }
+      clearElement(animated);
+      username.dataset.blobioUsernameText = text;
+      const letters = Array.from(text);
+      const duration = letters.length * 160 + 5200;
+      const glowDelay = Math.max(0, (letters.length - 1) * 160 + 1250);
+      setStyleProperty(username, "--blobio-username-duration", `${duration}ms`);
+      setStyleProperty(username, "--blobio-username-glow-delay", `${glowDelay}ms`);
+      letters.forEach((letter, index) => {
+        const span = document.createElement("span");
+        span.classList.add("blobio-username-letter");
+        span.textContent = letter;
+        setStyleProperty(span, "--blobio-letter-delay", `${index * 160}ms`);
+        animated.appendChild(span);
+      });
+    }
+  }
+  function getUsernameAnimatedNode(username) {
+    return Array.from(username.children || []).find((child) => child.classList?.contains("blobio-username-animated")) || null;
+  }
+  function getUsernameSourceText(username) {
+    const animated = getUsernameAnimatedNode(username);
+    if (username.childNodes) {
+      return Array.from(username.childNodes).filter((node) => node !== animated).map((node) => {
+        if (node.nodeType === 3) {
+          return node.textContent || "";
+        }
+        if (node.nodeType === 1 && !node.classList?.contains("blobio-username-animated")) {
+          return node.textContent || "";
+        }
+        return "";
+      }).join("").trim();
+    }
+    const fullText = username.textContent || "";
+    const animatedText = animated?.textContent || "";
+    if (animatedText && fullText.endsWith(animatedText)) {
+      return fullText.slice(0, -animatedText.length).trim();
+    }
+    return fullText.trim();
+  }
 
   // src/features/MenuFeature.js
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
@@ -14673,7 +14886,7 @@ html.${className} .blobio-watermark-extension::after {
       if (!this.toolbar) {
         this.toolbar = this.createToolbar();
       }
-      const replayButton = this.findReplayButton();
+      const replayButton = findReplayButton(this.document);
       if (replayButton?.parentNode) {
         const parent = replayButton.parentNode;
         if (this.toolbar.parentNode === parent && replayButton.nextSibling === this.toolbar) {
@@ -14758,8 +14971,8 @@ html.${className} .blobio-watermark-extension::after {
       return panel;
     }
     installPolicyDock() {
-      const links = this.getPolicyPanelLinks();
-      const games = this.getOtherProjectLinks();
+      const links = getPolicyPanelLinks(this.document, (node) => this.isInsideOwnUi(node));
+      const games = getOtherProjectLinks(this.document, (node) => this.isInsideOwnUi(node));
       if (links.length === 0 && games.length === 0) {
         this.policyDock?.remove();
         this.policyDock = null;
@@ -14782,7 +14995,7 @@ html.${className} .blobio-watermark-extension::after {
       dock.classList.add("blobio-footer-dock", "blobio-policy-dock");
       const buttons = this.document.createElement("div");
       buttons.classList.add("blobio-dock-buttons");
-      if (this.getPolicyPanelLinks().length > 0 || this.getOtherProjectLinks().length > 0) {
+      if (getPolicyPanelLinks(this.document, (node) => this.isInsideOwnUi(node)).length > 0 || getOtherProjectLinks(this.document, (node) => this.isInsideOwnUi(node)).length > 0) {
         buttons.appendChild(this.createDockButton("Policy/Other Games", "policy-games", "blobio-policy-games-button"));
       }
       dock.appendChild(buttons);
@@ -14853,7 +15066,7 @@ html.${className} .blobio-watermark-extension::after {
         return;
       }
       this.clearElement(body);
-      const video = this.getFeaturedVideo();
+      const video = getFeaturedVideo(this.document);
       const link = this.document.createElement("a");
       link.classList.add("blobio-video-link");
       link.setAttribute("href", video.url);
@@ -14880,7 +15093,7 @@ html.${className} .blobio-watermark-extension::after {
       title.textContent = "Blobio Socials";
       const row = this.document.createElement("div");
       row.classList.add("blobio-social-row");
-      for (const social of this.getSocialLinks()) {
+      for (const social of getSocialLinks(this.document)) {
         const link = this.document.createElement("a");
         link.classList.add("blobio-social-link");
         link.setAttribute("href", social.href);
@@ -14903,7 +15116,7 @@ html.${className} .blobio-watermark-extension::after {
       this.clearElement(body);
       const links = this.document.createElement("div");
       links.classList.add("blobio-policy-links");
-      for (const original of this.getPolicyPanelLinks()) {
+      for (const original of getPolicyPanelLinks(this.document, (node) => this.isInsideOwnUi(node))) {
         const link = this.document.createElement("a");
         link.classList.add("blobio-policy-link");
         link.setAttribute("href", original.getAttribute("href"));
@@ -14920,7 +15133,7 @@ html.${className} .blobio-watermark-extension::after {
         return;
       }
       this.clearElement(body);
-      const policyLinks = this.getPolicyPanelLinks();
+      const policyLinks = getPolicyPanelLinks(this.document, (node) => this.isInsideOwnUi(node));
       if (policyLinks.length > 0) {
         const section = this.createPanelSection("Policy");
         const links = this.document.createElement("div");
@@ -14937,7 +15150,7 @@ html.${className} .blobio-watermark-extension::after {
         section.appendChild(links);
         body.appendChild(section);
       }
-      const gameLinks = this.getOtherProjectLinks();
+      const gameLinks = getOtherProjectLinks(this.document, (node) => this.isInsideOwnUi(node));
       if (gameLinks.length > 0) {
         const section = this.createPanelSection("Other Games");
         section.appendChild(this.createGameLinks(gameLinks));
@@ -14959,7 +15172,7 @@ html.${className} .blobio-watermark-extension::after {
         return;
       }
       this.clearElement(body);
-      body.appendChild(this.createGameLinks(this.getOtherProjectLinks()));
+      body.appendChild(this.createGameLinks(getOtherProjectLinks(this.document, (node) => this.isInsideOwnUi(node))));
     }
     createGameLinks(projectLinks) {
       const links = this.document.createElement("div");
@@ -14975,7 +15188,7 @@ html.${className} .blobio-watermark-extension::after {
         const gameLink = this.document.createElement(href ? "a" : "button");
         gameLink.classList.add("blobio-game-link");
         gameLink.setAttribute("aria-label", labelText);
-        gameLink.style.backgroundImage = original.style?.backgroundImage || this.extractBackgroundImage(original.getAttribute("style") || "");
+        gameLink.style.backgroundImage = original.style?.backgroundImage || extractBackgroundImage(original.getAttribute("style") || "");
         if (href) {
           gameLink.setAttribute("href", href);
           gameLink.setAttribute("target", original.getAttribute("target") || "_blank");
@@ -15557,7 +15770,7 @@ html.${className} .blobio-watermark-extension::after {
         this.removeWatermarks();
         return;
       }
-      const nameInput = this.findNameInput();
+      const nameInput = findNameInput(this.document);
       if (!nameInput?.parentNode) {
         return;
       }
@@ -15618,31 +15831,6 @@ html.${className} .blobio-watermark-extension::after {
         host.classList?.remove("blobio-watermark-host");
       }
     }
-    findNameInput() {
-      const containers = [
-        this.document.querySelector?.(".inputs-container"),
-        this.document.getElementById?.("game-wrapper"),
-        this.document.body
-      ].filter(Boolean);
-      for (const container of containers) {
-        const inputs = Array.from(container.querySelectorAll?.("input") || []);
-        const namedInput = inputs.find((input) => {
-          const label = `${input.id || ""} ${input.getAttribute?.("name") || ""} ${input.getAttribute?.("placeholder") || ""}`;
-          return /nick|name/i.test(label);
-        });
-        if (namedInput) {
-          return namedInput;
-        }
-        const textInput = inputs.find((input) => {
-          const type = input.getAttribute?.("type") || input.type || "";
-          return (!type || type === "text") && !input.readOnly && input.getAttribute?.("readonly") === null;
-        });
-        if (textInput) {
-          return textInput;
-        }
-      }
-      return null;
-    }
     togglePanel(panelName) {
       const panel = this.document.getElementById?.(`blobio-panel-${panelName}`);
       if (!panel) {
@@ -15679,155 +15867,6 @@ html.${className} .blobio-watermark-extension::after {
         button.classList.remove("is-active");
       }
     }
-    findReplayButton() {
-      const candidates = Array.from(this.document.querySelectorAll?.('button, a, [role="button"]') || []);
-      return candidates.find((node) => {
-        const label = [
-          node.textContent,
-          node.className,
-          node.getAttribute?.("aria-label"),
-          node.getAttribute?.("title"),
-          node.getAttribute?.("href")
-        ].filter(Boolean).join(" ").toLowerCase();
-        return label.includes("replay");
-      });
-    }
-    getFeaturedVideo() {
-      const iframe = this.document.getElementById?.("youtube-iframe") || this.document.querySelector?.("iframe[src]");
-      const iframeUrl = iframe?.getAttribute?.("src") || "";
-      const iframeId = this.getYoutubeId(iframeUrl);
-      if (iframeId) {
-        const title2 = this.getFeaturedTitle();
-        return {
-          title: title2,
-          url: `https://www.youtube.com/watch?v=${iframeId}`,
-          thumbnail: this.getYoutubeThumbnail(iframeUrl)
-        };
-      }
-      const links = Array.from(this.document.querySelectorAll?.("a[href]") || []);
-      const youtubeLink = links.find((link) => /youtube\.com|youtu\.be/i.test(link.getAttribute("href") || ""));
-      const url = youtubeLink?.getAttribute("href") || DEFAULT_VIDEO.url;
-      const title = youtubeLink?.textContent?.trim() || DEFAULT_VIDEO.title;
-      return {
-        title,
-        url,
-        thumbnail: this.getYoutubeThumbnail(url)
-      };
-    }
-    getYoutubeThumbnail(url) {
-      const id = this.getYoutubeId(url) || "GOlXDLWeGMo";
-      return `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
-    }
-    getYoutubeId(url) {
-      return url.match(/[?&]v=([^&]+)/)?.[1] || url.match(/youtu\.be\/([^?&]+)/)?.[1] || url.match(/embed\/([^?&]+)/)?.[1] || "";
-    }
-    getFeaturedTitle() {
-      const title = this.document.getElementById?.("youtube-title")?.textContent || "";
-      const cleanTitle = title.replace(/^Featured\s+Video:\s*/i, "").replace(/\s+/g, " ").trim();
-      return cleanTitle || DEFAULT_VIDEO.title;
-    }
-    getSocialLinks() {
-      const links = Array.from(this.document.querySelectorAll?.(".social a[href], a[href]") || []);
-      return SOCIALS.map((social) => {
-        const match = links.find((link) => social.match.test(link.getAttribute("href") || ""));
-        return {
-          ...social,
-          href: match?.getAttribute("href") || social.fallbackHref
-        };
-      });
-    }
-    getOriginalPolicyLinks() {
-      const links = Array.from(this.document.querySelectorAll?.("a[href]") || []);
-      return links.filter((link) => {
-        if (this.isInsideOwnUi(link)) {
-          return false;
-        }
-        const href = link.getAttribute("href") || "";
-        if (!href || href === "#" || href.endsWith("/#") || this.isInsideConsentManager(link)) {
-          return false;
-        }
-        const text = `${link.textContent || ""} ${link.getAttribute("href") || ""}`;
-        return /policy|privacy|terms|conditions|cookie|gdpr/i.test(text);
-      });
-    }
-    getPolicyPanelLinks() {
-      const seen = /* @__PURE__ */ new Set();
-      const links = [];
-      for (const link of [...this.getOriginalPolicyLinks(), ...this.getOriginalPartnerLinks()]) {
-        const key = `${link.getAttribute("href") || ""}::${link.textContent || ""}`;
-        if (seen.has(key)) {
-          continue;
-        }
-        seen.add(key);
-        links.push(link);
-      }
-      return links;
-    }
-    getOriginalPartnerLinks() {
-      return this.getPartnerLinkContainers().flatMap((container) => {
-        const links = Array.from(container.querySelectorAll?.("a[href]") || []);
-        return links.filter((link) => PARTNER_LINK_MATCH.test(link.getAttribute("href") || ""));
-      });
-    }
-    getPartnerLinkContainers() {
-      const containers = /* @__PURE__ */ new Set();
-      for (const link of this.document.querySelectorAll?.("a[href]") || []) {
-        if (this.isInsideOwnUi(link)) {
-          continue;
-        }
-        if (PARTNER_LINK_MATCH.test(link.getAttribute("href") || "") && link.parentElement) {
-          containers.add(link.parentElement);
-        }
-      }
-      return [...containers].filter((container) => {
-        if (this.isInsideOwnUi(container)) {
-          return false;
-        }
-        const directPartnerLinks = Array.from(container.querySelectorAll?.("a[href]") || []).filter((link) => link.parentElement === container && PARTNER_LINK_MATCH.test(link.getAttribute("href") || ""));
-        return directPartnerLinks.length >= 2;
-      });
-    }
-    getOtherProjectContainers() {
-      const containers = Array.from(this.document.querySelectorAll?.(".partner") || []);
-      return containers.filter((container) => {
-        if (this.isInsideOwnUi(container)) {
-          return false;
-        }
-        return /our\s+other\s+projects/i.test(container.textContent || "") && this.getOtherProjectLinksFrom(container).length > 0;
-      });
-    }
-    getOtherProjectLinks() {
-      return this.getOtherProjectContainers().flatMap((container) => this.getOtherProjectLinksFrom(container));
-    }
-    getOtherProjectLinksFrom(container) {
-      const links = Array.from(container.querySelectorAll?.("a") || []);
-      return links.filter((link) => {
-        const className = link.className?.toString?.() || "";
-        const image = link.style?.backgroundImage || link.getAttribute("style") || "";
-        return className.includes("mus-conv") || image.includes("background-image");
-      });
-    }
-    extractBackgroundImage(styleText) {
-      return styleText.match(/background-image:\s*([^;]+)/i)?.[1]?.trim() || "";
-    }
-    getFailedViralFrames() {
-      const frames = Array.from(this.document.querySelectorAll?.("iframe") || []);
-      return frames.filter((frame) => FAILED_VIRAL_FRAME_MATCH.test(frame.getAttribute("src") || frame.src || ""));
-    }
-    isInsideConsentManager(node) {
-      let current = node;
-      while (current) {
-        const className = current.className?.toString?.() || "";
-        if (className.split(/\s+/).some((name) => name === "fc" || name.startsWith("fc-") || name.includes("-fc-"))) {
-          return true;
-        }
-        if (/^fc-|cookieWarning-/i.test(className)) {
-          return true;
-        }
-        current = current.parentElement;
-      }
-      return false;
-    }
     hideOriginalSections() {
       const directSelectors = [
         "#youtube-title",
@@ -15856,20 +15895,20 @@ html.${className} .blobio-watermark-extension::after {
           this.hideOriginalNode(node);
         }
       }
-      for (const node of this.getPartnerLinkContainers()) {
+      for (const node of getPartnerLinkContainers(this.document, (item) => this.isInsideOwnUi(item))) {
         this.hideOriginalNode(node);
       }
-      for (const node of this.getOtherProjectContainers()) {
+      for (const node of getOtherProjectContainers(this.document, (item) => this.isInsideOwnUi(item))) {
         this.hideOriginalNode(node);
       }
-      for (const frame of this.getFailedViralFrames()) {
+      for (const frame of getFailedViralFrames(this.document)) {
         this.hideOriginalNode(frame);
         const parent = frame.parentElement;
         if (parent && parent.children?.length === 1) {
           this.hideOriginalNode(parent);
         }
       }
-      for (const link of this.getOriginalPolicyLinks()) {
+      for (const link of getOriginalPolicyLinks(this.document, (item) => this.isInsideOwnUi(item))) {
         this.hideOriginalNode(link);
       }
     }
@@ -15884,61 +15923,12 @@ html.${className} .blobio-watermark-extension::after {
       this.hiddenOriginalNodes.add(node);
     }
     syncUsernameAnimation() {
-      const usernames = Array.from(this.document.querySelectorAll?.(".fleft.username") || []);
-      for (const username of usernames) {
-        if (this.isInsideOwnUi(username)) {
-          continue;
-        }
-        const text = this.getUsernameSourceText(username);
-        const currentText = username.dataset.blobioUsernameText || "";
-        let animated = this.getUsernameAnimatedNode(username);
-        const existingLetters = animated?.querySelectorAll?.(".blobio-username-letter") || [];
-        if (!text || text === currentText && existingLetters.length === Array.from(text).length) {
-          continue;
-        }
-        if (!animated) {
-          animated = this.document.createElement("span");
-          animated.classList.add("blobio-username-animated");
-          username.appendChild(animated);
-        }
-        this.clearElement(animated);
-        username.dataset.blobioUsernameText = text;
-        const letters = Array.from(text);
-        const duration = letters.length * 160 + 5200;
-        const glowDelay = Math.max(0, (letters.length - 1) * 160 + 1250);
-        this.setStyleProperty(username, "--blobio-username-duration", `${duration}ms`);
-        this.setStyleProperty(username, "--blobio-username-glow-delay", `${glowDelay}ms`);
-        letters.forEach((letter, index) => {
-          const span = this.document.createElement("span");
-          span.classList.add("blobio-username-letter");
-          span.textContent = letter;
-          this.setStyleProperty(span, "--blobio-letter-delay", `${index * 160}ms`);
-          animated.appendChild(span);
-        });
-      }
-    }
-    getUsernameAnimatedNode(username) {
-      return Array.from(username.children || []).find((child) => child.classList?.contains("blobio-username-animated")) || null;
-    }
-    getUsernameSourceText(username) {
-      const animated = this.getUsernameAnimatedNode(username);
-      if (username.childNodes) {
-        return Array.from(username.childNodes).filter((node) => node !== animated).map((node) => {
-          if (node.nodeType === 3) {
-            return node.textContent || "";
-          }
-          if (node.nodeType === 1 && !node.classList?.contains("blobio-username-animated")) {
-            return node.textContent || "";
-          }
-          return "";
-        }).join("").trim();
-      }
-      const fullText = username.textContent || "";
-      const animatedText = animated?.textContent || "";
-      if (animatedText && fullText.endsWith(animatedText)) {
-        return fullText.slice(0, -animatedText.length).trim();
-      }
-      return fullText.trim();
+      syncUsernameAnimation({
+        document: this.document,
+        isInsideOwnUi: (node) => this.isInsideOwnUi(node),
+        clearElement: (node) => this.clearElement(node),
+        setStyleProperty: (node, name, value) => this.setStyleProperty(node, name, value)
+      });
     }
     setStyleProperty(node, name, value) {
       if (typeof node.style?.setProperty === "function") {

@@ -10,18 +10,30 @@ import { isHideAdminMdEnabled, setHideAdminMdEnabled } from '../roles/RoleSettin
 import { isFpsUncapEnabled, setFpsUncapEnabled } from '../settings/RuntimeSettings.js';
 import { VirusMotherCellSettingsUi } from '../virus/VirusMotherCellSettingsUi.js';
 import {
-  DEFAULT_VIDEO,
-  FAILED_VIRAL_FRAME_MATCH,
   OTHER_GAME_NAMES,
-  PARTNER_LINK_MATCH,
-  SOCIALS,
   UPDATE_NOTES,
 } from './MenuFeatureContent.js';
+import {
+  extractBackgroundImage,
+  findReplayButton,
+  getFailedViralFrames,
+  getFeaturedVideo,
+  getOriginalPolicyLinks,
+  getOtherProjectContainers,
+  getOtherProjectLinks,
+  getPartnerLinkContainers,
+  getPolicyPanelLinks,
+  getSocialLinks,
+} from './MenuFeatureDiscovery.js';
 import {
   EXTENSION_DEFAULT_CATEGORY,
   EXTENSION_OPTION_TOOLTIPS,
   EXTENSION_SETTING_CATEGORIES,
 } from './MenuFeatureSettingsConfig.js';
+import {
+  findNameInput,
+  syncUsernameAnimation,
+} from './MenuFeatureVisualSync.js';
 
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
@@ -344,7 +356,7 @@ export class MenuFeature {
       this.toolbar = this.createToolbar();
     }
 
-    const replayButton = this.findReplayButton();
+    const replayButton = findReplayButton(this.document);
     if (replayButton?.parentNode) {
       const parent = replayButton.parentNode;
       if (this.toolbar.parentNode === parent && replayButton.nextSibling === this.toolbar) {
@@ -449,8 +461,8 @@ export class MenuFeature {
   }
 
   installPolicyDock() {
-    const links = this.getPolicyPanelLinks();
-    const games = this.getOtherProjectLinks();
+    const links = getPolicyPanelLinks(this.document, (node) => this.isInsideOwnUi(node));
+    const games = getOtherProjectLinks(this.document, (node) => this.isInsideOwnUi(node));
     if (links.length === 0 && games.length === 0) {
       this.policyDock?.remove();
       this.policyDock = null;
@@ -479,7 +491,10 @@ export class MenuFeature {
     const buttons = this.document.createElement('div');
     buttons.classList.add('blobio-dock-buttons');
 
-    if (this.getPolicyPanelLinks().length > 0 || this.getOtherProjectLinks().length > 0) {
+    if (
+      getPolicyPanelLinks(this.document, (node) => this.isInsideOwnUi(node)).length > 0 ||
+      getOtherProjectLinks(this.document, (node) => this.isInsideOwnUi(node)).length > 0
+    ) {
       buttons.appendChild(this.createDockButton('Policy/Other Games', 'policy-games', 'blobio-policy-games-button'));
     }
 
@@ -568,7 +583,7 @@ export class MenuFeature {
 
     this.clearElement(body);
 
-    const video = this.getFeaturedVideo();
+    const video = getFeaturedVideo(this.document);
     const link = this.document.createElement('a');
     link.classList.add('blobio-video-link');
     link.setAttribute('href', video.url);
@@ -603,7 +618,7 @@ export class MenuFeature {
     const row = this.document.createElement('div');
     row.classList.add('blobio-social-row');
 
-    for (const social of this.getSocialLinks()) {
+    for (const social of getSocialLinks(this.document)) {
       const link = this.document.createElement('a');
       link.classList.add('blobio-social-link');
       link.setAttribute('href', social.href);
@@ -633,7 +648,7 @@ export class MenuFeature {
     const links = this.document.createElement('div');
     links.classList.add('blobio-policy-links');
 
-    for (const original of this.getPolicyPanelLinks()) {
+    for (const original of getPolicyPanelLinks(this.document, (node) => this.isInsideOwnUi(node))) {
       const link = this.document.createElement('a');
       link.classList.add('blobio-policy-link');
       link.setAttribute('href', original.getAttribute('href'));
@@ -654,7 +669,7 @@ export class MenuFeature {
 
     this.clearElement(body);
 
-    const policyLinks = this.getPolicyPanelLinks();
+    const policyLinks = getPolicyPanelLinks(this.document, (node) => this.isInsideOwnUi(node));
     if (policyLinks.length > 0) {
       const section = this.createPanelSection('Policy');
       const links = this.document.createElement('div');
@@ -674,7 +689,7 @@ export class MenuFeature {
       body.appendChild(section);
     }
 
-    const gameLinks = this.getOtherProjectLinks();
+    const gameLinks = getOtherProjectLinks(this.document, (node) => this.isInsideOwnUi(node));
     if (gameLinks.length > 0) {
       const section = this.createPanelSection('Other Games');
       section.appendChild(this.createGameLinks(gameLinks));
@@ -701,7 +716,7 @@ export class MenuFeature {
     }
 
     this.clearElement(body);
-    body.appendChild(this.createGameLinks(this.getOtherProjectLinks()));
+    body.appendChild(this.createGameLinks(getOtherProjectLinks(this.document, (node) => this.isInsideOwnUi(node))));
   }
 
   createGameLinks(projectLinks) {
@@ -721,7 +736,7 @@ export class MenuFeature {
       const gameLink = this.document.createElement(href ? 'a' : 'button');
       gameLink.classList.add('blobio-game-link');
       gameLink.setAttribute('aria-label', labelText);
-      gameLink.style.backgroundImage = original.style?.backgroundImage || this.extractBackgroundImage(original.getAttribute('style') || '');
+      gameLink.style.backgroundImage = original.style?.backgroundImage || extractBackgroundImage(original.getAttribute('style') || '');
 
       if (href) {
         gameLink.setAttribute('href', href);
@@ -1401,7 +1416,7 @@ export class MenuFeature {
       return;
     }
 
-    const nameInput = this.findNameInput();
+    const nameInput = findNameInput(this.document);
     if (!nameInput?.parentNode) {
       return;
     }
@@ -1480,37 +1495,6 @@ export class MenuFeature {
     }
   }
 
-  findNameInput() {
-    const containers = [
-      this.document.querySelector?.('.inputs-container'),
-      this.document.getElementById?.('game-wrapper'),
-      this.document.body,
-    ].filter(Boolean);
-
-    for (const container of containers) {
-      const inputs = Array.from(container.querySelectorAll?.('input') || []);
-      const namedInput = inputs.find((input) => {
-        const label = `${input.id || ''} ${input.getAttribute?.('name') || ''} ${input.getAttribute?.('placeholder') || ''}`;
-        return /nick|name/i.test(label);
-      });
-
-      if (namedInput) {
-        return namedInput;
-      }
-
-      const textInput = inputs.find((input) => {
-        const type = input.getAttribute?.('type') || input.type || '';
-        return (!type || type === 'text') && !input.readOnly && input.getAttribute?.('readonly') === null;
-      });
-
-      if (textInput) {
-        return textInput;
-      }
-    }
-
-    return null;
-  }
-
   togglePanel(panelName) {
     const panel = this.document.getElementById?.(`blobio-panel-${panelName}`);
     if (!panel) {
@@ -1555,201 +1539,6 @@ export class MenuFeature {
     }
   }
 
-  findReplayButton() {
-    const candidates = Array.from(this.document.querySelectorAll?.('button, a, [role="button"]') || []);
-    return candidates.find((node) => {
-      const label = [
-        node.textContent,
-        node.className,
-        node.getAttribute?.('aria-label'),
-        node.getAttribute?.('title'),
-        node.getAttribute?.('href'),
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-
-      return label.includes('replay');
-    });
-  }
-
-  getFeaturedVideo() {
-    const iframe = this.document.getElementById?.('youtube-iframe') || this.document.querySelector?.('iframe[src]');
-    const iframeUrl = iframe?.getAttribute?.('src') || '';
-    const iframeId = this.getYoutubeId(iframeUrl);
-
-    if (iframeId) {
-      const title = this.getFeaturedTitle();
-      return {
-        title,
-        url: `https://www.youtube.com/watch?v=${iframeId}`,
-        thumbnail: this.getYoutubeThumbnail(iframeUrl),
-      };
-    }
-
-    const links = Array.from(this.document.querySelectorAll?.('a[href]') || []);
-    const youtubeLink = links.find((link) => /youtube\.com|youtu\.be/i.test(link.getAttribute('href') || ''));
-    const url = youtubeLink?.getAttribute('href') || DEFAULT_VIDEO.url;
-    const title = youtubeLink?.textContent?.trim() || DEFAULT_VIDEO.title;
-
-    return {
-      title,
-      url,
-      thumbnail: this.getYoutubeThumbnail(url),
-    };
-  }
-
-  getYoutubeThumbnail(url) {
-    const id = this.getYoutubeId(url) || 'GOlXDLWeGMo';
-
-    return `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
-  }
-
-  getYoutubeId(url) {
-    return (
-      url.match(/[?&]v=([^&]+)/)?.[1] ||
-      url.match(/youtu\.be\/([^?&]+)/)?.[1] ||
-      url.match(/embed\/([^?&]+)/)?.[1] ||
-      ''
-    );
-  }
-
-  getFeaturedTitle() {
-    const title = this.document.getElementById?.('youtube-title')?.textContent || '';
-    const cleanTitle = title.replace(/^Featured\s+Video:\s*/i, '').replace(/\s+/g, ' ').trim();
-    return cleanTitle || DEFAULT_VIDEO.title;
-  }
-
-  getSocialLinks() {
-    const links = Array.from(this.document.querySelectorAll?.('.social a[href], a[href]') || []);
-
-    return SOCIALS.map((social) => {
-      const match = links.find((link) => social.match.test(link.getAttribute('href') || ''));
-      return {
-        ...social,
-        href: match?.getAttribute('href') || social.fallbackHref,
-      };
-    });
-  }
-
-  getOriginalPolicyLinks() {
-    const links = Array.from(this.document.querySelectorAll?.('a[href]') || []);
-    return links.filter((link) => {
-      if (this.isInsideOwnUi(link)) {
-        return false;
-      }
-
-      const href = link.getAttribute('href') || '';
-      if (!href || href === '#' || href.endsWith('/#') || this.isInsideConsentManager(link)) {
-        return false;
-      }
-
-      const text = `${link.textContent || ''} ${link.getAttribute('href') || ''}`;
-      return /policy|privacy|terms|conditions|cookie|gdpr/i.test(text);
-    });
-  }
-
-  getPolicyPanelLinks() {
-    const seen = new Set();
-    const links = [];
-
-    for (const link of [...this.getOriginalPolicyLinks(), ...this.getOriginalPartnerLinks()]) {
-      const key = `${link.getAttribute('href') || ''}::${link.textContent || ''}`;
-      if (seen.has(key)) {
-        continue;
-      }
-
-      seen.add(key);
-      links.push(link);
-    }
-
-    return links;
-  }
-
-  getOriginalPartnerLinks() {
-    return this.getPartnerLinkContainers().flatMap((container) => {
-      const links = Array.from(container.querySelectorAll?.('a[href]') || []);
-      return links.filter((link) => PARTNER_LINK_MATCH.test(link.getAttribute('href') || ''));
-    });
-  }
-
-  getPartnerLinkContainers() {
-    const containers = new Set();
-
-    for (const link of this.document.querySelectorAll?.('a[href]') || []) {
-      if (this.isInsideOwnUi(link)) {
-        continue;
-      }
-
-      if (PARTNER_LINK_MATCH.test(link.getAttribute('href') || '') && link.parentElement) {
-        containers.add(link.parentElement);
-      }
-    }
-
-    return [...containers].filter((container) => {
-      if (this.isInsideOwnUi(container)) {
-        return false;
-      }
-
-      const directPartnerLinks = Array.from(container.querySelectorAll?.('a[href]') || [])
-        .filter((link) => link.parentElement === container && PARTNER_LINK_MATCH.test(link.getAttribute('href') || ''));
-
-      return directPartnerLinks.length >= 2;
-    });
-  }
-
-  getOtherProjectContainers() {
-    const containers = Array.from(this.document.querySelectorAll?.('.partner') || []);
-    return containers.filter((container) => {
-      if (this.isInsideOwnUi(container)) {
-        return false;
-      }
-
-      return /our\s+other\s+projects/i.test(container.textContent || '') && this.getOtherProjectLinksFrom(container).length > 0;
-    });
-  }
-
-  getOtherProjectLinks() {
-    return this.getOtherProjectContainers().flatMap((container) => this.getOtherProjectLinksFrom(container));
-  }
-
-  getOtherProjectLinksFrom(container) {
-    const links = Array.from(container.querySelectorAll?.('a') || []);
-    return links.filter((link) => {
-      const className = link.className?.toString?.() || '';
-      const image = link.style?.backgroundImage || link.getAttribute('style') || '';
-      return className.includes('mus-conv') || image.includes('background-image');
-    });
-  }
-
-  extractBackgroundImage(styleText) {
-    return styleText.match(/background-image:\s*([^;]+)/i)?.[1]?.trim() || '';
-  }
-
-  getFailedViralFrames() {
-    const frames = Array.from(this.document.querySelectorAll?.('iframe') || []);
-    return frames.filter((frame) => FAILED_VIRAL_FRAME_MATCH.test(frame.getAttribute('src') || frame.src || ''));
-  }
-
-  isInsideConsentManager(node) {
-    let current = node;
-
-    while (current) {
-      const className = current.className?.toString?.() || '';
-      if (className.split(/\s+/).some((name) => name === 'fc' || name.startsWith('fc-') || name.includes('-fc-'))) {
-        return true;
-      }
-
-      if (/^fc-|cookieWarning-/i.test(className)) {
-        return true;
-      }
-
-      current = current.parentElement;
-    }
-
-    return false;
-  }
-
   hideOriginalSections() {
     const directSelectors = [
       '#youtube-title',
@@ -1788,15 +1577,15 @@ export class MenuFeature {
       }
     }
 
-    for (const node of this.getPartnerLinkContainers()) {
+    for (const node of getPartnerLinkContainers(this.document, (item) => this.isInsideOwnUi(item))) {
       this.hideOriginalNode(node);
     }
 
-    for (const node of this.getOtherProjectContainers()) {
+    for (const node of getOtherProjectContainers(this.document, (item) => this.isInsideOwnUi(item))) {
       this.hideOriginalNode(node);
     }
 
-    for (const frame of this.getFailedViralFrames()) {
+    for (const frame of getFailedViralFrames(this.document)) {
       this.hideOriginalNode(frame);
 
       const parent = frame.parentElement;
@@ -1805,7 +1594,7 @@ export class MenuFeature {
       }
     }
 
-    for (const link of this.getOriginalPolicyLinks()) {
+    for (const link of getOriginalPolicyLinks(this.document, (item) => this.isInsideOwnUi(item))) {
       this.hideOriginalNode(link);
     }
   }
@@ -1824,79 +1613,12 @@ export class MenuFeature {
   }
 
   syncUsernameAnimation() {
-    const usernames = Array.from(this.document.querySelectorAll?.('.fleft.username') || []);
-
-    for (const username of usernames) {
-      if (this.isInsideOwnUi(username)) {
-        continue;
-      }
-
-      const text = this.getUsernameSourceText(username);
-      const currentText = username.dataset.blobioUsernameText || '';
-      let animated = this.getUsernameAnimatedNode(username);
-      const existingLetters = animated?.querySelectorAll?.('.blobio-username-letter') || [];
-
-      if (!text || (text === currentText && existingLetters.length === Array.from(text).length)) {
-        continue;
-      }
-
-      if (!animated) {
-        animated = this.document.createElement('span');
-        animated.classList.add('blobio-username-animated');
-        username.appendChild(animated);
-      }
-
-      this.clearElement(animated);
-      username.dataset.blobioUsernameText = text;
-
-      const letters = Array.from(text);
-      const duration = letters.length * 160 + 5200;
-      const glowDelay = Math.max(0, (letters.length - 1) * 160 + 1250);
-      this.setStyleProperty(username, '--blobio-username-duration', `${duration}ms`);
-      this.setStyleProperty(username, '--blobio-username-glow-delay', `${glowDelay}ms`);
-
-      letters.forEach((letter, index) => {
-        const span = this.document.createElement('span');
-        span.classList.add('blobio-username-letter');
-        span.textContent = letter;
-        this.setStyleProperty(span, '--blobio-letter-delay', `${index * 160}ms`);
-        animated.appendChild(span);
-      });
-    }
-  }
-
-  getUsernameAnimatedNode(username) {
-    return Array.from(username.children || []).find((child) => child.classList?.contains('blobio-username-animated')) || null;
-  }
-
-  getUsernameSourceText(username) {
-    const animated = this.getUsernameAnimatedNode(username);
-
-    if (username.childNodes) {
-      return Array.from(username.childNodes)
-        .filter((node) => node !== animated)
-        .map((node) => {
-          if (node.nodeType === 3) {
-            return node.textContent || '';
-          }
-
-          if (node.nodeType === 1 && !node.classList?.contains('blobio-username-animated')) {
-            return node.textContent || '';
-          }
-
-          return '';
-        })
-        .join('')
-        .trim();
-    }
-
-    const fullText = username.textContent || '';
-    const animatedText = animated?.textContent || '';
-    if (animatedText && fullText.endsWith(animatedText)) {
-      return fullText.slice(0, -animatedText.length).trim();
-    }
-
-    return fullText.trim();
+    syncUsernameAnimation({
+      document: this.document,
+      isInsideOwnUi: (node) => this.isInsideOwnUi(node),
+      clearElement: (node) => this.clearElement(node),
+      setStyleProperty: (node, name, value) => this.setStyleProperty(node, name, value),
+    });
   }
 
   setStyleProperty(node, name, value) {

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "node scripts/build.js",
-    "check:structure": "node scripts/check-file-size.js",
+    "check:structure": "node scripts/check-source-health.js",
     "test": "node --test"
   },
   "engines": {
