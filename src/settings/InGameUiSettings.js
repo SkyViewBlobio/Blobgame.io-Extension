@@ -1,5 +1,6 @@
 export const CAPTCHA_LOGO_HIDDEN_KEY = 'blobio.chat.hideCaptchaLogo';
 export const SMOOTH_CHAT_KEY = 'blobio.chat.smoothChat';
+export const KEY_SHORTCUTS_HIDDEN_KEY = 'blobio.chat.hideKeyShortcuts';
 
 export const CHAT_BACKGROUND_KEYS = {
   enabled: 'blobio.chat.background.enabled',
@@ -224,6 +225,7 @@ export function setLeaderboardSizeSetting(storage, changes = {}) {
 export function readInGameUiSettings(storage) {
   return {
     hideCaptchaLogo: readBoolean(storage, CAPTCHA_LOGO_HIDDEN_KEY, true),
+    hideKeyShortcuts: readBoolean(storage, KEY_SHORTCUTS_HIDDEN_KEY, true),
     smoothChat: readBoolean(storage, SMOOTH_CHAT_KEY, true),
     chatBackground: getColorSetting(storage, CHAT_BACKGROUND_KEYS, DEFAULT_COLORS.chatBackground),
     chatOutline: getColorSetting(storage, CHAT_OUTLINE_KEYS, DEFAULT_COLORS.chatOutline),

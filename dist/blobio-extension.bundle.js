@@ -2062,11 +2062,16 @@
   color: #ffffff;
   cursor: pointer;
   line-height: 1;
+  transform-origin: center;
+  transition: transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease, background-color 130ms ease;
 }
 
 .blobio-emote-skin-asset:hover {
-  border-color: rgba(204, 255, 216, 0.82);
-  background: rgba(18, 70, 35, 0.86);
+  z-index: 3;
+  border-color: rgba(224, 255, 232, 0.94);
+  background: rgba(18, 70, 35, 0.92);
+  box-shadow: 0 0 16px rgba(91, 255, 139, 0.48), inset 0 0 10px rgba(91, 255, 139, 0.2);
+  transform: scale(1.85);
 }
 
 .blobio-emote-skin-asset img {
@@ -2078,8 +2083,6 @@
 
 .blobio-emote-skin-emoji {
   font-size: 20px;
-  transform-origin: center;
-  transition: transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease, background-color 130ms ease;
 }
 
 .blobio-emote-skin-emoji:hover {
@@ -2300,7 +2303,7 @@
         const button = this.document.createElement("button");
         button.type = "button";
         button.classList.add("blobio-emote-skin-asset");
-        button.title = `${trigger.label} ${trigger.emoji}`;
+        button.setAttribute("aria-label", `${trigger.label} ${trigger.emoji}`);
         button.dataset.emoteId = trigger.id;
         const image = this.document.createElement("img");
         image.src = url;
@@ -4846,6 +4849,38 @@ html.${this.className} body::before {
   font-size: var(--blobio-chat-font-size, 16px) !important;
 }
 
+#cheatsheet.blobio-key-shortcuts-hidden {
+  display: none !important;
+}
+
+.blobio-chat-settings-tooltip {
+  position: fixed;
+  z-index: 2147483000;
+  max-width: 280px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid rgba(177, 255, 198, 0.72);
+  border-radius: 7px;
+  background: rgba(0, 18, 10, 0.94);
+  color: #f4fff6;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.78), 0 0 12px rgba(77, 255, 126, 0.78);
+  box-shadow: inset 0 0 12px rgba(79, 255, 130, 0.14), 0 0 16px rgba(79, 255, 130, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.blobio-chat-settings-tooltip.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 
 .blobio-chat-settings-category-button + .blobio-chat-settings-category-button {
   margin-top: 8px;
@@ -5196,6 +5231,66 @@ html.${this.className} body::before {
 .blobio-leaderboard-category,
 .blobio-hud-info-category {
   display: block;
+}
+
+.blobio-hud-info-category {
+  width: 390px;
+  padding: 12px;
+}
+
+.blobio-hud-section {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 8px 10px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid rgba(130, 255, 166, 0.24);
+}
+
+.blobio-hud-section:first-child {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: 0;
+}
+
+.blobio-hud-section-title {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 22px;
+  color: #f4fff6;
+  font-size: 15px;
+  font-weight: 900;
+  text-align: center;
+  text-shadow: 0 0 7px rgba(255, 255, 255, 0.78), 0 0 14px rgba(77, 255, 126, 0.72);
+}
+
+.blobio-hud-section-title::before,
+.blobio-hud-section-title::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(141, 255, 173, 0.68), transparent);
+}
+
+.blobio-hud-section .blobio-ui-setting-group + .blobio-ui-setting-group {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.blobio-hud-info-category .blobio-hud-mode-setting {
+  grid-template-columns: minmax(112px, 1fr) minmax(116px, 1fr);
+}
+
+.blobio-hud-info-category .blobio-hud-mode-setting .blobio-chat-font-label {
+  justify-content: center;
+}
+
+.blobio-hud-info-category .blobio-hud-size-setting,
+.blobio-hud-info-category .blobio-hud-color-setting {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .blobio-ui-setting-group {
@@ -5983,6 +6078,7 @@ iframe.blobio-captcha-anchor-hidden,
   }
   var CAPTCHA_LOGO_HIDDEN_KEY = "blobio.chat.hideCaptchaLogo";
   var SMOOTH_CHAT_KEY = "blobio.chat.smoothChat";
+  var KEY_SHORTCUTS_HIDDEN_KEY = "blobio.chat.hideKeyShortcuts";
   var CHAT_BACKGROUND_KEYS = {
     enabled: "blobio.chat.background.enabled",
     color: "blobio.chat.background.color",
@@ -6172,6 +6268,7 @@ iframe.blobio-captcha-anchor-hidden,
   function readInGameUiSettings(storage) {
     return {
       hideCaptchaLogo: readBoolean2(storage, CAPTCHA_LOGO_HIDDEN_KEY, true),
+      hideKeyShortcuts: readBoolean2(storage, KEY_SHORTCUTS_HIDDEN_KEY, true),
       smoothChat: readBoolean2(storage, SMOOTH_CHAT_KEY, true),
       chatBackground: getColorSetting(storage, CHAT_BACKGROUND_KEYS, DEFAULT_COLORS.chatBackground),
       chatOutline: getColorSetting(storage, CHAT_OUTLINE_KEYS, DEFAULT_COLORS.chatOutline),
@@ -6444,6 +6541,13 @@ iframe.blobio-captcha-anchor-hidden,
     );
     return category;
   }
+  function createKeyShortcutsCategory(document) {
+    const category = document.createElement("div");
+    category.classList.add("blobio-chat-settings-category", "blobio-key-shortcuts-category");
+    category.dataset.category = "key-shortcuts";
+    category.appendChild(createBooleanSetting(document, "key-shortcuts", "Disable the Key-Shortcut text on screen."));
+    return category;
+  }
   function createMutedPlayersCategory(document) {
     const category = document.createElement("div");
     category.classList.add("blobio-chat-settings-category", "blobio-muted-players-category");
@@ -6542,25 +6646,42 @@ iframe.blobio-captcha-anchor-hidden,
     category.classList.add("blobio-chat-settings-category", "blobio-hud-info-category");
     category.dataset.category = "hud-info";
     category.append(
-      createBooleanSetting(document, "hud-info-enabled", "HUD-text on screen"),
-      createBooleanSetting(document, "hud-info-fps", "FPS"),
-      createBooleanSetting(document, "hud-info-score", "Score"),
-      createBooleanSetting(document, "hud-info-cells", "Cells"),
-      createBooleanSetting(document, "hud-info-ping", "Ping"),
-      createBooleanSetting(document, "hud-info-boosters", "Booster-Info"),
-      createHudModeSetting(document, "hud-position", "Position"),
-      createHudModeSetting(document, "hud-layout", "Layout"),
-      createHudModeSetting(document, "hud-style", "Style"),
-      createHudModeSetting(document, "hud-fps-mode", "FPS mode"),
-      createHudModeSetting(document, "hud-score-mode", "Score mode"),
-      createHudModeSetting(document, "hud-ping-mode", "Ping mode"),
-      createHudModeSetting(document, "hud-booster-name-mode", "Booster type color"),
-      createHudModeSetting(document, "hud-booster-duration-mode", "Booster duration color"),
-      createBooleanSetting(document, "hud-booster-last-sec-flash", "Last-Sec-Flash"),
-      createHudSizeSetting(document),
-      createHudColorSetting(document)
+      createHudSection(document, "HUD Display", [
+        createBooleanSetting(document, "hud-info-enabled", "HUD-text on screen"),
+        createHudModeSetting(document, "hud-position", "Position"),
+        createHudModeSetting(document, "hud-layout", "Layout"),
+        createHudModeSetting(document, "hud-style", "Style")
+      ]),
+      createHudSection(document, "Data Text", [
+        createBooleanSetting(document, "hud-info-fps", "FPS"),
+        createBooleanSetting(document, "hud-info-score", "Score"),
+        createBooleanSetting(document, "hud-info-cells", "Cells"),
+        createBooleanSetting(document, "hud-info-ping", "Ping"),
+        createHudModeSetting(document, "hud-fps-mode", "FPS mode"),
+        createHudModeSetting(document, "hud-score-mode", "Score mode"),
+        createHudModeSetting(document, "hud-ping-mode", "Ping mode")
+      ]),
+      createHudSection(document, "Booster Info", [
+        createBooleanSetting(document, "hud-info-boosters", "Booster-Info"),
+        createHudModeSetting(document, "hud-booster-name-mode", "Booster type color"),
+        createHudModeSetting(document, "hud-booster-duration-mode", "Booster duration color"),
+        createBooleanSetting(document, "hud-booster-last-sec-flash", "Last-Sec-Flash")
+      ]),
+      createHudSection(document, "Style", [
+        createHudSizeSetting(document),
+        createHudColorSetting(document)
+      ])
     );
     return category;
+  }
+  function createHudSection(document, titleText, children) {
+    const section = document.createElement("div");
+    section.classList.add("blobio-hud-section");
+    const title = document.createElement("div");
+    title.classList.add("blobio-hud-section-title");
+    title.textContent = titleText;
+    section.append(title, ...children);
+    return section;
   }
   function createFontSetting(document, name, labelText, limits) {
     const group = document.createElement("div");
@@ -6760,6 +6881,8 @@ iframe.blobio-captcha-anchor-hidden,
       this.hudColorPreviewFrame = null;
       this.hudColorPreviewSettings = null;
       this.hudColorCommitTimer = null;
+      this.inlineTooltip = null;
+      this.suppressedKeyRelease = null;
       this.started = false;
     }
     start() {
@@ -6794,6 +6917,7 @@ iframe.blobio-captcha-anchor-hidden,
         this.ensureHotkeyLauncher();
         this.ensureAnimationSpeedLauncher();
         this.ensureHudInfoLauncher();
+        this.ensureKeyShortcutsLauncher();
         this.syncChatWrapper();
         this.positionUi();
         return;
@@ -6813,14 +6937,25 @@ iframe.blobio-captcha-anchor-hidden,
       const hotkeyButton = createCategoryButton(this.document, "HotKey", "hotkey");
       const animationButton = createCategoryButton(this.document, "Anim-Speed", "animation");
       const hudButton = createCategoryButton(this.document, "HUD-Info", "hud-info");
+      const keyShortcutsButton = createCategoryButton(this.document, "Key-Shortcuts", "key-shortcuts");
       const captchaButton = createCategoryButton(this.document, "Captcha-Logo", "captcha");
       const leaderboardButton = createCategoryButton(this.document, "Leaderboard-Settings", "leaderboard");
-      panel.append(chatButton, mutedButton, hotkeyButton, animationButton, hudButton, captchaButton, leaderboardButton);
+      panel.append(
+        chatButton,
+        mutedButton,
+        hotkeyButton,
+        animationButton,
+        hudButton,
+        keyShortcutsButton,
+        captchaButton,
+        leaderboardButton
+      );
       const chatCategory = createChatCategory(this.document);
       const mutedCategory = createMutedPlayersCategory(this.document);
       const hotkeyCategory = createHotkeyCategory(this.document);
       const animationCategory = createAnimationSpeedCategory(this.document);
       const hudCategory = createHudInfoCategory(this.document);
+      const keyShortcutsCategory = createKeyShortcutsCategory(this.document);
       const captchaCategory = createCaptchaCategory(this.document);
       const leaderboardCategory = createLeaderboardCategory(this.document);
       root.append(
@@ -6831,6 +6966,7 @@ iframe.blobio-captcha-anchor-hidden,
         hotkeyCategory,
         animationCategory,
         hudCategory,
+        keyShortcutsCategory,
         captchaCategory,
         leaderboardCategory
       );
@@ -6848,12 +6984,14 @@ iframe.blobio-captcha-anchor-hidden,
       this.bindCategoryButton(hotkeyButton);
       this.bindCategoryButton(animationButton);
       this.bindCategoryButton(hudButton);
+      this.bindCategoryButton(keyShortcutsButton);
       this.bindCategoryButton(captchaButton);
       this.bindCategoryButton(leaderboardButton);
       this.bindChatCategory(chatCategory);
       this.bindCaptchaCategory(captchaCategory);
       this.bindAnimationSpeedCategory(animationCategory);
       this.bindHudInfoCategory(hudCategory);
+      this.bindKeyShortcutsCategory(keyShortcutsCategory);
       this.bindLeaderboardCategory(leaderboardCategory);
       const muteToggle = mutedCategory.querySelector(".blobio-muted-players-toggle");
       const mutedList = mutedCategory.querySelector(".blobio-muted-players-list");
@@ -6951,6 +7089,8 @@ iframe.blobio-captcha-anchor-hidden,
       this.notificationHost = notificationHost;
       this.ensureHotkeyLauncher();
       this.ensureAnimationSpeedLauncher();
+      this.ensureHudInfoLauncher();
+      this.ensureKeyShortcutsLauncher();
       this.syncControls();
       this.syncMutedPlayersUi();
       this.syncHotkeyUi();
@@ -7040,6 +7180,36 @@ iframe.blobio-captcha-anchor-hidden,
       input.dispatchEvent?.(event);
       return true;
     }
+    suppressNextKeyRelease(sourceEvent) {
+      this.clearSuppressedKeyRelease();
+      const key = sourceEvent?.key || "";
+      const code = sourceEvent?.code || "";
+      const stop = (event) => {
+        if (key && event.key === key || code && event.code === code) {
+          event.preventDefault?.();
+          event.stopImmediatePropagation?.();
+          event.stopPropagation?.();
+        }
+      };
+      this.document.addEventListener?.("keypress", stop, true);
+      this.document.addEventListener?.("keyup", stop, true);
+      const win = this.document.defaultView || globalThis;
+      const setTimer = typeof win.setTimeout === "function" ? win.setTimeout.bind(win) : globalThis.setTimeout;
+      const timer = setTimer(() => this.clearSuppressedKeyRelease(), 350);
+      this.suppressedKeyRelease = { stop, timer };
+    }
+    clearSuppressedKeyRelease() {
+      if (!this.suppressedKeyRelease) {
+        return;
+      }
+      const { stop, timer } = this.suppressedKeyRelease;
+      this.document.removeEventListener?.("keypress", stop, true);
+      this.document.removeEventListener?.("keyup", stop, true);
+      const win = this.document.defaultView || globalThis;
+      const clearTimer = typeof win.clearTimeout === "function" ? win.clearTimeout.bind(win) : globalThis.clearTimeout;
+      clearTimer(timer);
+      this.suppressedKeyRelease = null;
+    }
     bindCategoryButton(button) {
       if (!button || button.dataset.blobioCategoryBound === "1") {
         return button;
@@ -7085,6 +7255,20 @@ iframe.blobio-captcha-anchor-hidden,
         button = createCategoryButton(this.document, "HUD-Info", "hud-info");
         const animation = panel.querySelector('.blobio-chat-settings-category-button[data-category="animation"]');
         panel.insertBefore(button, animation?.nextSibling || null);
+      }
+      this.bindCategoryButton(button);
+      return button;
+    }
+    ensureKeyShortcutsLauncher() {
+      const panel = this.root?.querySelector?.(".blobio-chat-settings-panel");
+      if (!panel) {
+        return null;
+      }
+      let button = Array.from(panel.querySelectorAll?.(".blobio-chat-settings-category-button") || []).find((item) => item.dataset.category === "key-shortcuts");
+      if (!button) {
+        button = createCategoryButton(this.document, "Key-Shortcuts", "key-shortcuts");
+        const hudInfo = panel.querySelector('.blobio-chat-settings-category-button[data-category="hud-info"]');
+        panel.insertBefore(button, hudInfo?.nextSibling || null);
       }
       this.bindCategoryButton(button);
       return button;
@@ -7191,6 +7375,68 @@ iframe.blobio-captcha-anchor-hidden,
         this.syncVisualSettingsUi();
         this.applyAnimationSpeed();
       });
+      this.bindInlineTooltip(modeButton);
+    }
+    bindKeyShortcutsCategory(category) {
+      const toggle = category.querySelector('[data-setting="key-shortcuts"] .blobio-setting-toggle');
+      toggle?.addEventListener("click", () => {
+        const current = readInGameUiSettings(this.storage);
+        setBooleanSetting(this.storage, KEY_SHORTCUTS_HIDDEN_KEY, !current.hideKeyShortcuts);
+        this.syncVisualSettingsUi();
+        this.applyRuntimeUi();
+      });
+    }
+    bindInlineTooltip(element) {
+      if (!element || element.dataset.blobioTooltipBound === "1") {
+        return;
+      }
+      element.dataset.blobioTooltipBound = "1";
+      element.addEventListener("mouseenter", (event) => this.showInlineTooltip(element.dataset.blobioTooltip, event));
+      element.addEventListener("mousemove", (event) => this.moveInlineTooltip(event));
+      element.addEventListener("mouseleave", () => this.hideInlineTooltip());
+      element.addEventListener("focus", (event) => this.showInlineTooltip(element.dataset.blobioTooltip, event));
+      element.addEventListener("blur", () => this.hideInlineTooltip());
+    }
+    showInlineTooltip(text, event) {
+      const message = String(text || "").trim();
+      if (!message) {
+        this.hideInlineTooltip();
+        return;
+      }
+      if (!this.inlineTooltip) {
+        this.inlineTooltip = this.document.createElement("div");
+        this.inlineTooltip.classList.add("blobio-chat-settings-tooltip");
+        (this.document.body || this.document.documentElement).appendChild(this.inlineTooltip);
+      }
+      this.inlineTooltip.textContent = message;
+      this.inlineTooltip.classList.add("is-visible");
+      this.moveInlineTooltip(event);
+    }
+    moveInlineTooltip(event) {
+      if (!this.inlineTooltip || !event) {
+        return;
+      }
+      const win = this.document.defaultView || globalThis;
+      const viewportWidth = Number(win.innerWidth) || 0;
+      const viewportHeight = Number(win.innerHeight) || 0;
+      const rect = this.inlineTooltip.getBoundingClientRect?.();
+      const width = Number(rect?.width) || 260;
+      const height = Number(rect?.height) || 58;
+      const clientX = Number(event.clientX) || 0;
+      const clientY = Number(event.clientY) || 0;
+      let left = clientX + 14;
+      let top = clientY + 14;
+      if (viewportWidth > 0 && left + width > viewportWidth - 8) {
+        left = clientX - width - 14;
+      }
+      if (viewportHeight > 0 && top + height > viewportHeight - 8) {
+        top = clientY - height - 14;
+      }
+      this.inlineTooltip.style.left = `${Math.max(8, Math.round(left))}px`;
+      this.inlineTooltip.style.top = `${Math.max(8, Math.round(top))}px`;
+    }
+    hideInlineTooltip() {
+      this.inlineTooltip?.classList?.remove("is-visible");
     }
     bindHudInfoCategory(category) {
       const booleanBindings = [
@@ -7378,6 +7624,7 @@ iframe.blobio-captcha-anchor-hidden,
         this.ensureHotkeyLauncher();
         this.ensureAnimationSpeedLauncher();
         this.ensureHudInfoLauncher();
+        this.ensureKeyShortcutsLauncher();
       }
       const toggle = this.root.querySelector(".blobio-chat-settings-toggle");
       if (open) {
@@ -7386,6 +7633,7 @@ iframe.blobio-captcha-anchor-hidden,
         this.root.classList.remove("is-open");
         this.finishNameEdit();
         this.cancelHotkeyCapture();
+        this.hideInlineTooltip();
         this.syncHotkeyUi();
         for (const category of this.root.querySelectorAll(".blobio-chat-settings-category")) {
           category.classList.remove("is-open");
@@ -7426,6 +7674,7 @@ iframe.blobio-captcha-anchor-hidden,
       const shouldOpen = !category?.classList.contains("is-open");
       this.finishNameEdit();
       this.cancelHotkeyCapture();
+      this.hideInlineTooltip();
       this.syncHotkeyUi();
       for (const item of this.root.querySelectorAll(".blobio-chat-settings-category")) {
         item.classList.toggle("is-open", shouldOpen && item === category);
@@ -7456,6 +7705,7 @@ iframe.blobio-captcha-anchor-hidden,
       this.syncHudInfoSetting(readHudInfoSettings(this.storage));
       this.syncBooleanSetting("smooth-chat", settings.smoothChat);
       this.syncBooleanSetting("captcha-logo", settings.hideCaptchaLogo);
+      this.syncBooleanSetting("key-shortcuts", settings.hideKeyShortcuts);
       const chatActive = isChatFontSizeEnabled(this.storage) || settings.chatBackground.enabled || settings.chatOutline.enabled || settings.smoothChat;
       const leaderboardActive = settings.leaderboardFont.enabled || settings.leaderboardBackground.enabled || settings.leaderboardOutline.enabled;
       this.root.querySelector('.blobio-chat-settings-category-button[data-category="chat"]')?.classList.toggle("has-active-setting", chatActive);
@@ -7463,6 +7713,7 @@ iframe.blobio-captcha-anchor-hidden,
       this.root.querySelector('.blobio-chat-settings-category-button[data-category="leaderboard"]')?.classList.toggle("has-active-setting", leaderboardActive);
       this.root.querySelector('.blobio-chat-settings-category-button[data-category="animation"]')?.classList.toggle("has-active-setting", getAnimationSpeedSetting(this.storage).enabled);
       this.root.querySelector('.blobio-chat-settings-category-button[data-category="hud-info"]')?.classList.toggle("has-active-setting", readHudInfoSettings(this.storage).enabled);
+      this.root.querySelector('.blobio-chat-settings-category-button[data-category="key-shortcuts"]')?.classList.toggle("has-active-setting", settings.hideKeyShortcuts);
     }
     syncAnimationSpeedSetting(setting) {
       const group = this.root?.querySelector('[data-setting="animation-speed"]');
@@ -7477,7 +7728,8 @@ iframe.blobio-captcha-anchor-hidden,
       toggle.textContent = setting.enabled ? "true" : "false";
       toggle.classList.toggle("is-enabled", setting.enabled);
       modeButton.textContent = modeInfo.label;
-      modeButton.title = modeInfo.description;
+      modeButton.removeAttribute?.("title");
+      modeButton.dataset.blobioTooltip = modeInfo.description;
       modeButton.dataset.mode = setting.mode;
       slider.value = String(setting.slider);
       value.textContent = `${setting.speed.toFixed(1)}x`;
@@ -7653,6 +7905,9 @@ iframe.blobio-captcha-anchor-hidden,
         input.addEventListener("keydown", (event) => {
           if (event.key === "Enter" || event.key === "Escape") {
             event.preventDefault();
+            event.stopPropagation?.();
+            event.stopImmediatePropagation?.();
+            this.suppressNextKeyRelease(event);
             this.finishNameEdit();
           }
         });
@@ -7719,7 +7974,7 @@ iframe.blobio-captcha-anchor-hidden,
       load.classList.add("blobio-hotkey-load");
       load.dataset.id = entry.id;
       load.textContent = entry.text;
-      load.title = entry.text;
+      load.setAttribute("aria-label", `Select hotkey load ${entry.text}`);
       load.classList.toggle("is-selected", this.selectedHotkeyId === entry.id);
       const key = this.createHotkeyBindButton(entry, "key", this.keyLabel(entry.keyCode));
       const mouse = this.createHotkeyBindButton(entry, "mouse", this.mouseLabel(entry.mouseButton));
@@ -7735,7 +7990,7 @@ iframe.blobio-captcha-anchor-hidden,
       const listening = this.hotkeyCapture?.id === entry.id && this.hotkeyCapture.kind === kind;
       button.classList.toggle("is-listening", listening);
       button.textContent = listening ? "..." : label;
-      button.title = listening ? `Press a ${kind === "key" ? "key" : "mouse button"}; hold Space for 3 seconds to clear` : kind === "key" ? entry.keyCode || "Set keyboard hotkey" : entry.mouseButton === null ? "Set mouse hotkey" : this.mouseName(entry.mouseButton);
+      button.setAttribute("aria-label", listening ? `Press a ${kind === "key" ? "key" : "mouse button"}; hold Space for 3 seconds to clear` : kind === "key" ? entry.keyCode || "Set keyboard hotkey" : entry.mouseButton === null ? "Set mouse hotkey" : this.mouseName(entry.mouseButton));
       return button;
     }
     applyHotkeyText() {
@@ -8018,7 +8273,7 @@ iframe.blobio-captcha-anchor-hidden,
       if (rootOpen) {
         totalWidth += CHAT_GAP + MAIN_PANEL_WIDTH;
         if (categoryOpen) {
-          totalWidth += CHAT_GAP + CATEGORY_PANEL_WIDTH;
+          totalWidth += CHAT_GAP + this.categoryPanelWidth(activeCategory);
         }
       }
       const viewportWidth = this.document.defaultView?.innerWidth || 0;
@@ -8031,6 +8286,14 @@ iframe.blobio-captcha-anchor-hidden,
       this.setStyle("--blobio-chat-settings-category-top", `${categoryTop}px`);
       this.setStyle("--blobio-chat-settings-bottom", "auto");
       this.positionNotifications();
+    }
+    categoryPanelWidth(category) {
+      const rect = category?.getBoundingClientRect?.();
+      const width = Number(rect?.width);
+      if (Number.isFinite(width) && width > 0) {
+        return width;
+      }
+      return category?.classList?.contains("blobio-hud-info-category") ? 390 : CATEGORY_PANEL_WIDTH;
     }
     categoryViewportOffset(category, rootTop) {
       if (!category) {
@@ -8112,6 +8375,10 @@ iframe.blobio-captcha-anchor-hidden,
       this.unsubscribeHotkeys?.();
       this.unsubscribeHotkeys = null;
       this.cancelHotkeyCapture();
+      this.clearSuppressedKeyRelease();
+      this.hideInlineTooltip();
+      this.inlineTooltip?.remove?.();
+      this.inlineTooltip = null;
       this.clearNotificationTimers();
       const win = this.document.defaultView || globalThis;
       if (this.viewportHandler) {
@@ -8425,6 +8692,7 @@ iframe.blobio-captcha-anchor-hidden,
       this.applyChatAppearance(settings);
       this.applyLeaderboardAppearance(settings);
       this.applyCaptchaLogo(settings.hideCaptchaLogo);
+      this.applyKeyShortcuts(settings.hideKeyShortcuts);
       this.syncSmoothChat(settings.smoothChat);
       return settings;
     }
@@ -8655,6 +8923,26 @@ iframe.blobio-captcha-anchor-hidden,
         }
       }
       return changed;
+    }
+    applyKeyShortcuts(hidden) {
+      const cheatsheet = this.document.querySelector?.("#cheatsheet");
+      if (!cheatsheet) {
+        return false;
+      }
+      const hiddenState = Boolean(hidden);
+      cheatsheet.classList?.toggle("blobio-key-shortcuts-hidden", hiddenState);
+      if (hiddenState) {
+        cheatsheet.dataset.blobioKeyShortcutsHidden = "1";
+        cheatsheet.style.display = "none";
+        return true;
+      }
+      if (cheatsheet.dataset?.blobioKeyShortcutsHidden === "1") {
+        delete cheatsheet.dataset.blobioKeyShortcutsHidden;
+        if (cheatsheet.style?.display === "none") {
+          cheatsheet.style.display = "";
+        }
+      }
+      return true;
     }
     syncSmoothChat(enabled) {
       const chat = this.document.querySelector?.("#chat") || null;
@@ -8964,7 +9252,7 @@ iframe.blobio-captcha-anchor-hidden,
       this.pageObserver = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
           for (const node of mutation.addedNodes || []) {
-            if (node?.id === "chat" || node?.id === "chat-wrapper" || node?.id === "leader-board-wrapper" || String(node?.tagName || "").toLowerCase() === "ul" && node?.parentElement?.id === "chat" || String(node?.tagName || "").toLowerCase() === "iframe" && isRecaptchaAnchorFrame(node) || node?.matches?.(".grecaptcha-badge, .grecaptcha-logo") || node?.matches?.(".rc-anchor-logo-img, .rc-anchor-logo-img-large") || node?.querySelector?.('#chat, #chat-wrapper, #leader-board-wrapper, iframe[src*="recaptcha"], .grecaptcha-badge, .grecaptcha-logo, .rc-anchor-logo-img, .rc-anchor-logo-img-large')) {
+            if (node?.id === "chat" || node?.id === "chat-wrapper" || node?.id === "leader-board-wrapper" || node?.id === "cheatsheet" || String(node?.tagName || "").toLowerCase() === "ul" && node?.parentElement?.id === "chat" || String(node?.tagName || "").toLowerCase() === "iframe" && isRecaptchaAnchorFrame(node) || node?.matches?.(".grecaptcha-badge, .grecaptcha-logo") || node?.matches?.(".rc-anchor-logo-img, .rc-anchor-logo-img-large") || node?.querySelector?.('#chat, #chat-wrapper, #leader-board-wrapper, #cheatsheet, iframe[src*="recaptcha"], .grecaptcha-badge, .grecaptcha-logo, .rc-anchor-logo-img, .rc-anchor-logo-img-large')) {
               this.applyAll();
               return;
             }
@@ -9033,6 +9321,7 @@ iframe.blobio-captcha-anchor-hidden,
         this.leaderboardPointerUpHandler = null;
       }
       this.applyCaptchaLogo(false);
+      this.applyKeyShortcuts(false);
       try {
         delete win.__blobioSmoothChatDebug;
       } catch {
@@ -18697,7 +18986,6 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
         this.icon.classList.add("blobio-vip-plus-icon");
         this.icon.setAttribute("src", this.badgeUrl);
         this.icon.setAttribute("alt", "VIP+");
-        this.icon.setAttribute("title", "VIP+");
         this.icon.setAttribute("draggable", "false");
       }
       if (!this.timeLabel) {

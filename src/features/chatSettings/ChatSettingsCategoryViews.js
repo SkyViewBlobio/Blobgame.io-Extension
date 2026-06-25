@@ -53,6 +53,14 @@ export function createLeaderboardCategory(document) {
   return category;
 }
 
+export function createKeyShortcutsCategory(document) {
+  const category = document.createElement('div');
+  category.classList.add('blobio-chat-settings-category', 'blobio-key-shortcuts-category');
+  category.dataset.category = 'key-shortcuts';
+  category.appendChild(createBooleanSetting(document, 'key-shortcuts', 'Disable the Key-Shortcut text on screen.'));
+  return category;
+}
+
 export function createMutedPlayersCategory(document) {
   const category = document.createElement('div');
   category.classList.add('blobio-chat-settings-category', 'blobio-muted-players-category');
@@ -178,25 +186,45 @@ export function createHudInfoCategory(document) {
   category.dataset.category = 'hud-info';
 
   category.append(
-    createBooleanSetting(document, 'hud-info-enabled', 'HUD-text on screen'),
-    createBooleanSetting(document, 'hud-info-fps', 'FPS'),
-    createBooleanSetting(document, 'hud-info-score', 'Score'),
-    createBooleanSetting(document, 'hud-info-cells', 'Cells'),
-    createBooleanSetting(document, 'hud-info-ping', 'Ping'),
-    createBooleanSetting(document, 'hud-info-boosters', 'Booster-Info'),
-    createHudModeSetting(document, 'hud-position', 'Position'),
-    createHudModeSetting(document, 'hud-layout', 'Layout'),
-    createHudModeSetting(document, 'hud-style', 'Style'),
-    createHudModeSetting(document, 'hud-fps-mode', 'FPS mode'),
-    createHudModeSetting(document, 'hud-score-mode', 'Score mode'),
-    createHudModeSetting(document, 'hud-ping-mode', 'Ping mode'),
-    createHudModeSetting(document, 'hud-booster-name-mode', 'Booster type color'),
-    createHudModeSetting(document, 'hud-booster-duration-mode', 'Booster duration color'),
-    createBooleanSetting(document, 'hud-booster-last-sec-flash', 'Last-Sec-Flash'),
-    createHudSizeSetting(document),
-    createHudColorSetting(document),
+    createHudSection(document, 'HUD Display', [
+      createBooleanSetting(document, 'hud-info-enabled', 'HUD-text on screen'),
+      createHudModeSetting(document, 'hud-position', 'Position'),
+      createHudModeSetting(document, 'hud-layout', 'Layout'),
+      createHudModeSetting(document, 'hud-style', 'Style'),
+    ]),
+    createHudSection(document, 'Data Text', [
+      createBooleanSetting(document, 'hud-info-fps', 'FPS'),
+      createBooleanSetting(document, 'hud-info-score', 'Score'),
+      createBooleanSetting(document, 'hud-info-cells', 'Cells'),
+      createBooleanSetting(document, 'hud-info-ping', 'Ping'),
+      createHudModeSetting(document, 'hud-fps-mode', 'FPS mode'),
+      createHudModeSetting(document, 'hud-score-mode', 'Score mode'),
+      createHudModeSetting(document, 'hud-ping-mode', 'Ping mode'),
+    ]),
+    createHudSection(document, 'Booster Info', [
+      createBooleanSetting(document, 'hud-info-boosters', 'Booster-Info'),
+      createHudModeSetting(document, 'hud-booster-name-mode', 'Booster type color'),
+      createHudModeSetting(document, 'hud-booster-duration-mode', 'Booster duration color'),
+      createBooleanSetting(document, 'hud-booster-last-sec-flash', 'Last-Sec-Flash'),
+    ]),
+    createHudSection(document, 'Style', [
+      createHudSizeSetting(document),
+      createHudColorSetting(document),
+    ]),
   );
   return category;
+}
+
+function createHudSection(document, titleText, children) {
+  const section = document.createElement('div');
+  section.classList.add('blobio-hud-section');
+
+  const title = document.createElement('div');
+  title.classList.add('blobio-hud-section-title');
+  title.textContent = titleText;
+
+  section.append(title, ...children);
+  return section;
 }
 
 export function createFontSetting(document, name, labelText, limits) {

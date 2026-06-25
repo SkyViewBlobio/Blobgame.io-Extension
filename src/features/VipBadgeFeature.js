@@ -313,7 +313,6 @@ export class VipBadgeFeature {
       this.icon.classList.add('blobio-vip-plus-icon');
       this.icon.setAttribute('src', this.badgeUrl);
       this.icon.setAttribute('alt', 'VIP+');
-      this.icon.setAttribute('title', 'VIP+');
       this.icon.setAttribute('draggable', 'false');
     }
 

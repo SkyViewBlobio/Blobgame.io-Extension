@@ -28,6 +28,7 @@ import {
   CHAT_BACKGROUND_KEYS,
   CHAT_OUTLINE_KEYS,
   IN_GAME_UI_DEFAULTS,
+  KEY_SHORTCUTS_HIDDEN_KEY,
   LEADERBOARD_BACKGROUND_KEYS,
   LEADERBOARD_OUTLINE_KEYS,
   SMOOTH_CHAT_KEY,
@@ -46,6 +47,7 @@ import {
   createChatCategory,
   createHotkeyCategory,
   createHudInfoCategory,
+  createKeyShortcutsCategory,
   createLeaderboardCategory,
   createMutedPlayersCategory,
 } from './chatSettings/ChatSettingsCategoryViews.js';
@@ -102,6 +104,8 @@ export class ChatSettingsFeature {
     this.hudColorPreviewFrame = null;
     this.hudColorPreviewSettings = null;
     this.hudColorCommitTimer = null;
+    this.inlineTooltip = null;
+    this.suppressedKeyRelease = null;
     this.started = false;
   }
 
@@ -141,6 +145,7 @@ export class ChatSettingsFeature {
       this.ensureHotkeyLauncher();
       this.ensureAnimationSpeedLauncher();
       this.ensureHudInfoLauncher();
+      this.ensureKeyShortcutsLauncher();
       this.syncChatWrapper();
       this.positionUi();
       return;
@@ -164,15 +169,26 @@ export class ChatSettingsFeature {
     const hotkeyButton = createCategoryButton(this.document, 'HotKey', 'hotkey');
     const animationButton = createCategoryButton(this.document, 'Anim-Speed', 'animation');
     const hudButton = createCategoryButton(this.document, 'HUD-Info', 'hud-info');
+    const keyShortcutsButton = createCategoryButton(this.document, 'Key-Shortcuts', 'key-shortcuts');
     const captchaButton = createCategoryButton(this.document, 'Captcha-Logo', 'captcha');
     const leaderboardButton = createCategoryButton(this.document, 'Leaderboard-Settings', 'leaderboard');
-    panel.append(chatButton, mutedButton, hotkeyButton, animationButton, hudButton, captchaButton, leaderboardButton);
+    panel.append(
+      chatButton,
+      mutedButton,
+      hotkeyButton,
+      animationButton,
+      hudButton,
+      keyShortcutsButton,
+      captchaButton,
+      leaderboardButton,
+    );
 
     const chatCategory = createChatCategory(this.document);
     const mutedCategory = createMutedPlayersCategory(this.document);
     const hotkeyCategory = createHotkeyCategory(this.document);
     const animationCategory = createAnimationSpeedCategory(this.document);
     const hudCategory = createHudInfoCategory(this.document);
+    const keyShortcutsCategory = createKeyShortcutsCategory(this.document);
     const captchaCategory = createCaptchaCategory(this.document);
     const leaderboardCategory = createLeaderboardCategory(this.document);
     root.append(
@@ -183,6 +199,7 @@ export class ChatSettingsFeature {
       hotkeyCategory,
       animationCategory,
       hudCategory,
+      keyShortcutsCategory,
       captchaCategory,
       leaderboardCategory,
     );
@@ -203,6 +220,7 @@ export class ChatSettingsFeature {
     this.bindCategoryButton(hotkeyButton);
     this.bindCategoryButton(animationButton);
     this.bindCategoryButton(hudButton);
+    this.bindCategoryButton(keyShortcutsButton);
     this.bindCategoryButton(captchaButton);
     this.bindCategoryButton(leaderboardButton);
 
@@ -210,6 +228,7 @@ export class ChatSettingsFeature {
     this.bindCaptchaCategory(captchaCategory);
     this.bindAnimationSpeedCategory(animationCategory);
     this.bindHudInfoCategory(hudCategory);
+    this.bindKeyShortcutsCategory(keyShortcutsCategory);
     this.bindLeaderboardCategory(leaderboardCategory);
 
     const muteToggle = mutedCategory.querySelector('.blobio-muted-players-toggle');
@@ -323,6 +342,8 @@ export class ChatSettingsFeature {
     this.notificationHost = notificationHost;
     this.ensureHotkeyLauncher();
     this.ensureAnimationSpeedLauncher();
+    this.ensureHudInfoLauncher();
+    this.ensureKeyShortcutsLauncher();
     this.syncControls();
     this.syncMutedPlayersUi();
     this.syncHotkeyUi();
@@ -437,6 +458,43 @@ export class ChatSettingsFeature {
     return true;
   }
 
+  suppressNextKeyRelease(sourceEvent) {
+    this.clearSuppressedKeyRelease();
+
+    const key = sourceEvent?.key || '';
+    const code = sourceEvent?.code || '';
+    const stop = (event) => {
+      if ((key && event.key === key) || (code && event.code === code)) {
+        event.preventDefault?.();
+        event.stopImmediatePropagation?.();
+        event.stopPropagation?.();
+      }
+    };
+
+    this.document.addEventListener?.('keypress', stop, true);
+    this.document.addEventListener?.('keyup', stop, true);
+
+    const win = this.document.defaultView || globalThis;
+    const setTimer = typeof win.setTimeout === 'function' ? win.setTimeout.bind(win) : globalThis.setTimeout;
+    const timer = setTimer(() => this.clearSuppressedKeyRelease(), 350);
+    this.suppressedKeyRelease = { stop, timer };
+  }
+
+  clearSuppressedKeyRelease() {
+    if (!this.suppressedKeyRelease) {
+      return;
+    }
+
+    const { stop, timer } = this.suppressedKeyRelease;
+    this.document.removeEventListener?.('keypress', stop, true);
+    this.document.removeEventListener?.('keyup', stop, true);
+
+    const win = this.document.defaultView || globalThis;
+    const clearTimer = typeof win.clearTimeout === 'function' ? win.clearTimeout.bind(win) : globalThis.clearTimeout;
+    clearTimer(timer);
+    this.suppressedKeyRelease = null;
+  }
+
   bindCategoryButton(button) {
     if (!button || button.dataset.blobioCategoryBound === '1') {
       return button;
@@ -494,6 +552,24 @@ export class ChatSettingsFeature {
       button = createCategoryButton(this.document, 'HUD-Info', 'hud-info');
       const animation = panel.querySelector('.blobio-chat-settings-category-button[data-category="animation"]');
       panel.insertBefore(button, animation?.nextSibling || null);
+    }
+
+    this.bindCategoryButton(button);
+    return button;
+  }
+
+  ensureKeyShortcutsLauncher() {
+    const panel = this.root?.querySelector?.('.blobio-chat-settings-panel');
+    if (!panel) {
+      return null;
+    }
+
+    let button = Array.from(panel.querySelectorAll?.('.blobio-chat-settings-category-button') || [])
+      .find((item) => item.dataset.category === 'key-shortcuts');
+    if (!button) {
+      button = createCategoryButton(this.document, 'Key-Shortcuts', 'key-shortcuts');
+      const hudInfo = panel.querySelector('.blobio-chat-settings-category-button[data-category="hud-info"]');
+      panel.insertBefore(button, hudInfo?.nextSibling || null);
     }
 
     this.bindCategoryButton(button);
@@ -618,6 +694,80 @@ export class ChatSettingsFeature {
       this.syncVisualSettingsUi();
       this.applyAnimationSpeed();
     });
+
+    this.bindInlineTooltip(modeButton);
+  }
+
+  bindKeyShortcutsCategory(category) {
+    const toggle = category.querySelector('[data-setting="key-shortcuts"] .blobio-setting-toggle');
+    toggle?.addEventListener('click', () => {
+      const current = readInGameUiSettings(this.storage);
+      setBooleanSetting(this.storage, KEY_SHORTCUTS_HIDDEN_KEY, !current.hideKeyShortcuts);
+      this.syncVisualSettingsUi();
+      this.applyRuntimeUi();
+    });
+  }
+
+  bindInlineTooltip(element) {
+    if (!element || element.dataset.blobioTooltipBound === '1') {
+      return;
+    }
+
+    element.dataset.blobioTooltipBound = '1';
+    element.addEventListener('mouseenter', (event) => this.showInlineTooltip(element.dataset.blobioTooltip, event));
+    element.addEventListener('mousemove', (event) => this.moveInlineTooltip(event));
+    element.addEventListener('mouseleave', () => this.hideInlineTooltip());
+    element.addEventListener('focus', (event) => this.showInlineTooltip(element.dataset.blobioTooltip, event));
+    element.addEventListener('blur', () => this.hideInlineTooltip());
+  }
+
+  showInlineTooltip(text, event) {
+    const message = String(text || '').trim();
+    if (!message) {
+      this.hideInlineTooltip();
+      return;
+    }
+
+    if (!this.inlineTooltip) {
+      this.inlineTooltip = this.document.createElement('div');
+      this.inlineTooltip.classList.add('blobio-chat-settings-tooltip');
+      (this.document.body || this.document.documentElement).appendChild(this.inlineTooltip);
+    }
+
+    this.inlineTooltip.textContent = message;
+    this.inlineTooltip.classList.add('is-visible');
+    this.moveInlineTooltip(event);
+  }
+
+  moveInlineTooltip(event) {
+    if (!this.inlineTooltip || !event) {
+      return;
+    }
+
+    const win = this.document.defaultView || globalThis;
+    const viewportWidth = Number(win.innerWidth) || 0;
+    const viewportHeight = Number(win.innerHeight) || 0;
+    const rect = this.inlineTooltip.getBoundingClientRect?.();
+    const width = Number(rect?.width) || 260;
+    const height = Number(rect?.height) || 58;
+    const clientX = Number(event.clientX) || 0;
+    const clientY = Number(event.clientY) || 0;
+    let left = clientX + 14;
+    let top = clientY + 14;
+
+    if (viewportWidth > 0 && left + width > viewportWidth - 8) {
+      left = clientX - width - 14;
+    }
+    if (viewportHeight > 0 && top + height > viewportHeight - 8) {
+      top = clientY - height - 14;
+    }
+
+    this.inlineTooltip.style.left = `${Math.max(8, Math.round(left))}px`;
+    this.inlineTooltip.style.top = `${Math.max(8, Math.round(top))}px`;
+  }
+
+  hideInlineTooltip() {
+    this.inlineTooltip?.classList?.remove('is-visible');
   }
 
   bindHudInfoCategory(category) {
@@ -828,6 +978,7 @@ export class ChatSettingsFeature {
       this.ensureHotkeyLauncher();
       this.ensureAnimationSpeedLauncher();
       this.ensureHudInfoLauncher();
+      this.ensureKeyShortcutsLauncher();
     }
 
     const toggle = this.root.querySelector('.blobio-chat-settings-toggle');
@@ -837,6 +988,7 @@ export class ChatSettingsFeature {
       this.root.classList.remove('is-open');
       this.finishNameEdit();
       this.cancelHotkeyCapture();
+      this.hideInlineTooltip();
       this.syncHotkeyUi();
       for (const category of this.root.querySelectorAll('.blobio-chat-settings-category')) {
         category.classList.remove('is-open');
@@ -884,6 +1036,7 @@ export class ChatSettingsFeature {
     const shouldOpen = !category?.classList.contains('is-open');
     this.finishNameEdit();
     this.cancelHotkeyCapture();
+    this.hideInlineTooltip();
     this.syncHotkeyUi();
 
     for (const item of this.root.querySelectorAll('.blobio-chat-settings-category')) {
@@ -918,6 +1071,7 @@ export class ChatSettingsFeature {
     this.syncHudInfoSetting(readHudInfoSettings(this.storage));
     this.syncBooleanSetting('smooth-chat', settings.smoothChat);
     this.syncBooleanSetting('captcha-logo', settings.hideCaptchaLogo);
+    this.syncBooleanSetting('key-shortcuts', settings.hideKeyShortcuts);
 
     const chatActive = isChatFontSizeEnabled(this.storage)
       || settings.chatBackground.enabled
@@ -937,6 +1091,8 @@ export class ChatSettingsFeature {
       ?.classList.toggle('has-active-setting', getAnimationSpeedSetting(this.storage).enabled);
     this.root.querySelector('.blobio-chat-settings-category-button[data-category="hud-info"]')
       ?.classList.toggle('has-active-setting', readHudInfoSettings(this.storage).enabled);
+    this.root.querySelector('.blobio-chat-settings-category-button[data-category="key-shortcuts"]')
+      ?.classList.toggle('has-active-setting', settings.hideKeyShortcuts);
   }
 
   syncAnimationSpeedSetting(setting) {
@@ -954,7 +1110,8 @@ export class ChatSettingsFeature {
     toggle.textContent = setting.enabled ? 'true' : 'false';
     toggle.classList.toggle('is-enabled', setting.enabled);
     modeButton.textContent = modeInfo.label;
-    modeButton.title = modeInfo.description;
+    modeButton.removeAttribute?.('title');
+    modeButton.dataset.blobioTooltip = modeInfo.description;
     modeButton.dataset.mode = setting.mode;
     slider.value = String(setting.slider);
     value.textContent = `${setting.speed.toFixed(1)}x`;
@@ -1150,6 +1307,9 @@ export class ChatSettingsFeature {
       input.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === 'Escape') {
           event.preventDefault();
+          event.stopPropagation?.();
+          event.stopImmediatePropagation?.();
+          this.suppressNextKeyRelease(event);
           this.finishNameEdit();
         }
       });
@@ -1226,7 +1386,7 @@ export class ChatSettingsFeature {
     load.classList.add('blobio-hotkey-load');
     load.dataset.id = entry.id;
     load.textContent = entry.text;
-    load.title = entry.text;
+    load.setAttribute('aria-label', `Select hotkey load ${entry.text}`);
     load.classList.toggle('is-selected', this.selectedHotkeyId === entry.id);
 
     const key = this.createHotkeyBindButton(entry, 'key', this.keyLabel(entry.keyCode));
@@ -1245,11 +1405,11 @@ export class ChatSettingsFeature {
     const listening = this.hotkeyCapture?.id === entry.id && this.hotkeyCapture.kind === kind;
     button.classList.toggle('is-listening', listening);
     button.textContent = listening ? '...' : label;
-    button.title = listening
+    button.setAttribute('aria-label', listening
       ? `Press a ${kind === 'key' ? 'key' : 'mouse button'}; hold Space for 3 seconds to clear`
       : kind === 'key'
         ? (entry.keyCode || 'Set keyboard hotkey')
-        : (entry.mouseButton === null ? 'Set mouse hotkey' : this.mouseName(entry.mouseButton));
+        : (entry.mouseButton === null ? 'Set mouse hotkey' : this.mouseName(entry.mouseButton)));
     return button;
   }
 
@@ -1568,7 +1728,7 @@ export class ChatSettingsFeature {
     if (rootOpen) {
       totalWidth += CHAT_GAP + MAIN_PANEL_WIDTH;
       if (categoryOpen) {
-        totalWidth += CHAT_GAP + CATEGORY_PANEL_WIDTH;
+        totalWidth += CHAT_GAP + this.categoryPanelWidth(activeCategory);
       }
     }
 
@@ -1586,6 +1746,18 @@ export class ChatSettingsFeature {
     this.setStyle('--blobio-chat-settings-category-top', `${categoryTop}px`);
     this.setStyle('--blobio-chat-settings-bottom', 'auto');
     this.positionNotifications();
+  }
+
+  categoryPanelWidth(category) {
+    const rect = category?.getBoundingClientRect?.();
+    const width = Number(rect?.width);
+    if (Number.isFinite(width) && width > 0) {
+      return width;
+    }
+
+    return category?.classList?.contains('blobio-hud-info-category')
+      ? 390
+      : CATEGORY_PANEL_WIDTH;
   }
 
   categoryViewportOffset(category, rootTop) {
@@ -1685,6 +1857,10 @@ export class ChatSettingsFeature {
     this.unsubscribeHotkeys?.();
     this.unsubscribeHotkeys = null;
     this.cancelHotkeyCapture();
+    this.clearSuppressedKeyRelease();
+    this.hideInlineTooltip();
+    this.inlineTooltip?.remove?.();
+    this.inlineTooltip = null;
     this.clearNotificationTimers();
 
     const win = this.document.defaultView || globalThis;

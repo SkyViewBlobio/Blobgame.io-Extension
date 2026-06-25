@@ -150,7 +150,7 @@ export class EmoteSkinFeature {
       const button = this.document.createElement('button');
       button.type = 'button';
       button.classList.add('blobio-emote-skin-asset');
-      button.title = `${trigger.label} ${trigger.emoji}`;
+      button.setAttribute('aria-label', `${trigger.label} ${trigger.emoji}`);
       button.dataset.emoteId = trigger.id;
 
       const image = this.document.createElement('img');

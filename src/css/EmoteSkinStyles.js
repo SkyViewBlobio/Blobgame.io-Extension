@@ -140,11 +140,16 @@ export const EMOTE_SKIN_CSS = `
   color: #ffffff;
   cursor: pointer;
   line-height: 1;
+  transform-origin: center;
+  transition: transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease, background-color 130ms ease;
 }
 
 .blobio-emote-skin-asset:hover {
-  border-color: rgba(204, 255, 216, 0.82);
-  background: rgba(18, 70, 35, 0.86);
+  z-index: 3;
+  border-color: rgba(224, 255, 232, 0.94);
+  background: rgba(18, 70, 35, 0.92);
+  box-shadow: 0 0 16px rgba(91, 255, 139, 0.48), inset 0 0 10px rgba(91, 255, 139, 0.2);
+  transform: scale(1.85);
 }
 
 .blobio-emote-skin-asset img {
@@ -156,8 +161,6 @@ export const EMOTE_SKIN_CSS = `
 
 .blobio-emote-skin-emoji {
   font-size: 20px;
-  transform-origin: center;
-  transition: transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease, background-color 130ms ease;
 }
 
 .blobio-emote-skin-emoji:hover {

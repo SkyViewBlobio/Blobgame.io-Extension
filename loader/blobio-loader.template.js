@@ -2032,6 +2032,11 @@
       yieldEveryFrames: 120,
       preserveCameraZoom: true,
       cameraDeltaFloor: 0.003000000026077032,
+      cameraSmoothingEnabled: true,
+      cameraDeltaMinSeconds: 1 / 360,
+      cameraDeltaMaxSeconds: 1 / 90,
+      cameraDeltaBlend: 0.18,
+      cameraDeltaMaxStepSeconds: 1 / 650,
       minCameraDeltaSeconds: 0.0001,
       keepVisible: true,
       log: false,
@@ -2045,6 +2050,7 @@
       pendingFrames: 0,
       uncappedFramesSinceYield: 0,
       currentFrameDeltaSeconds: 1 / 240,
+      smoothedCameraDeltaSeconds: 1 / 240,
       scheduler: 'message-channel',
       lastError: '',
     };
@@ -2073,6 +2079,7 @@
       clearTimeout: win.clearTimeout.bind(win),
       addEventListener: win.EventTarget?.prototype?.addEventListener,
       mathMax: win.Math.max.bind(win.Math),
+      mathMin: win.Math.min.bind(win.Math),
       mathAbs: win.Math.abs.bind(win.Math),
       hasFocus: typeof doc?.hasFocus === 'function' ? doc.hasFocus.bind(doc) : null,
     };
@@ -2085,6 +2092,7 @@
     let insideFrameCallback = false;
     let lastFrameTime = 0;
     let currentFrameDeltaSeconds = 1 / 240;
+    let currentCameraDeltaSeconds = 1 / 240;
     let messageChannel = null;
 
     function isActive() {
@@ -2102,7 +2110,29 @@
       lastFrameTime = frameTime;
       insideFrameCallback = true;
       state.currentFrameDeltaSeconds = currentFrameDeltaSeconds;
+      currentCameraDeltaSeconds = updateCameraDelta(currentFrameDeltaSeconds);
       return frameTime;
+    }
+
+    function updateCameraDelta(rawDeltaSeconds) {
+      const target = native.mathMax(
+        config.cameraDeltaMinSeconds,
+        native.mathMin(config.cameraDeltaMaxSeconds, Number(rawDeltaSeconds) || 1 / 240),
+      );
+
+      if (!config.cameraSmoothingEnabled) {
+        state.smoothedCameraDeltaSeconds = target;
+        return target;
+      }
+
+      const previous = Number(state.smoothedCameraDeltaSeconds) || target;
+      const blend = native.mathMax(0.01, native.mathMin(1, Number(config.cameraDeltaBlend) || 0.18));
+      const maxStep = native.mathMax(0.0001, Number(config.cameraDeltaMaxStepSeconds) || 1 / 650);
+      const blended = previous + (target - previous) * blend;
+      const diff = native.mathMax(-maxStep, native.mathMin(maxStep, blended - previous));
+      const next = previous + diff;
+      state.smoothedCameraDeltaSeconds = next;
+      return next;
     }
 
     function endFrame() {
@@ -2126,7 +2156,7 @@
           && values[0] < config.cameraDeltaFloor
           && native.mathAbs(values[1] - config.cameraDeltaFloor) < 1e-12
         ) {
-          return currentFrameDeltaSeconds;
+          return currentCameraDeltaSeconds;
         }
 
         return native.mathMax(...values);
@@ -2412,6 +2442,8 @@
       pendingFrames: state.pendingFrames,
       uncappedFramesSinceYield: state.uncappedFramesSinceYield,
       currentFrameDeltaSeconds: state.currentFrameDeltaSeconds,
+      smoothedCameraDeltaSeconds: state.smoothedCameraDeltaSeconds,
+      cameraSmoothingEnabled: config.cameraSmoothingEnabled,
       lastError: state.lastError,
     });
 

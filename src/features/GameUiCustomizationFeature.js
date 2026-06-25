@@ -104,6 +104,7 @@ export class GameUiCustomizationFeature {
     this.applyChatAppearance(settings);
     this.applyLeaderboardAppearance(settings);
     this.applyCaptchaLogo(settings.hideCaptchaLogo);
+    this.applyKeyShortcuts(settings.hideKeyShortcuts);
     this.syncSmoothChat(settings.smoothChat);
     return settings;
   }
@@ -377,6 +378,30 @@ export class GameUiCustomizationFeature {
       }
     }
     return changed;
+  }
+
+  applyKeyShortcuts(hidden) {
+    const cheatsheet = this.document.querySelector?.('#cheatsheet');
+    if (!cheatsheet) {
+      return false;
+    }
+
+    const hiddenState = Boolean(hidden);
+    cheatsheet.classList?.toggle('blobio-key-shortcuts-hidden', hiddenState);
+
+    if (hiddenState) {
+      cheatsheet.dataset.blobioKeyShortcutsHidden = '1';
+      cheatsheet.style.display = 'none';
+      return true;
+    }
+
+    if (cheatsheet.dataset?.blobioKeyShortcutsHidden === '1') {
+      delete cheatsheet.dataset.blobioKeyShortcutsHidden;
+      if (cheatsheet.style?.display === 'none') {
+        cheatsheet.style.display = '';
+      }
+    }
+    return true;
   }
 
   syncSmoothChat(enabled) {
@@ -755,11 +780,12 @@ export class GameUiCustomizationFeature {
           if (node?.id === 'chat'
             || node?.id === 'chat-wrapper'
             || node?.id === 'leader-board-wrapper'
+            || node?.id === 'cheatsheet'
             || (String(node?.tagName || '').toLowerCase() === 'ul' && node?.parentElement?.id === 'chat')
             || (String(node?.tagName || '').toLowerCase() === 'iframe' && isRecaptchaAnchorFrame(node))
             || node?.matches?.('.grecaptcha-badge, .grecaptcha-logo')
             || node?.matches?.('.rc-anchor-logo-img, .rc-anchor-logo-img-large')
-            || node?.querySelector?.('#chat, #chat-wrapper, #leader-board-wrapper, iframe[src*="recaptcha"], .grecaptcha-badge, .grecaptcha-logo, .rc-anchor-logo-img, .rc-anchor-logo-img-large')) {
+            || node?.querySelector?.('#chat, #chat-wrapper, #leader-board-wrapper, #cheatsheet, iframe[src*="recaptcha"], .grecaptcha-badge, .grecaptcha-logo, .rc-anchor-logo-img, .rc-anchor-logo-img-large')) {
             this.applyAll();
             return;
           }
@@ -835,6 +861,7 @@ export class GameUiCustomizationFeature {
     }
 
     this.applyCaptchaLogo(false);
+    this.applyKeyShortcuts(false);
     try { delete win.__blobioSmoothChatDebug; } catch {}
     this.started = false;
   }

@@ -199,6 +199,38 @@ export const CHAT_SETTINGS_CSS = `
   font-size: var(--blobio-chat-font-size, 16px) !important;
 }
 
+#cheatsheet.blobio-key-shortcuts-hidden {
+  display: none !important;
+}
+
+.blobio-chat-settings-tooltip {
+  position: fixed;
+  z-index: 2147483000;
+  max-width: 280px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid rgba(177, 255, 198, 0.72);
+  border-radius: 7px;
+  background: rgba(0, 18, 10, 0.94);
+  color: #f4fff6;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.78), 0 0 12px rgba(77, 255, 126, 0.78);
+  box-shadow: inset 0 0 12px rgba(79, 255, 130, 0.14), 0 0 16px rgba(79, 255, 130, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.blobio-chat-settings-tooltip.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 
 .blobio-chat-settings-category-button + .blobio-chat-settings-category-button {
   margin-top: 8px;
@@ -549,6 +581,66 @@ export const CHAT_SETTINGS_CSS = `
 .blobio-leaderboard-category,
 .blobio-hud-info-category {
   display: block;
+}
+
+.blobio-hud-info-category {
+  width: 390px;
+  padding: 12px;
+}
+
+.blobio-hud-section {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 8px 10px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid rgba(130, 255, 166, 0.24);
+}
+
+.blobio-hud-section:first-child {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: 0;
+}
+
+.blobio-hud-section-title {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 22px;
+  color: #f4fff6;
+  font-size: 15px;
+  font-weight: 900;
+  text-align: center;
+  text-shadow: 0 0 7px rgba(255, 255, 255, 0.78), 0 0 14px rgba(77, 255, 126, 0.72);
+}
+
+.blobio-hud-section-title::before,
+.blobio-hud-section-title::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(141, 255, 173, 0.68), transparent);
+}
+
+.blobio-hud-section .blobio-ui-setting-group + .blobio-ui-setting-group {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.blobio-hud-info-category .blobio-hud-mode-setting {
+  grid-template-columns: minmax(112px, 1fr) minmax(116px, 1fr);
+}
+
+.blobio-hud-info-category .blobio-hud-mode-setting .blobio-chat-font-label {
+  justify-content: center;
+}
+
+.blobio-hud-info-category .blobio-hud-size-setting,
+.blobio-hud-info-category .blobio-hud-color-setting {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .blobio-ui-setting-group {
