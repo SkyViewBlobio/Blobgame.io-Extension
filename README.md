@@ -21,7 +21,3 @@ npm run build
 ```
 
 Source files live in `src/`. The generated file in `dist/` is the runtime loaded by Tampermonkey.
-
-## Current Feature
-
-The first feature applies `assets/background.png` as a menu/page background using injected CSS. It does not try to alter the in-game canvas background.
