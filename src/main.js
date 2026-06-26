@@ -53,7 +53,7 @@ import { readVirusMotherCellSettings } from './virus/VirusMotherCellSettings.js'
 import { pageVirusMotherCellBootstrap } from './virus/pageVirusMotherCellBootstrap.js';
 
 const INSTANCE_KEY = '__blobioExtension';
-const EXTENSION_VERSION = '0.2.01';
+const EXTENSION_VERSION = '0.2.02';
 const VIP_BADGE_URL = 'https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/cleanup/assets/VIP_icon_plus.png';
 const EMOTE_SKIN_ASSETS = {
   cool: emoteCoolUrl,

@@ -14895,7 +14895,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.2.01";
+  var DEFAULT_EXTENSION_VERSION = "0.2.02";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var WATERMARK_STORAGE_KEY = "blobio.watermark.enabled";
   var WATERMARK_RIGHT_NUDGE = 60;
@@ -15514,6 +15514,7 @@ html.${className} .blobio-watermark-extension::after {
         this.activateExtensionCategory(panel, panel.dataset.activeCategory || EXTENSION_DEFAULT_CATEGORY);
         this.syncExtensionSettingsCheckboxes(panel);
         this.syncExtensionSettingsPanelHeight(settings);
+        this.bindExtensionSettingsWheel(settings);
         if (tab.dataset.blobioExtensionListener !== "true") {
           tab.dataset.blobioExtensionListener = "true";
           this.addSettingsListener(tab, "click", (event) => {
@@ -15724,6 +15725,65 @@ html.${className} .blobio-watermark-extension::after {
       this.activateExtensionCategory(panel, EXTENSION_DEFAULT_CATEGORY);
       this.syncAdminSettingVisibility(panel);
       return panel;
+    }
+    bindExtensionSettingsWheel(settings) {
+      if (settings.dataset.blobioExtensionWheelListener === "true") {
+        return;
+      }
+      settings.dataset.blobioExtensionWheelListener = "true";
+      this.addSettingsListener(
+        settings,
+        "wheel",
+        (event) => this.handleExtensionSettingsWheel(settings, event),
+        { passive: false }
+      );
+    }
+    handleExtensionSettingsWheel(settings, event) {
+      if (!settings?.classList?.contains("blobio-extension-settings-active") || !settings.contains?.(event.target)) {
+        return;
+      }
+      const deltaY = Number(event.deltaY) || 0;
+      if (!deltaY) {
+        return;
+      }
+      const scroller = this.getExtensionWheelScroller(settings, event.target, deltaY);
+      if (!scroller) {
+        return;
+      }
+      const maxTop = Math.max(0, (Number(scroller.scrollHeight) || 0) - (Number(scroller.clientHeight) || 0));
+      const currentTop = Math.min(maxTop, Math.max(0, Number(scroller.scrollTop) || 0));
+      const nextTop = Math.min(maxTop, Math.max(0, currentTop + deltaY));
+      if (nextTop === currentTop) {
+        return;
+      }
+      scroller.scrollTop = nextTop;
+      event.preventDefault?.();
+      event.stopPropagation?.();
+    }
+    getExtensionWheelScroller(settings, target, deltaY) {
+      const panel = settings.querySelector?.(".blobio-extension-category-panel.is-active");
+      if (panel?.contains?.(target)) {
+        let node = target?.classList ? target : target?.parentElement;
+        while (node && node !== panel) {
+          if (this.canScrollByWheel(node, deltaY)) {
+            return node;
+          }
+          node = node.parentElement;
+        }
+      }
+      if (this.canScrollByWheel(panel, deltaY)) {
+        return panel;
+      }
+      const content = settings.querySelector?.(".content-container.scroll") || settings.querySelector?.(".content-container");
+      return this.canScrollByWheel(content, deltaY) ? content : null;
+    }
+    canScrollByWheel(node, deltaY) {
+      const maxTop = Math.max(0, (Number(node?.scrollHeight) || 0) - (Number(node?.clientHeight) || 0));
+      if (maxTop <= 0) {
+        return false;
+      }
+      const currentTop = Math.min(maxTop, Math.max(0, Number(node?.scrollTop) || 0));
+      return deltaY < 0 ? currentTop > 0 : currentTop < maxTop;
     }
     closeExtensionSettingMenus(except = null) {
       for (const ui of [
@@ -15950,17 +16010,18 @@ html.${className} .blobio-watermark-extension::after {
       const uid = this.uidDetector?.getUid?.() || "";
       return Boolean(uid && this.roleRegistry?.isAdmin?.(uid));
     }
-    addSettingsListener(node, type, handler) {
-      node.addEventListener?.(type, handler);
-      this.settingsListeners.push({ node, type, handler });
+    addSettingsListener(node, type, handler, options) {
+      node.addEventListener?.(type, handler, options);
+      this.settingsListeners.push({ node, type, handler, options });
     }
     cleanupExtensionSettings() {
-      for (const { node, type, handler } of this.settingsListeners) {
-        node.removeEventListener?.(type, handler);
+      for (const { node, type, handler, options } of this.settingsListeners) {
+        node.removeEventListener?.(type, handler, options);
       }
       this.settingsListeners = [];
       for (const settings of this.document.querySelectorAll?.("app-settings") || []) {
         settings.classList?.remove("blobio-extension-settings-active");
+        delete settings.dataset.blobioExtensionWheelListener;
       }
       for (const node of this.document.querySelectorAll?.(".blobio-extension-settings-tab, .blobio-extension-settings-panel") || []) {
         node.remove();
@@ -19882,7 +19943,7 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
     return true;
   }
   var INSTANCE_KEY = "__blobioExtension";
-  var EXTENSION_VERSION = "0.2.01";
+  var EXTENSION_VERSION = "0.2.02";
   var VIP_BADGE_URL = "https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/cleanup/assets/VIP_icon_plus.png";
   var EMOTE_SKIN_ASSETS = {
     cool: emote_cool_default,
