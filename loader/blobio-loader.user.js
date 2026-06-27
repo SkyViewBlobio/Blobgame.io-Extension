@@ -6644,7 +6644,7 @@
       frameCull: {
         id: 0,
         startedAt: 0,
-        particlesThisPass: null,
+        firstParticle: null,
         foodSeen: 0,
         foodSkipped: 0,
         massSeen: 0,
@@ -6785,7 +6785,7 @@
     const startedAt = Number(timestamp) || now(root);
     frame.id += 1;
     frame.startedAt = startedAt;
-    frame.particlesThisPass = createWeakSet(root);
+    frame.firstParticle = null;
     frame.foodSeen = 0;
     frame.foodSkipped = 0;
     frame.massSeen = 0;
@@ -6843,24 +6843,16 @@
     }
 
     const frame = state.frameCull;
-    if (!frame.particlesThisPass) {
-      frame.particlesThisPass = createWeakSet(root);
-    }
-    if (!frame.particlesThisPass) {
+    if (!frame.firstParticle) {
+      frame.firstParticle = object;
       return;
     }
 
-    if (frame.particlesThisPass.has(object)) {
+    if (object === frame.firstParticle && frame.foodSeen + frame.massSeen > 0) {
       beginRenderFrame(root, state, now(root));
       state.counters.particleLoopResets += 1;
+      state.frameCull.firstParticle = object;
     }
-
-    state.frameCull.particlesThisPass?.add(object);
-  }
-
-  function createWeakSet(root) {
-    const WeakSetCtor = root.WeakSet || globalThis.WeakSet;
-    return typeof WeakSetCtor === 'function' ? new WeakSetCtor() : null;
   }
 
   function installGameScriptPatch(root, state) {
@@ -7227,10 +7219,10 @@
   }
 
   function frameCullDebug(frame) {
-    const { particlesThisPass, ...debug } = frame || {};
+    const { firstParticle, ...debug } = frame || {};
     return {
       ...debug,
-      passTracking: Boolean(particlesThisPass),
+      passTracking: Boolean(firstParticle),
     };
   }
 
