@@ -39,7 +39,7 @@ import {
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
 const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
-const DEFAULT_EXTENSION_VERSION = '0.2.02';
+const DEFAULT_EXTENSION_VERSION = '0.2.04';
 const HIDDEN_CLASS = 'blobio-original-hidden';
 const WATERMARK_STORAGE_KEY = 'blobio.watermark.enabled';
 const WATERMARK_RIGHT_NUDGE = 60;

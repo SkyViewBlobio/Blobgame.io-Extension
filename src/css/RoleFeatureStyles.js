@@ -49,7 +49,7 @@ export const VIP_BADGE_CSS = `
   max-width: 96%;
   transform: translate(-50%, -50%) rotate(-7deg);
   color: #f4fff6;
-  font-size: clamp(9px, calc(var(--blobio-vip-plus-height, 106px) * 0.09), 18px);
+  font-size: clamp(18px, calc(var(--blobio-vip-plus-height, 106px) * 0.18), 36px);
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.02em;

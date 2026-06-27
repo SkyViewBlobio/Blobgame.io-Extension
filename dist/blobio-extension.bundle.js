@@ -4244,7 +4244,7 @@ html.${this.className} body::before {
   max-width: 96%;
   transform: translate(-50%, -50%) rotate(-7deg);
   color: #f4fff6;
-  font-size: clamp(9px, calc(var(--blobio-vip-plus-height, 106px) * 0.09), 18px);
+  font-size: clamp(18px, calc(var(--blobio-vip-plus-height, 106px) * 0.18), 36px);
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -14895,7 +14895,7 @@ html.${className} .blobio-watermark-extension::after {
   var DEFAULT_CLASS_NAME2 = "blobio-menu-enabled";
   var DEFAULT_STYLE_ID2 = "blobio-menu-style";
   var DEFAULT_TOOLBAR_CLASS = "blobio-menu-toolbar";
-  var DEFAULT_EXTENSION_VERSION = "0.2.02";
+  var DEFAULT_EXTENSION_VERSION = "0.2.04";
   var HIDDEN_CLASS = "blobio-original-hidden";
   var WATERMARK_STORAGE_KEY = "blobio.watermark.enabled";
   var WATERMARK_RIGHT_NUDGE = 60;
@@ -19990,7 +19990,7 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
     return true;
   }
   var INSTANCE_KEY = "__blobioExtension";
-  var EXTENSION_VERSION = "0.2.02";
+  var EXTENSION_VERSION = "0.2.04";
   var VIP_BADGE_URL = "https://raw.githubusercontent.com/SkyViewBlobio/Blobgame.io-Extension/cleanup/assets/VIP_icon_plus.png";
   var EMOTE_SKIN_ASSETS = {
     cool: emote_cool_default,
