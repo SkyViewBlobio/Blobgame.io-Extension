@@ -7,11 +7,9 @@ export const VIP_BADGE_CSS = `
   left: var(--blobio-vip-plus-left, -9999px) !important;
   top: var(--blobio-vip-plus-top, -9999px) !important;
   z-index: 4 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: max-content !important;
-  height: max-content !important;
+  display: block !important;
+  width: var(--blobio-vip-plus-width, 111px) !important;
+  height: var(--blobio-vip-plus-height, 106px) !important;
   margin: 0 !important;
   line-height: 0 !important;
   transform: translateY(-50%) !important;
@@ -20,10 +18,12 @@ export const VIP_BADGE_CSS = `
 }
 
 .blobio-vip-plus-icon {
+  position: absolute !important;
+  inset: 0 !important;
   display: block !important;
-  width: auto !important;
-  height: var(--blobio-vip-plus-size, 106px) !important;
-  max-width: 200px !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
   margin: 0 !important;
   object-fit: contain !important;
   transform: rotate(-7deg) scale(1) !important;
@@ -49,7 +49,7 @@ export const VIP_BADGE_CSS = `
   max-width: 96%;
   transform: translate(-50%, -50%) rotate(-7deg);
   color: #f4fff6;
-  font-size: clamp(9px, calc(var(--blobio-vip-plus-size, 196px) * 0.09), 18px);
+  font-size: clamp(9px, calc(var(--blobio-vip-plus-height, 106px) * 0.09), 18px);
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.02em;

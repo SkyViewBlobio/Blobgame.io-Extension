@@ -4202,11 +4202,9 @@ html.${this.className} body::before {
   left: var(--blobio-vip-plus-left, -9999px) !important;
   top: var(--blobio-vip-plus-top, -9999px) !important;
   z-index: 4 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: max-content !important;
-  height: max-content !important;
+  display: block !important;
+  width: var(--blobio-vip-plus-width, 111px) !important;
+  height: var(--blobio-vip-plus-height, 106px) !important;
   margin: 0 !important;
   line-height: 0 !important;
   transform: translateY(-50%) !important;
@@ -4215,10 +4213,12 @@ html.${this.className} body::before {
 }
 
 .blobio-vip-plus-icon {
+  position: absolute !important;
+  inset: 0 !important;
   display: block !important;
-  width: auto !important;
-  height: var(--blobio-vip-plus-size, 106px) !important;
-  max-width: 200px !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
   margin: 0 !important;
   object-fit: contain !important;
   transform: rotate(-7deg) scale(1) !important;
@@ -4244,7 +4244,7 @@ html.${this.className} body::before {
   max-width: 96%;
   transform: translate(-50%, -50%) rotate(-7deg);
   color: #f4fff6;
-  font-size: clamp(9px, calc(var(--blobio-vip-plus-size, 196px) * 0.09), 18px);
+  font-size: clamp(9px, calc(var(--blobio-vip-plus-height, 106px) * 0.09), 18px);
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -18822,6 +18822,7 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
   var VIP_REFRESH_INTERVAL_MS = 3e4;
   var VIP_SIZE_MULTIPLIER = 2.1;
   var VIP_VERTICAL_OFFSET_PX = 4;
+  var VIP_BADGE_ASPECT_RATIO = 511 / 489;
   var UNLIMITED_TEXT = "UNLIMITED";
   function formatVipRemainingTime(remainingMs) {
     const totalMinutes = Math.max(0, Math.ceil(Number(remainingMs) / 6e4));
@@ -18832,6 +18833,17 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
       return `${days}d ${hours}h ${minutes}m`;
     }
     return `${hours}h ${minutes}m`;
+  }
+  function getVipBadgeFrameSize(targetHeight) {
+    const height = Number(targetHeight) || 0;
+    if (height < 18 || height > 120) {
+      return null;
+    }
+    const frameHeight = Math.round(height * VIP_SIZE_MULTIPLIER);
+    return {
+      width: Math.round(frameHeight * VIP_BADGE_ASPECT_RATIO),
+      height: frameHeight
+    };
   }
   var VipBadgeFeature = class {
     constructor({
@@ -18851,6 +18863,8 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
       this.icon = null;
       this.timeLabel = null;
       this.massBooster = null;
+      this.massBoosterLoadTarget = null;
+      this.massBoosterLoadHandler = null;
       this.observer = null;
       this.interval = null;
       this.viewportHandler = null;
@@ -18993,11 +19007,14 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
         return;
       }
       this.massBooster = target;
+      this.trackMassBoosterLoad(target);
       this.ensureBadge();
       const rect = target.getBoundingClientRect?.();
       const height = Number(rect?.height) || Number(target.clientHeight) || Number(target.height) || 0;
-      if (height >= 18 && height <= 120) {
-        this.setStyle(this.icon, "--blobio-vip-plus-size", `${Math.round(height * VIP_SIZE_MULTIPLIER)}px`);
+      const frameSize = getVipBadgeFrameSize(height);
+      if (frameSize) {
+        this.setStyle(this.slot, "--blobio-vip-plus-width", `${frameSize.width}px`);
+        this.setStyle(this.slot, "--blobio-vip-plus-height", `${frameSize.height}px`);
       }
       const right = Number(rect?.right);
       const top = Number(rect?.top);
@@ -19055,10 +19072,17 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
       }
     }
     findMassBooster() {
-      if (this.isConnected(this.massBooster) && this.isMassBoosterImage(this.massBooster)) {
+      if (this.isConnected(this.massBooster) && this.isMassBoosterImage(this.massBooster) && this.isVisibleMassBoosterImage(this.massBooster)) {
         return this.massBooster;
       }
-      return Array.from(this.document.querySelectorAll?.("img") || []).find((image) => this.isMassBoosterImage(image)) || null;
+      const matches = Array.from(this.document.querySelectorAll?.("img") || []).filter((image) => this.isMassBoosterImage(image));
+      return matches.find((image) => this.isVisibleMassBoosterImage(image)) || matches[0] || null;
+    }
+    isVisibleMassBoosterImage(image) {
+      const rect = image?.getBoundingClientRect?.();
+      const width = Number(rect?.width) || Number(image?.clientWidth) || 0;
+      const height = Number(rect?.height) || Number(image?.clientHeight) || Number(image?.height) || 0;
+      return width > 0 && height > 0;
     }
     isConnected(node) {
       if (!node) {
@@ -19095,6 +19119,28 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
         this.document.body.appendChild(this.slot);
       }
     }
+    trackMassBoosterLoad(target) {
+      if (this.massBoosterLoadTarget === target) {
+        return;
+      }
+      this.clearMassBoosterLoadTracking();
+      const handler = () => this.scheduleSync();
+      target.addEventListener?.("load", handler);
+      target.addEventListener?.("error", handler);
+      this.massBoosterLoadTarget = target;
+      this.massBoosterLoadHandler = handler;
+    }
+    clearMassBoosterLoadTracking() {
+      if (!this.massBoosterLoadTarget || !this.massBoosterLoadHandler) {
+        this.massBoosterLoadTarget = null;
+        this.massBoosterLoadHandler = null;
+        return;
+      }
+      this.massBoosterLoadTarget.removeEventListener?.("load", this.massBoosterLoadHandler);
+      this.massBoosterLoadTarget.removeEventListener?.("error", this.massBoosterLoadHandler);
+      this.massBoosterLoadTarget = null;
+      this.massBoosterLoadHandler = null;
+    }
     setStyle(node, property, value) {
       if (!node?.style) {
         return;
@@ -19121,6 +19167,7 @@ ${buildJellyGlsl(settings.noSkinCells)}`);
       this.slot = null;
       this.icon = null;
       this.timeLabel = null;
+      this.clearMassBoosterLoadTracking();
     }
     destroy() {
       this.observer?.disconnect();

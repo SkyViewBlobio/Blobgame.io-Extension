@@ -3,6 +3,7 @@ import { VIP_BADGE_CSS, VIP_BADGE_STYLE_ID } from '../css/RoleFeatureStyles.js';
 const VIP_REFRESH_INTERVAL_MS = 30000;
 const VIP_SIZE_MULTIPLIER = 2.1;
 const VIP_VERTICAL_OFFSET_PX = 4;
+const VIP_BADGE_ASPECT_RATIO = 511 / 489;
 const UNLIMITED_TEXT = 'UNLIMITED';
 
 export function formatVipRemainingTime(remainingMs) {
@@ -16,6 +17,19 @@ export function formatVipRemainingTime(remainingMs) {
   }
 
   return `${hours}h ${minutes}m`;
+}
+
+export function getVipBadgeFrameSize(targetHeight) {
+  const height = Number(targetHeight) || 0;
+  if (height < 18 || height > 120) {
+    return null;
+  }
+
+  const frameHeight = Math.round(height * VIP_SIZE_MULTIPLIER);
+  return {
+    width: Math.round(frameHeight * VIP_BADGE_ASPECT_RATIO),
+    height: frameHeight,
+  };
 }
 
 export class VipBadgeFeature {
@@ -36,6 +50,8 @@ export class VipBadgeFeature {
     this.icon = null;
     this.timeLabel = null;
     this.massBooster = null;
+    this.massBoosterLoadTarget = null;
+    this.massBoosterLoadHandler = null;
     this.observer = null;
     this.interval = null;
     this.viewportHandler = null;
@@ -208,12 +224,15 @@ export class VipBadgeFeature {
     }
 
     this.massBooster = target;
+    this.trackMassBoosterLoad(target);
     this.ensureBadge();
 
     const rect = target.getBoundingClientRect?.();
     const height = Number(rect?.height) || Number(target.clientHeight) || Number(target.height) || 0;
-    if (height >= 18 && height <= 120) {
-      this.setStyle(this.icon, '--blobio-vip-plus-size', `${Math.round(height * VIP_SIZE_MULTIPLIER)}px`);
+    const frameSize = getVipBadgeFrameSize(height);
+    if (frameSize) {
+      this.setStyle(this.slot, '--blobio-vip-plus-width', `${frameSize.width}px`);
+      this.setStyle(this.slot, '--blobio-vip-plus-height', `${frameSize.height}px`);
     }
 
     const right = Number(rect?.right);
@@ -282,12 +301,27 @@ export class VipBadgeFeature {
   }
 
   findMassBooster() {
-    if (this.isConnected(this.massBooster) && this.isMassBoosterImage(this.massBooster)) {
+    if (
+      this.isConnected(this.massBooster)
+      && this.isMassBoosterImage(this.massBooster)
+      && this.isVisibleMassBoosterImage(this.massBooster)
+    ) {
       return this.massBooster;
     }
 
-    return Array.from(this.document.querySelectorAll?.('img') || [])
-      .find((image) => this.isMassBoosterImage(image)) || null;
+    const matches = Array.from(this.document.querySelectorAll?.('img') || [])
+      .filter((image) => this.isMassBoosterImage(image));
+
+    return matches.find((image) => this.isVisibleMassBoosterImage(image))
+      || matches[0]
+      || null;
+  }
+
+  isVisibleMassBoosterImage(image) {
+    const rect = image?.getBoundingClientRect?.();
+    const width = Number(rect?.width) || Number(image?.clientWidth) || 0;
+    const height = Number(rect?.height) || Number(image?.clientHeight) || Number(image?.height) || 0;
+    return width > 0 && height > 0;
   }
 
   isConnected(node) {
@@ -332,6 +366,32 @@ export class VipBadgeFeature {
     }
   }
 
+  trackMassBoosterLoad(target) {
+    if (this.massBoosterLoadTarget === target) {
+      return;
+    }
+
+    this.clearMassBoosterLoadTracking();
+    const handler = () => this.scheduleSync();
+    target.addEventListener?.('load', handler);
+    target.addEventListener?.('error', handler);
+    this.massBoosterLoadTarget = target;
+    this.massBoosterLoadHandler = handler;
+  }
+
+  clearMassBoosterLoadTracking() {
+    if (!this.massBoosterLoadTarget || !this.massBoosterLoadHandler) {
+      this.massBoosterLoadTarget = null;
+      this.massBoosterLoadHandler = null;
+      return;
+    }
+
+    this.massBoosterLoadTarget.removeEventListener?.('load', this.massBoosterLoadHandler);
+    this.massBoosterLoadTarget.removeEventListener?.('error', this.massBoosterLoadHandler);
+    this.massBoosterLoadTarget = null;
+    this.massBoosterLoadHandler = null;
+  }
+
   setStyle(node, property, value) {
     if (!node?.style) {
       return;
@@ -369,6 +429,7 @@ export class VipBadgeFeature {
     this.slot = null;
     this.icon = null;
     this.timeLabel = null;
+    this.clearMassBoosterLoadTracking();
   }
 
   destroy() {
