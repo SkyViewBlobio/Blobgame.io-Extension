@@ -11,16 +11,15 @@ import { isFpsUncapEnabled, setFpsUncapEnabled } from '../settings/RuntimeSettin
 import { VirusMotherCellSettingsUi } from '../virus/VirusMotherCellSettingsUi.js';
 
 const DEFAULT_CLASS_NAME = 'blobio-menu-enabled';
+const MACOS_CLASS_NAME = 'blobio-macos';
 const DEFAULT_STYLE_ID = 'blobio-menu-style';
-const DEFAULT_TOOLBAR_CLASS = 'blobio-menu-toolbar';
 const DEFAULT_EXTENSION_VERSION = '0.1.83';
 const HIDDEN_CLASS = 'blobio-original-hidden';
+const CENTER_ALIGN_CLASS = 'blobio-center-align';
 const PARTNER_LINK_MATCH = /iogames\.space|iogames\.live|io-games\.zone|silvergames\.com|crazygames\.com/i;
 const FAILED_VIRAL_FRAME_MATCH = /viral\.iogames\.space/i;
 const OTHER_GAME_NAMES = ['Viper', 'Hexa'];
 const WATERMARK_STORAGE_KEY = 'blobio.watermark.enabled';
-const WATERMARK_RIGHT_NUDGE = 60;
-const WATERMARK_EXTRA_WIDTH = 96;
 const WATERMARK_INPUT_GAP = 6;
 const CUSTOM_SKIN_ENABLED_KEY = 'blobio.customSkin.enabled';
 const CUSTOM_SKIN_GALLERY_KEY = 'blobio.customSkin.gallery';
@@ -33,8 +32,6 @@ const CUSTOM_SKIN_DEFAULT_URL = 'https://i.imgur.com/OZz80VZ.jpeg';
 const DIRECT_IMGUR_IMAGE_MATCH = /^https:\/\/i\.imgur\.com\/[a-z0-9]+\.(?:png|jpe?g|webp)(?:\?.*)?$/i;
 const CUSTOM_SKIN_NOTICE_DURATION = 2200;
 const CUSTOM_SKIN_RELOAD_SECONDS = 3;
-const MAIN_MENU_ALIGNMENT_CLASS = 'blobio-main-menu-align-target';
-const MAIN_MENU_LAYERED_SELECT_CLASS = 'blobio-menu-layered-select';
 const EXTENSION_DEFAULT_CATEGORY = 'fps';
 const EXTENSION_SETTING_CATEGORIES = [
   ['fps', 'FPS'],
@@ -156,19 +153,17 @@ export class MenuFeature {
     this.frontPageUi = frontPageUi;
     this.started = false;
     this.styleNode = null;
-    this.toolbar = null;
+    this.featuredDock = null;
     this.footerModalHost = null;
     this.observer = null;
     this.refreshTimer = null;
     this.panelBodies = new Map();
     this.hiddenOriginalNodes = new Set();
-    this.mainMenuAlignmentTargets = new Set();
     this.policyDock = null;
     this.settingsListeners = [];
     this.customSkinListeners = [];
     this.customSkinSelectedUrl = null;
     this.customSkinNoticeTimer = null;
-    this.mainMenuLayeredSelectTargets = new Set();
     this.extensionTooltip = null;
     this.documentClickHandler = null;
     this.keydownHandler = null;
@@ -200,8 +195,8 @@ export class MenuFeature {
 
     this.ensureStyle();
     this.applyPageClass();
-    this.syncMainMenuAlignment();
-    this.installToolbar();
+    this.syncCenterAlignment();
+    this.installFeaturedDock();
     this.hideOriginalSections();
     this.installPolicyDock();
     this.syncCustomSkinAvailability();
@@ -214,7 +209,7 @@ export class MenuFeature {
     this.watchPage();
 
     this.documentClickHandler = (event) => {
-      if (this.toolbar?.contains(event.target) || this.policyDock?.contains(event.target) || this.footerModalHost?.contains(event.target)) {
+      if (this.featuredDock?.contains(event.target) || this.policyDock?.contains(event.target) || this.footerModalHost?.contains(event.target)) {
         return;
       }
 
@@ -249,8 +244,8 @@ export class MenuFeature {
       this.keydownHandler = null;
     }
 
-    this.toolbar?.remove();
-    this.toolbar = null;
+    this.featuredDock?.remove();
+    this.featuredDock = null;
     this.policyDock?.remove();
     this.policyDock = null;
     this.footerModalHost?.remove();
@@ -283,14 +278,15 @@ export class MenuFeature {
     }
 
     this.hiddenOriginalNodes.clear();
-    this.clearMainMenuAlignment();
-
+    this.clearCenterAlignment();
     const style = this.styleNode || this.document.getElementById?.(this.styleId);
     style?.remove();
     this.styleNode = null;
 
     this.document.documentElement?.classList.remove(this.className);
+    this.document.documentElement?.classList.remove(MACOS_CLASS_NAME);
     this.document.body?.classList.remove(this.className);
+    this.document.body?.classList.remove(MACOS_CLASS_NAME);
     this.started = false;
   }
 
@@ -314,77 +310,23 @@ export class MenuFeature {
     return buildMenuCss({
       className: this.className,
       hiddenClass: HIDDEN_CLASS,
-      toolbarClass: DEFAULT_TOOLBAR_CLASS,
     });
   }
 
   applyPageClass() {
     this.document.documentElement.classList.add(this.className);
     this.document.body?.classList.add(this.className);
+
+    const method = this.isMacPlatform() ? 'add' : 'remove';
+    this.document.documentElement.classList[method](MACOS_CLASS_NAME);
+    this.document.body?.classList[method](MACOS_CLASS_NAME);
   }
 
-  syncMainMenuAlignment() {
-    if (!this.frontPageUi) {
-      return;
-    }
+  isMacPlatform() {
+    const navigator = this.document.defaultView?.navigator || globalThis.navigator;
+    const platform = navigator?.userAgentData?.platform || navigator?.platform || navigator?.userAgent || '';
 
-    const selectors = [
-      '.logo',
-      '.main-logo',
-      '.inputs-container',
-      '#game-wrapper .custom-select',
-      '#ip-container',
-    ];
-    const nextTargets = new Set();
-    const nextLayeredSelects = new Set();
-
-    for (const selector of selectors) {
-      for (const node of this.document.querySelectorAll?.(selector) || []) {
-        if (this.isInsideOwnUi(node)) {
-          continue;
-        }
-
-        node.classList?.add(MAIN_MENU_ALIGNMENT_CLASS);
-        nextTargets.add(node);
-      }
-    }
-
-    const gameSelects = Array.from(this.document.querySelectorAll?.('#game-wrapper .custom-select') || [])
-      .filter((node) => !this.isInsideOwnUi(node));
-    for (const node of gameSelects.slice(0, 2)) {
-      node.classList?.add(MAIN_MENU_LAYERED_SELECT_CLASS);
-      nextLayeredSelects.add(node);
-    }
-
-    for (const node of this.mainMenuAlignmentTargets) {
-      if (!nextTargets.has(node)) {
-        node.classList?.remove(MAIN_MENU_ALIGNMENT_CLASS);
-      }
-    }
-
-    this.mainMenuAlignmentTargets = nextTargets;
-
-    for (const node of this.mainMenuLayeredSelectTargets) {
-      if (!nextLayeredSelects.has(node)) {
-        node.classList?.remove(MAIN_MENU_LAYERED_SELECT_CLASS);
-      }
-    }
-
-    this.mainMenuLayeredSelectTargets = nextLayeredSelects;
-  }
-
-  clearMainMenuAlignment() {
-    for (const node of this.mainMenuAlignmentTargets) {
-      node.classList?.remove(MAIN_MENU_ALIGNMENT_CLASS);
-    }
-
-    this.mainMenuAlignmentTargets.clear();
-
-    for (const node of this.mainMenuLayeredSelectTargets) {
-      node.classList?.remove(MAIN_MENU_LAYERED_SELECT_CLASS);
-    }
-
-    this.mainMenuLayeredSelectTargets.clear();
+    return /\bMac/i.test(platform);
   }
 
   watchPage() {
@@ -417,8 +359,8 @@ export class MenuFeature {
       }
 
       this.applyPageClass();
-      this.syncMainMenuAlignment();
-      this.installToolbar();
+      this.syncCenterAlignment();
+      this.installFeaturedDock();
       this.hideOriginalSections();
       this.installPolicyDock();
       this.syncCustomSkinAvailability();
@@ -439,80 +381,88 @@ export class MenuFeature {
     this.refreshTimer = null;
   }
 
-  installToolbar() {
+  syncCenterAlignment() {
+    const selectors = [
+      '.logo',
+      '.main-logo',
+      '.inputs-container',
+      '#game-wrapper .custom-select',
+      '#ip-container',
+    ];
+
+    for (const selector of selectors) {
+      for (const node of this.document.querySelectorAll?.(selector) || []) {
+        if (!this.isInsideOwnUi(node)) {
+          node.classList?.add(CENTER_ALIGN_CLASS);
+        }
+      }
+    }
+  }
+
+  clearCenterAlignment() {
+    for (const node of this.document.querySelectorAll?.(`.${CENTER_ALIGN_CLASS}`) || []) {
+      if (!this.isInsideOwnUi(node)) {
+        node.classList?.remove(CENTER_ALIGN_CLASS);
+      }
+    }
+  }
+
+  installFeaturedDock() {
     if (!this.document.body) {
       return;
     }
 
-    if (!this.toolbar) {
-      this.toolbar = this.createToolbar();
+    if (!this.featuredDock) {
+      this.featuredDock = this.createFeaturedDock();
     }
 
-    const replayButton = this.findReplayButton();
-    if (replayButton?.parentNode) {
-      const parent = replayButton.parentNode;
-      if (this.toolbar.parentNode === parent && replayButton.nextSibling === this.toolbar) {
-        this.toolbar.classList.remove('is-floating');
-        return;
-      }
+    if (this.featuredDock.parentNode !== this.document.body) {
+      this.document.body.appendChild(this.featuredDock);
+    }
 
-      const referenceNode = replayButton.nextSibling || null;
-      parent.insertBefore(this.toolbar, referenceNode);
-      this.toolbar.classList.remove('is-floating');
+    this.renderFeaturedDock();
+  }
+
+  createFeaturedDock() {
+    const dock = this.document.createElement('aside');
+    dock.classList.add('blobio-featured-dock');
+    dock.setAttribute('aria-label', 'Featured community video');
+    return dock;
+  }
+
+  renderFeaturedDock() {
+    if (!this.featuredDock) {
       return;
     }
 
-    if (this.toolbar.parentNode !== this.document.body) {
-      this.document.body.appendChild(this.toolbar);
-    }
+    this.clearElement(this.featuredDock);
 
-    this.toolbar.classList.add('is-floating');
-  }
+    const video = this.getFeaturedVideo();
+    const link = this.document.createElement('a');
+    link.classList.add('blobio-featured-link');
+    link.setAttribute('href', video.url);
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
 
-  createToolbar() {
-    const toolbar = this.document.createElement('div');
-    toolbar.classList.add(DEFAULT_TOOLBAR_CLASS);
+    const image = this.document.createElement('img');
+    image.classList.add('blobio-featured-thumb');
+    image.setAttribute('alt', '');
+    image.setAttribute('src', video.thumbnail);
 
-    const buttons = this.document.createElement('div');
-    buttons.classList.add('blobio-menu-buttons');
-    buttons.append(
-      this.createButton('Featured', this.assets.recommendedButton, 'featured'),
-      this.createButton('Updates', this.assets.updatesButton, 'updates'),
-      this.createButton('Socials', this.assets.socialsButton, 'socials'),
-    );
+    const copy = this.document.createElement('div');
+    copy.classList.add('blobio-featured-copy');
 
-    toolbar.appendChild(buttons);
-    toolbar.append(this.createFeaturedPanel(), this.createUpdatesPanel(), this.createSocialsPanel());
-    return toolbar;
-  }
+    const eyebrow = this.document.createElement('span');
+    eyebrow.classList.add('blobio-featured-eyebrow');
+    eyebrow.textContent = 'Community';
 
-  createButton(label, imageUrl, panelName) {
-    const button = this.document.createElement('button');
-    button.type = 'button';
-    button.title = label;
-    button.setAttribute('aria-label', label);
-    button.setAttribute('_ngcontent-c1', '');
-    button.dataset.panel = panelName;
-    button.classList.add('icon-button', 'blobio-menu-button');
-    button.style.backgroundImage = imageUrl ? `url("${imageUrl}")` : '';
+    const title = this.document.createElement('span');
+    title.classList.add('blobio-featured-title');
+    title.textContent = video.title;
 
-    const hiddenLabel = this.document.createElement('span');
-    hiddenLabel.classList.add('blobio-menu-label');
-    hiddenLabel.textContent = label;
-
-    button.appendChild(hiddenLabel);
-    button.addEventListener('click', (event) => {
-      event.stopPropagation?.();
-      this.togglePanel(panelName);
-    });
-
-    return button;
-  }
-
-  createFeaturedPanel() {
-    const panel = this.createPanel('featured', 'Featured Blob.io Video');
-    this.renderFeaturedPanel();
-    return panel;
+    copy.append(eyebrow, title);
+    link.append(image, copy);
+    this.featuredDock.appendChild(link);
   }
 
   createUpdatesPanel() {
@@ -546,27 +496,16 @@ export class MenuFeature {
     return panel;
   }
 
-  createSocialsPanel() {
-    const panel = this.createPanel('socials', '');
-    this.renderSocialPanel();
-    return panel;
-  }
-
   installPolicyDock() {
     const links = this.getPolicyPanelLinks();
     const games = this.getOtherProjectLinks();
-    if (links.length === 0 && games.length === 0) {
-      this.policyDock?.remove();
-      this.policyDock = null;
-      this.footerModalHost?.remove();
-      this.footerModalHost = null;
-      return;
-    }
 
     if (!this.policyDock) {
       this.policyDock = this.createPolicyDock();
       this.document.body?.appendChild(this.policyDock);
     }
+
+    this.renderPolicyDock();
 
     if (!this.footerModalHost) {
       this.footerModalHost = this.createFooterModalHost();
@@ -574,21 +513,60 @@ export class MenuFeature {
     }
 
     this.ensureDockPanel('policy-games', links.length > 0 || games.length > 0);
+    this.ensureDockPanel('updates', true, 'Update Notes');
   }
 
   createPolicyDock() {
     const dock = this.document.createElement('div');
     dock.classList.add('blobio-footer-dock', 'blobio-policy-dock');
+    return dock;
+  }
+
+  renderPolicyDock() {
+    if (!this.policyDock) {
+      return;
+    }
+
+    this.clearElement(this.policyDock);
 
     const buttons = this.document.createElement('div');
     buttons.classList.add('blobio-dock-buttons');
 
-    if (this.getPolicyPanelLinks().length > 0 || this.getOtherProjectLinks().length > 0) {
-      buttons.appendChild(this.createDockButton('Policy/Other Games', 'policy-games', 'blobio-policy-games-button'));
+    const leftLinks = this.document.createElement('div');
+    leftLinks.classList.add('blobio-footer-links');
+
+    if (this.getPolicyPanelLinks().length > 0) {
+      leftLinks.appendChild(this.createDockButton('Privacy policy', 'policy-games', 'blobio-policy-games-button'));
     }
 
-    dock.appendChild(buttons);
-    return dock;
+    if (this.getOtherProjectLinks().length > 0) {
+      leftLinks.appendChild(this.createDockButton('Other games', 'policy-games', 'blobio-policy-games-button'));
+    }
+
+    const socials = this.document.createElement('div');
+    socials.classList.add('blobio-footer-socials');
+
+    for (const social of this.getSocialLinks()) {
+      const link = this.document.createElement('a');
+      link.classList.add('blobio-footer-social-link');
+      link.setAttribute('href', social.href);
+      link.setAttribute('target', '_blank');
+      link.setAttribute('rel', 'noopener noreferrer');
+      link.setAttribute('title', social.label);
+      link.setAttribute('aria-label', social.label);
+
+      const image = this.document.createElement('img');
+      image.setAttribute('alt', '');
+      image.setAttribute('src', this.assets[social.assetKey] || '');
+
+      link.appendChild(image);
+      socials.appendChild(link);
+    }
+
+    const version = this.createDockButton(`Blob-Extension v${this.version}`, 'updates', 'blobio-footer-version');
+
+    buttons.append(leftLinks, socials, version);
+    this.policyDock.appendChild(buttons);
   }
 
   createFooterModalHost() {
@@ -597,7 +575,7 @@ export class MenuFeature {
     return host;
   }
 
-  ensureDockPanel(panelName, shouldExist) {
+  ensureDockPanel(panelName, shouldExist, titleText = '') {
     const existingPanel = this.document.getElementById?.(`blobio-panel-${panelName}`);
 
     if (!shouldExist) {
@@ -607,7 +585,10 @@ export class MenuFeature {
     }
 
     if (!existingPanel && this.footerModalHost) {
-      this.footerModalHost.appendChild(this.createPanel(panelName, ''));
+      const panel = panelName === 'updates'
+        ? this.createUpdatesPanel()
+        : this.createPanel(panelName, titleText);
+      this.footerModalHost.appendChild(panel);
     }
   }
 
@@ -645,10 +626,14 @@ export class MenuFeature {
     close.classList.add('blobio-panel-close');
     close.setAttribute('aria-label', titleText ? `Close ${titleText}` : 'Close panel');
     close.textContent = 'X';
-    close.addEventListener('click', (event) => {
+
+    const closePanel = (event) => {
+      event.preventDefault?.();
       event.stopPropagation?.();
       this.closePanels();
-    });
+    };
+    close.addEventListener('pointerdown', closePanel);
+    close.addEventListener('click', closePanel);
 
     const body = this.document.createElement('div');
     body.classList.add('blobio-panel-body');
@@ -662,68 +647,6 @@ export class MenuFeature {
     panel.appendChild(inner);
     this.panelBodies.set(name, body);
     return panel;
-  }
-
-  renderFeaturedPanel() {
-    const body = this.panelBodies.get('featured');
-    if (!body) {
-      return;
-    }
-
-    this.clearElement(body);
-
-    const video = this.getFeaturedVideo();
-    const link = this.document.createElement('a');
-    link.classList.add('blobio-video-link');
-    link.setAttribute('href', video.url);
-    link.setAttribute('target', '_blank');
-    link.setAttribute('rel', 'noopener noreferrer');
-
-    const image = this.document.createElement('img');
-    image.classList.add('blobio-video-thumb');
-    image.setAttribute('alt', '');
-    image.setAttribute('src', video.thumbnail);
-
-    const title = this.document.createElement('p');
-    title.classList.add('blobio-video-title');
-    title.textContent = video.title;
-
-    link.append(image, title);
-    body.appendChild(link);
-  }
-
-  renderSocialPanel() {
-    const body = this.panelBodies.get('socials');
-    if (!body) {
-      return;
-    }
-
-    this.clearElement(body);
-
-    const title = this.document.createElement('div');
-    title.classList.add('blobio-social-title');
-    title.textContent = 'Blobio Socials';
-
-    const row = this.document.createElement('div');
-    row.classList.add('blobio-social-row');
-
-    for (const social of this.getSocialLinks()) {
-      const link = this.document.createElement('a');
-      link.classList.add('blobio-social-link');
-      link.setAttribute('href', social.href);
-      link.setAttribute('target', '_blank');
-      link.setAttribute('rel', 'noopener noreferrer');
-      link.setAttribute('title', social.label);
-
-      const image = this.document.createElement('img');
-      image.setAttribute('alt', social.label);
-      image.setAttribute('src', this.assets[social.assetKey] || '');
-
-      link.appendChild(image);
-      row.appendChild(link);
-    }
-
-    body.append(title, row);
   }
 
   renderPolicyPanel() {
@@ -2351,23 +2274,47 @@ export class MenuFeature {
   }
 
   positionWatermark(watermark, nameInput, host) {
-    const inputRect = this.getElementRect(nameInput);
+    const rowRect = this.getNameRowRect(nameInput, host);
     const hostRect = this.getElementRect(host);
 
-    if (!inputRect || !hostRect) {
+    if (!rowRect || !hostRect) {
       this.setStyleProperty(watermark, '--blobio-watermark-left', '0px');
       this.setStyleProperty(watermark, '--blobio-watermark-top', '-6px');
       this.setStyleProperty(watermark, '--blobio-watermark-width', '100%');
       return;
     }
 
-    const left = Math.round(inputRect.left - hostRect.left - WATERMARK_EXTRA_WIDTH / 2 + WATERMARK_RIGHT_NUDGE);
-    const top = Math.round(inputRect.top - hostRect.top - WATERMARK_INPUT_GAP);
-    const width = Math.round(inputRect.width + WATERMARK_EXTRA_WIDTH);
+    const left = Math.round(rowRect.left - hostRect.left);
+    const top = Math.round(rowRect.top - hostRect.top - WATERMARK_INPUT_GAP);
+    const width = Math.round(rowRect.width);
 
     this.setStyleProperty(watermark, '--blobio-watermark-left', `${left}px`);
     this.setStyleProperty(watermark, '--blobio-watermark-top', `${top}px`);
     this.setStyleProperty(watermark, '--blobio-watermark-width', `${width}px`);
+  }
+
+  getNameRowRect(nameInput, host) {
+    const rowNodes = Array.from(host?.querySelectorAll?.('input, a') || [])
+      .filter((node) => node === nameInput || /play/i.test(node.textContent || node.getAttribute?.('aria-label') || ''));
+    const rects = rowNodes
+      .map((node) => this.getElementRect(node))
+      .filter((rect) => rect && rect.width > 0 && rect.height > 0);
+
+    if (rects.length === 0) {
+      return this.getElementRect(nameInput);
+    }
+
+    const left = Math.min(...rects.map((rect) => rect.left));
+    const top = Math.min(...rects.map((rect) => rect.top));
+    const right = Math.max(...rects.map((rect) => rect.left + rect.width));
+    const bottom = Math.max(...rects.map((rect) => rect.top + rect.height));
+
+    return {
+      left,
+      top,
+      width: right - left,
+      height: bottom - top,
+    };
   }
 
   getElementRect(node) {
@@ -2446,11 +2393,7 @@ export class MenuFeature {
       return;
     }
 
-    if (panelName === 'featured') {
-      this.renderFeaturedPanel();
-    } else if (panelName === 'socials') {
-      this.renderSocialPanel();
-    } else if (panelName === 'policy') {
+    if (panelName === 'policy') {
       this.renderPolicyPanel();
     } else if (panelName === 'games') {
       this.renderGamesPanel();
@@ -2842,7 +2785,7 @@ export class MenuFeature {
   isInsideOwnUi(node) {
     return Boolean(
       node &&
-        (this.toolbar?.contains(node) ||
+        (this.featuredDock?.contains(node) ||
           this.policyDock?.contains(node) ||
           this.footerModalHost?.contains(node) ||
           this.isExtensionOwnedNode(node))
@@ -2868,7 +2811,7 @@ export class MenuFeature {
     while (current) {
       const classList = current.classList;
       if (
-        classList?.contains(DEFAULT_TOOLBAR_CLASS) ||
+        classList?.contains('blobio-featured-dock') ||
         classList?.contains('blobio-menu-panel') ||
         classList?.contains('blobio-footer-dock') ||
         classList?.contains('blobio-footer-modal-host') ||
@@ -2906,14 +2849,12 @@ export class MenuFeature {
 
   getPanels() {
     return [
-      ...Array.from(this.toolbar?.querySelectorAll('.blobio-menu-panel') || []),
       ...Array.from(this.footerModalHost?.querySelectorAll('.blobio-menu-panel') || []),
     ];
   }
 
   getPanelButtons() {
     return [
-      ...Array.from(this.toolbar?.querySelectorAll('button') || []),
       ...Array.from(this.policyDock?.querySelectorAll('button') || []),
     ];
   }
