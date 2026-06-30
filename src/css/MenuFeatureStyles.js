@@ -1,4 +1,4 @@
-export function buildMenuCss({ className, hiddenClass, toolbarClass }) {
+export function buildMenuCss({ className, hiddenClass }) {
   return `
 html.${className} .social {
   display: none !important;
@@ -8,9 +8,32 @@ html.${className} .${hiddenClass} {
   display: none !important;
 }
 
+html.${className} body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147482200;
+  pointer-events: none;
+  border: 3px solid rgba(145, 255, 170, 0.68);
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 22px rgba(84, 255, 136, 0.36),
+    inset 0 0 80px rgba(61, 196, 118, 0.18),
+    0 0 22px rgba(84, 255, 136, 0.24);
+  background:
+    linear-gradient(90deg, rgba(93, 255, 137, 0.08), rgba(93, 255, 137, 0) 13%, rgba(93, 255, 137, 0) 87%, rgba(93, 255, 137, 0.08)),
+    linear-gradient(180deg, rgba(93, 255, 137, 0.1), rgba(93, 255, 137, 0) 15%, rgba(93, 255, 137, 0) 85%, rgba(93, 255, 137, 0.12));
+}
+
+html.${className}.blobio-macos body::before,
+body.${className}.blobio-macos::before {
+  inset: 0 0 3px;
+  border-radius: 0 0 24px 24px;
+}
+
 html.${className} footer.footer {
   display: block !important;
-  min-height: 150px !important;
+  min-height: 96px !important;
   visibility: hidden !important;
   pointer-events: none !important;
 }
@@ -20,9 +43,8 @@ html.${className} footer.footer * {
   pointer-events: none !important;
 }
 
-html.${className} .blobio-main-menu-align-target {
-  transform: translateX(-40px) !important;
-  transition: transform 160ms ease;
+html.${className} .progress-bar {
+  height: 29px !important;
 }
 
 html.${className} .aside.aside-2 {
@@ -87,17 +109,6 @@ html.${className} #game-wrapper .custom-select {
   position: relative !important;
 }
 
-html.${className} #game-wrapper .blobio-menu-layered-select {
-  z-index: 6 !important;
-}
-
-html.${className} app-settings .blobio-menu-layered-select,
-html.${className} app-skins .blobio-menu-layered-select,
-html.${className} app-profile .blobio-menu-layered-select,
-html.${className} app-shop .blobio-menu-layered-select {
-  z-index: auto !important;
-}
-
 html.${className} #game-wrapper .custom-select-option {
   background: rgba(3, 44, 23, 0.78) !important;
 }
@@ -120,10 +131,6 @@ html.${className} #game-wrapper .custom-select-options {
   box-shadow: 0 0 13px rgba(79, 255, 130, 0.24), inset 0 0 10px rgba(79, 255, 130, 0.12) !important;
 }
 
-html.${className} #game-wrapper .blobio-menu-layered-select .custom-select-options {
-  z-index: 7 !important;
-}
-
 html.${className} #game-wrapper .custom-select-option.selected,
 html.${className} #game-wrapper .custom-select-option:hover {
   background: rgba(10, 69, 35, 0.7) !important;
@@ -134,13 +141,13 @@ html.${className} #ip-container {
   z-index: 5 !important;
 }
 
+html.${className} .blobio-center-align {
+  transform: translateX(-22px) !important;
+}
+
 html.${className} app-settings,
 html.${className} app-skins,
-html.${className} app-shop,
-html.${className} .modal,
-html.${className} .popup,
-html.${className} .dialog,
-html.${className} .cdk-overlay-container {
+html.${className} app-shop {
   position: relative !important;
   z-index: 900 !important;
 }
@@ -287,46 +294,12 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   will-change: transform, text-shadow, color;
 }
 
-.${toolbarClass} {
-  position: relative;
-  display: inline-block;
-  margin-left: 0;
-  vertical-align: top;
-}
-
-.${toolbarClass}.is-floating {
-  position: fixed;
-  left: 18px;
-  bottom: 82px;
-  margin-left: 0;
-}
-
-.blobio-menu-buttons {
-  display: inline-block;
-  position: relative;
-  top: 0;
-  white-space: nowrap;
-}
-
-.blobio-menu-button {
-  background-size: 96% 96% !important;
-  background-position: center center !important;
-  background-repeat: no-repeat !important;
-}
-
-.blobio-menu-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-}
-
 .blobio-menu-panel {
   position: absolute;
   z-index: 2147482500;
-  top: calc(100% + 8px);
-  left: 0;
+  top: calc(100% + 10px);
+  right: 0;
+  left: auto;
   width: min(380px, calc(100vw - 32px));
   max-height: 0;
   overflow: hidden;
@@ -373,8 +346,11 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
 }
 
 .blobio-panel-close {
+  position: relative;
+  z-index: 2;
   width: 24px;
   height: 24px;
+  flex: 0 0 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -389,6 +365,7 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   text-shadow: 0 0 6px rgba(60, 0, 0, 0.95), 0 0 10px rgba(255, 42, 42, 0.55);
   box-shadow: 0 0 12px rgba(255, 49, 49, 0.26), inset 0 0 8px rgba(255, 89, 89, 0.18);
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .blobio-panel-body {
@@ -414,25 +391,67 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   text-shadow: 0 0 7px rgba(118, 255, 154, 0.66);
 }
 
-.blobio-video-link {
-  display: block;
-  color: #eaffee;
-  text-decoration: none;
+.blobio-featured-dock {
+  position: fixed;
+  left: 18px;
+  bottom: 96px;
+  z-index: 0;
+  width: min(292px, calc(100vw - 36px));
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
 
-.blobio-video-thumb {
-  width: 100%;
+.blobio-featured-link {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid rgba(142, 255, 174, 0.3);
+  border-radius: 12px;
+  background: rgba(4, 22, 13, 0.72);
+  color: #eaffee;
+  text-decoration: none;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28), inset 0 0 14px rgba(91, 255, 132, 0.08);
+  backdrop-filter: blur(5px);
+}
+
+.blobio-featured-link:hover {
+  border-color: rgba(166, 255, 190, 0.48);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3), 0 0 18px rgba(92, 255, 132, 0.22), inset 0 0 14px rgba(91, 255, 132, 0.1);
+}
+
+.blobio-featured-thumb {
+  width: 96px;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  border: 1px solid rgba(142, 255, 174, 0.38);
+  border: 1px solid rgba(142, 255, 174, 0.3);
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.35);
 }
 
-.blobio-video-title {
-  margin: 7px 0 0;
-  font-size: 13px;
+.blobio-featured-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.blobio-featured-eyebrow {
+  color: #96ffad;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.blobio-featured-title {
+  overflow: hidden;
+  color: #eaffee;
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .blobio-update-list {
@@ -463,79 +482,87 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   line-height: 1.3;
 }
 
-.blobio-social-title {
-  margin: 2px 0 12px;
-  text-align: center;
-  font-size: 18px;
-  font-weight: 700;
-  color: #dfffdf;
-  text-shadow: 0 0 8px rgba(95, 255, 132, 0.8), 0 0 20px rgba(95, 255, 132, 0.34);
-  animation: blobio-social-glow 1700ms ease-in-out infinite alternate;
-}
-
-.blobio-social-row {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-}
-
-.blobio-social-link {
-  width: 42px;
-  height: 42px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(139, 255, 171, 0.42);
-  border-radius: 8px;
-  background: rgba(3, 30, 17, 0.8);
-  box-shadow: inset 0 0 8px rgba(91, 255, 132, 0.16);
-}
-
-.blobio-social-link:hover {
-  box-shadow: 0 0 16px rgba(92, 255, 132, 0.38), inset 0 0 8px rgba(91, 255, 132, 0.18);
-}
-
-.blobio-social-link img {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-}
-
 .blobio-footer-dock {
   position: fixed;
-  left: 50%;
-  bottom: 10px;
-  transform: translateX(-50%);
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 20;
   visibility: visible !important;
   pointer-events: auto !important;
+  padding: 14px 42px 16px;
+  border-top: 1px solid rgba(142, 255, 174, 0.12);
+  background: rgba(4, 22, 13, 0.76);
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(180, 255, 198, 0.06);
+  backdrop-filter: blur(6px);
 }
 
 .blobio-dock-buttons {
   display: flex;
-  justify-content: center;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+}
+
+.blobio-footer-links,
+.blobio-footer-socials {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .blobio-dock-button {
-  padding: 5px 11px;
-  border: 1px solid rgba(142, 255, 174, 0.68);
-  border-radius: 8px;
-  background: rgba(3, 44, 23, 0.46);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #dfffe6;
   font-size: 12px;
   font-weight: 700;
   line-height: 1.1;
-  text-shadow: 0 0 6px rgba(118, 255, 154, 0.7);
-  box-shadow: 0 0 12px rgba(79, 255, 130, 0.22), inset 0 0 8px rgba(79, 255, 130, 0.13);
+  text-shadow: 0 0 6px rgba(118, 255, 154, 0.42);
+  box-shadow: none;
   cursor: pointer;
-  transition: background 150ms ease, box-shadow 150ms ease;
+  opacity: 0.72;
+  transition: color 150ms ease, opacity 150ms ease;
 }
 
 .blobio-dock-button:hover,
 .blobio-dock-button.is-active {
-  background: rgba(10, 69, 35, 0.64);
-  box-shadow: 0 0 16px rgba(99, 255, 142, 0.34), inset 0 0 10px rgba(99, 255, 142, 0.18);
+  background: transparent;
+  color: #ffffff;
+  opacity: 1;
+  box-shadow: none;
+}
+
+.blobio-footer-social-link {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(139, 255, 171, 0.28);
+  border-radius: 8px;
+  background: rgba(3, 30, 17, 0.52);
+  box-shadow: inset 0 0 8px rgba(91, 255, 132, 0.1);
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.blobio-footer-social-link:hover {
+  border-color: rgba(166, 255, 190, 0.5);
+  box-shadow: 0 0 14px rgba(92, 255, 132, 0.24), inset 0 0 8px rgba(91, 255, 132, 0.14);
+  transform: translateY(-1px);
+}
+
+.blobio-footer-social-link img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.blobio-footer-version {
+  white-space: nowrap;
 }
 
 .blobio-footer-modal-host {
@@ -557,6 +584,45 @@ html.${className} .fleft.username .blobio-username-animated .blobio-username-let
   overflow: hidden;
   transform: translate(-50%, -48%) scale(0.96);
   transform-origin: center;
+}
+
+@media (max-width: 760px) {
+  .blobio-featured-dock {
+    right: 12px;
+    bottom: 82px;
+    left: 12px;
+    width: auto;
+  }
+
+  .blobio-featured-link {
+    grid-template-columns: 82px 1fr;
+  }
+
+  .blobio-featured-thumb {
+    width: 82px;
+  }
+
+  .blobio-footer-dock {
+    padding: 10px 14px 12px;
+  }
+
+  .blobio-dock-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 14px;
+  }
+
+  .blobio-footer-links {
+    order: 1;
+  }
+
+  .blobio-footer-socials {
+    order: 3;
+  }
+
+  .blobio-footer-version {
+    order: 2;
+  }
 }
 
 .blobio-footer-modal-host .blobio-menu-panel.is-open {
